@@ -263,8 +263,10 @@
   <!-- ======== MERMA ======== -->
   <section data-view="merma" hidden>
     <div class="flex items-center justify-between mb-3"><h2 class="text-lg font-bold">Merma</h2>
-      <button onclick="openMerma()" class="bg-teal-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">+ Merma</button></div>
+      <div class="flex gap-2"><button onclick="exportarMermaExcel()" class="bg-emerald-600 text-white text-sm font-semibold px-3 py-2 rounded-xl">⬇ Excel</button>
+      <button onclick="openMerma()" class="bg-teal-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">+ Merma</button></div></div>
     <p class="text-xs text-slate-500 mb-2">Registra pérdidas (vencido, dañado, roto). Descuenta del inventario.</p>
+    <div id="mermaTotal" class="mb-2"></div>
     <div id="listaMerma" class="space-y-2"></div>
   </section>
 
@@ -429,7 +431,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="2.9"; // se incrementa con cada mejora
+const APP_VERSION="3.0"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1152,7 +1154,9 @@ function recibirOrden(id){ openRecepcion(id); }
 /* ===================== MERMA ===================== */
 function openMerma(id){ const m=id?db.list("merma").find(x=>x.id===id):{};
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Registrar"} merma</h3><div class="space-y-3">
-    <div><label class="text-xs text-slate-500">Producto</label><select id="f_producto_id" onchange="mermaNombre()" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="">(elige del inventario)</option>${optionsProductos(m.producto_id)}</select></div>
+    <div class="flex gap-2"><div class="flex-1"><label class="text-xs text-slate-500">Producto</label><select id="f_producto_id" onchange="mermaProd()" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="">(elige del inventario)</option>${optionsProductos(m.producto_id)}</select></div>
+      <div class="flex items-end"><button type="button" onclick="escanearMerma()" class="bg-teal-600 text-white px-3 py-2 rounded-xl font-semibold">📷</button></div></div>
+    <div><label class="text-xs text-slate-500">Proveedor que lo distribuye</label><select id="f_proveedor_id" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${optionsProveedores(m.proveedor_id)}</select></div>
     <div class="grid grid-cols-2 gap-3">${field("cantidad","Cantidad",m.cantidad,"number")}${selectField("motivo","Motivo",["Vencido","Dañado","Roto","Robo","Error","Otro"],m.motivo||"Vencido")}</div>
     <div class="grid grid-cols-2 gap-3">${selectField("area","Área",["Almacén","Cajas","Charcutería","Panadería","Frutas y verduras","Carnicería","Otros"],m.area)}${field("fecha","Fecha",m.fecha||hoy(),"date")}</div>
     <label class="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" id="f_descontar" ${id?"":"checked"}> Descontar del inventario</label></div>
@@ -1160,17 +1164,35 @@ function openMerma(id){ const m=id?db.list("merma").find(x=>x.id===id):{};
     ${id?`<button onclick="delMerma('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
 }
-function mermaNombre(){ /* placeholder para futura autocompletar */ }
-async function saveMerma(id){ if(bloqueoEdicion(id)) return; const r=readForm(["producto_id","cantidad","motivo","area","fecha"]); r.cantidad=Number(r.cantidad)||0;
+function mermaProd(){ const pid=document.getElementById("f_producto_id")?.value; const p=prodById(pid); const ps=document.getElementById("f_proveedor_id"); if(p && p.proveedor_id && ps) ps.value=p.proveedor_id; }
+function escanearMerma(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c); const sel=document.getElementById("f_producto_id");
+  if(p && sel){ sel.value=p.id; mermaProd(); toast("✔ "+p.nombre); const cant=document.getElementById("f_cantidad"); if(cant) cant.focus(); }
+  else toast("Código "+c+" no está en productos."); }); }
+function mermaCosto(m){ const pc=(m.precio_compra!=null&&m.precio_compra!=="")?Number(m.precio_compra):(Number(prodById(m.producto_id)?.precio_compra)||0); return { pc, costo:(m.costo!=null&&m.costo!=="")?Number(m.costo):+(pc*(Number(m.cantidad)||0)).toFixed(2) }; }
+async function saveMerma(id){ if(bloqueoEdicion(id)) return; const r=readForm(["producto_id","proveedor_id","cantidad","motivo","area","fecha"]); r.cantidad=Number(r.cantidad)||0;
   const p=prodById(r.producto_id); r.nombre=p?p.nombre:""; if(!r.nombre){ toast("Elige un producto"); return; }
+  if(!r.proveedor_id && p && p.proveedor_id) r.proveedor_id=p.proveedor_id;
+  r.precio_compra=p?Number(p.precio_compra)||0:0; r.costo=+(r.precio_compra*r.cantidad).toFixed(2);
   const descontar=document.getElementById("f_descontar")?.checked;
   try{ if(id) await db.update("merma",id,r); else { await db.insert("merma",r); if(descontar&&p) await db.update("productos",r.producto_id,{stock:Math.max(0,(Number(p.stock)||0)-r.cantidad)}); }
     closeModal(); render(); toast("Merma registrada"); }catch(e){ toast("Error: "+e.message); } }
 async function delMerma(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar?")){ await db.remove("merma",id); closeModal(); render(); } }
 function renderMerma(){ const l=db.list("merma").sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||"")); const c=document.getElementById("listaMerma");
-  if(!l.length){ c.innerHTML=empty("Sin merma registrada."); return; }
-  c.innerHTML=l.map(m=>`<div onclick="openMerma('${m.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(m.nombre)}</p><p class="text-xs text-slate-500 truncate">${esc(m.motivo||"")} · ${esc(m.area||"")} · ${esc(m.fecha||"")}</p></div><p class="font-semibold text-red-600">−${Number(m.cantidad)||0}</p></div>`).join("");
+  const tb=document.getElementById("mermaTotal");
+  if(!l.length){ if(tb) tb.innerHTML=""; c.innerHTML=empty("Sin merma registrada."); return; }
+  const totCant=l.reduce((s,m)=>s+(Number(m.cantidad)||0),0), totCosto=l.reduce((s,m)=>s+mermaCosto(m).costo,0);
+  if(tb) tb.innerHTML=`<div class="bg-slate-800 text-white rounded-2xl p-3 flex items-center justify-between"><span class="text-xs text-slate-300">Total merma (${l.length} registros)</span><span class="text-sm font-bold">${totCant} u · ${money(totCosto)}</span></div>`;
+  c.innerHTML=l.map(m=>{ const prov=provById(m.proveedor_id); const {costo}=mermaCosto(m);
+    return `<div onclick="openMerma('${m.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(m.nombre)}</p><p class="text-xs text-slate-500 truncate">${esc(m.motivo||"")} · ${esc(m.area||"")} · ${esc(m.fecha||"")}${prov?" · 🚚 "+esc(prov.nombre):""}</p></div><div class="text-right"><p class="font-semibold text-red-600">−${Number(m.cantidad)||0}</p><p class="text-[10px] text-slate-400">${money(costo)}</p></div></div>`; }).join("");
 }
+function exportarMermaExcel(){ if(!window.XLSX){ toast("Abre la app publicada para exportar"); return; }
+  const l=db.list("merma").sort((a,b)=>(a.fecha||"").localeCompare(b.fecha||"")); if(!l.length){ toast("Sin merma para exportar"); return; }
+  const headers=["Fecha","Producto","Proveedor","Motivo","Área","Cantidad","Precio costo","Costo total"];
+  const rows=l.map(m=>{ const prov=provById(m.proveedor_id); const {pc,costo}=mermaCosto(m); return [m.fecha||"", m.nombre||"", prov?prov.nombre:"", m.motivo||"", m.area||"", Number(m.cantidad)||0, pc, costo]; });
+  const totCant=rows.reduce((s,r)=>s+(Number(r[5])||0),0), totCosto=rows.reduce((s,r)=>s+(Number(r[7])||0),0);
+  const data=[headers,...rows,[],["","","","","TOTAL",totCant,"",+totCosto.toFixed(2)]];
+  const ws=XLSX.utils.aoa_to_sheet(data); ws["!cols"]=[{wch:12},{wch:36},{wch:24},{wch:10},{wch:14},{wch:10},{wch:12},{wch:12}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Merma"); XLSX.writeFile(wb,`merma_${hoy()}.xlsx`); toast("Excel descargado"); }
 
 /* ===================== ASIGNACIONES DE TRABAJO (con temporizador) ===================== */
 function openAsignacion(id){ const a=id?db.list("asignaciones").find(x=>x.id===id):{};
