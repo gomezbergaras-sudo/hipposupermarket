@@ -79,7 +79,8 @@
 
   <!-- ======== INICIO ======== -->
   <section data-view="inicio" hidden>
-    <h3 id="hResumen" class="font-bold text-sm mb-2 text-slate-600">Resumen</h3>
+    <div id="hResumen" class="flex items-center justify-between mb-2"><h3 class="font-bold text-sm text-slate-600">Resumen</h3>
+      <select id="filtroAreaResumen" onchange="render()" class="text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white"><option value="">Todas las áreas</option></select></div>
     <div id="resumenBox" class="grid grid-cols-2 gap-3">
       <div id="card_empleados" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Empleados activos</p><p id="mEmpleados" class="text-2xl font-bold text-teal-700">0</p></div>
       <div id="card_nomina" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Nómina base / mes</p><p id="mNomina" class="text-2xl font-bold text-teal-700">0</p></div>
@@ -90,6 +91,7 @@
       <div id="card_incid" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Incidencias abiertas</p><p id="mIncid" class="text-2xl font-bold text-amber-600">0</p></div>
       <div id="card_repo" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Secciones por reponer</p><p id="mRepo" class="text-2xl font-bold text-amber-600">0</p></div>
     </div>
+    <div id="desgloseAreas" class="mt-3"></div>
 
     <h3 id="hRRHH" class="font-bold text-sm mt-5 mb-2 text-slate-600">Personal y RRHH</h3>
     <div class="grid grid-cols-3 gap-3" id="tilesRRHH"></div>
@@ -427,7 +429,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="2.7"; // se incrementa con cada mejora
+const APP_VERSION="2.8"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -793,6 +795,23 @@ async function saveEmpleado(id){ if(bloqueoEdicion(id)) return; const r=readForm
   if(!r.nombre){ toast("El nombre es obligatorio"); return; } r.salario_base=Number(r.salario_base)||0;
   try{ id?await db.update("empleados",id,r):await db.insert("empleados",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delEmpleado(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar empleado?")){ await db.remove("empleados",id); closeModal(); render(); } }
+function renderDesgloseAreas(empsAll, areaSel){ const c=document.getElementById("desgloseAreas"); if(!c) return;
+  // Agrupa por área OFICIAL (empareja sin mayúsculas); lo que no calce va a "Sin área / otras"
+  const filas=AREAS.map(a=>{ const s=a.trim().toLowerCase(); const es=empsAll.filter(e=>(e.area||"").trim().toLowerCase()===s); return {area:a, n:es.length, nom:es.reduce((x,e)=>x+(Number(e.salario_base)||0),0)}; }).filter(f=>f.n>0);
+  const oficialSet=new Set(AREAS.map(a=>a.trim().toLowerCase()));
+  const otros=empsAll.filter(e=>!oficialSet.has((e.area||"").trim().toLowerCase()));
+  if(otros.length) filas.push({area:"Sin área / otras", n:otros.length, nom:otros.reduce((x,e)=>x+(Number(e.salario_base)||0),0), otras:true});
+  const totN=empsAll.length, totNom=empsAll.reduce((x,e)=>x+(Number(e.salario_base)||0),0);
+  const selS=(areaSel||"").trim().toLowerCase();
+  const fil=filas.map(f=>{ const activo=selS && f.area.trim().toLowerCase()===selS;
+    return `<div class="flex items-center justify-between px-3 py-2 ${activo?"bg-teal-50":""} border-b border-slate-100 last:border-0">
+      <span class="text-sm ${activo?"font-semibold text-teal-800":"text-slate-700"} truncate">${esc(f.area)}</span>
+      <span class="text-xs shrink-0"><b>${f.n}</b> emp · <b class="text-teal-700">${money(f.nom)}</b></span></div>`; }).join("");
+  c.innerHTML=`<div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between px-3 py-2 bg-slate-800 text-white"><span class="text-xs font-semibold">Total general</span><span class="text-xs"><b>${totN}</b> empleados · <b>${money(totNom)}</b></span></div>
+    <p class="text-[10px] text-slate-400 px-3 pt-2">Desglose por área (empleados activos · nómina base mensual)</p>
+    ${fil||`<p class="text-xs text-slate-400 text-center py-4">Sin datos.</p>`}</div>`;
+}
 function renderEmpleados(){ const q=(document.getElementById("buscarEmp")?.value||"").toLowerCase();
   // Poblar el filtro solo con las áreas designadas por la app (config)
   const fa=document.getElementById("filtroAreaEmp");
@@ -1828,7 +1847,12 @@ function render(){
   { const de=document.getElementById("dlEmpleados"); if(de) de.innerHTML=db.list("empleados").map(e=>`<option value="${esc(e.nombre)}">`).join("");
     const dc=document.getElementById("dlCajeros"); if(dc) dc.innerHTML=db.list("empleados").filter(e=>e.estado!=="Inactivo" && /caja/i.test(e.area||"")).map(e=>`<option value="${esc(e.nombre)}">`).join("");
     const dp=document.getElementById("dlProveedores"); if(dp) dp.innerHTML=db.list("proveedores").map(p=>`<option value="${esc(p.nombre)}">`).join(""); }
-  const emps=db.list("empleados").filter(e=>e.estado!=="Inactivo");
+  const empsAll=db.list("empleados").filter(e=>e.estado!=="Inactivo");
+  // Filtro de área del Resumen (áreas oficiales de la app, coincidencia sin mayúsculas)
+  const faR=document.getElementById("filtroAreaResumen");
+  if(faR){ const actual=faR.value; faR.innerHTML=`<option value="">Todas las áreas</option>`+AREAS.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join(""); if(AREAS.includes(actual)) faR.value=actual; }
+  const areaR=faR?faR.value:""; const sR=areaR.trim().toLowerCase();
+  const emps=areaR?empsAll.filter(e=>(e.area||"").trim().toLowerCase()===sR):empsAll;
   document.getElementById("mEmpleados").textContent=emps.length;
   document.getElementById("mNomina").textContent=money(emps.reduce((s,e)=>s+(Number(e.salario_base)||0),0));
   document.getElementById("mTareas").textContent=db.list("tareas").filter(t=>(t.estado||"Pendiente")!=="Hecha").length;
@@ -1844,6 +1868,8 @@ function render(){
   if(verResumen){ const showCard=(cid,view)=>{ const el=document.getElementById(cid); if(el) el.style.display=puede(view)?"":"none"; };
     showCard("card_empleados","empleados"); showCard("card_nomina","nomina"); showCard("card_tareas","tareas"); showCard("card_eval","eval");
     showCard("card_inv","inventario"); showCard("card_ordenes","ordenes"); showCard("card_incid","piso"); showCard("card_repo","piso"); }
+  { const da=document.getElementById("desgloseAreas");
+    if(da){ if(verResumen && (puede("empleados")||puede("nomina"))){ da.style.display=""; renderDesgloseAreas(empsAll,areaR); } else da.style.display="none"; } }
 
   renderEmpleados(); renderBonos(); renderEval(); renderEvalSup(); renderAsistencia(); renderTareas(); renderAsignaciones(); renderNomina(); renderDiasLibres();
   renderProveedores(); renderInventario(); renderOrdenes(); renderRecepcion(); renderRecepHistory(); renderMerma();
