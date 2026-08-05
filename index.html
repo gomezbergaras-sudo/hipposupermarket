@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <meta name="theme-color" content="#0d9488" />
 <title>Hipposupermarket</title>
 
@@ -313,6 +316,15 @@
     <div id="listaDeudas" class="space-y-2"></div>
   </section>
 
+  <!-- ======== CONEXIONES ======== -->
+  <section data-view="conexiones" hidden>
+    <h2 class="text-lg font-bold mb-1">Conexiones</h2>
+    <p class="text-xs text-slate-500 mb-3">Quién entró a la app, desde y hasta qué hora, y cuánto tiempo estuvo conectado.</p>
+    <input id="conexFecha" type="date" onchange="renderConexiones()" class="w-full mb-3 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" />
+    <div id="conexResumen" class="mb-3"></div>
+    <div id="listaConexiones" class="space-y-2"></div>
+  </section>
+
   <!-- ======== AJUSTES ======== -->
   <section data-view="ajustes" hidden>
     <h2 class="text-lg font-bold mb-3">Ajustes</h2>
@@ -394,7 +406,7 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","deudas"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","deudas","sesiones"];
 let AREAS=["Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
@@ -450,6 +462,8 @@ function aplicarCambioRealtime(t, payload){
   else if(payload.eventType==="DELETE"){ if(viejo) store[t]=arr.filter(r=>r.id!==viejo.id); }
   // si el usuario cambió sus propios permisos en otro dispositivo, refrescar acceso
   if(t==="usuarios" && currentUser && nuevo && nuevo.id===currentUser.id){ currentUser={...currentUser,...nuevo}; aplicarPermisos(); }
+  // los latidos de sesiones son muy frecuentes: solo re-render si se está viendo Conexiones
+  if(t==="sesiones" && currentView!=="conexiones") return;
   if(currentUser) render();
 }
 function suscribirRealtime(){
@@ -622,18 +636,19 @@ const MODULES = {
   caja:{parent:"finanzas",title:"Caja",sub:"Caja y Finanzas"},
   tesoreria:{parent:"finanzas",title:"Tesorería",sub:"Caja y Finanzas"},
   deudas:{parent:"finanzas",title:"Finanzas",sub:"Caja y Finanzas"},
+  conexiones:{parent:"finanzas",title:"Conexiones",sub:"Caja y Finanzas"},
 };
 const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"]];
 const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"]];
 const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"]];
-const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["deudas","📊","Finanzas"]];
+const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
 let currentView="inicio";
 
 /* ---------- USUARIOS Y PERMISOS ---------- */
 const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia"];
 const PROD_VIEWS=["proveedores","inventario","ordenes","recepcion","merma"];
 const SUP_VIEWS=["piso","tareas","asignaciones","diaslibres"];
-const FIN_VIEWS=["caja","tesoreria","deudas"];
+const FIN_VIEWS=["caja","tesoreria","deudas","conexiones"];
 // Todas las opciones que gerencia puede otorgar/quitar por usuario (tesoreria es solo gerencia, por eso no está aquí)
 const OPCIONES=[
   ["resumen","Resumen / indicadores del inicio"],
@@ -666,9 +681,29 @@ function loginManual(){ const nom=(document.getElementById("userInput").value||"
   setUser(u); }
 function setUser(u){ currentUser=u; localStorage.setItem("supergestion_user",u.id);
   document.getElementById("login").style.display="none";
-  aplicarPermisos(); show("inicio"); }
+  aplicarPermisos(); iniciarSesion(); show("inicio"); }
 function mostrarLogin(){ renderLoginRoles(); pintarMarca(); document.getElementById("login").style.display="flex"; }
-function logout(){ if(confirm("¿Cerrar sesión?")){ currentUser=null; localStorage.removeItem("supergestion_user"); mostrarLogin(); } }
+async function logout(){ if(confirm("¿Cerrar sesión?")){ await finalizarSesion(); currentUser=null; localStorage.removeItem("supergestion_user"); mostrarLogin(); } }
+/* ---------- REGISTRO DE CONEXIONES (sesiones) ---------- */
+let currentSesionId=null, sesionHeartbeat=null;
+async function iniciarSesion(){ if(!currentUser) return;
+  try{ const row=await db.insert("sesiones",{usuario_id:currentUser.id, usuario_nombre:currentUser.nombre||"", inicio:new Date().toISOString(), fin:new Date().toISOString(), fecha:new Date().toISOString().slice(0,10)}); currentSesionId=row.id; }catch(e){}
+  if(sesionHeartbeat) clearInterval(sesionHeartbeat); sesionHeartbeat=setInterval(latidoSesion,60000); }
+async function latidoSesion(){ if(currentSesionId){ try{ await db.update("sesiones",currentSesionId,{fin:new Date().toISOString()}); }catch(e){} } }
+async function finalizarSesion(){ if(sesionHeartbeat){ clearInterval(sesionHeartbeat); sesionHeartbeat=null; } if(currentSesionId){ try{ await db.update("sesiones",currentSesionId,{fin:new Date().toISOString()}); }catch(e){} currentSesionId=null; } }
+window.addEventListener("beforeunload", ()=>{ try{ if(currentSesionId && USE_CLOUD && sb) sb.from("sesiones").update({fin:new Date().toISOString()}).eq("id",currentSesionId); else if(currentSesionId){ latidoSesion(); } }catch(e){} });
+function fmtDuracionMin(min){ min=Math.max(0,Math.round(min)); const h=Math.floor(min/60), m=min%60; return (h?h+"h ":"")+m+"m"; }
+function horaDe(iso){ if(!iso) return "—"; const d=new Date(iso); if(isNaN(d)) return "—"; return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
+function renderConexiones(){ const el=document.getElementById("conexFecha"); if(el&&!el.value) el.value=new Date().toISOString().slice(0,10); const fecha=el?el.value:new Date().toISOString().slice(0,10);
+  const c=document.getElementById("listaConexiones"); if(!c) return; const res=document.getElementById("conexResumen");
+  let l=db.list("sesiones").filter(s=>(s.fecha||(s.inicio||"").slice(0,10))===fecha).sort((a,b)=>String(b.inicio||"").localeCompare(String(a.inicio||"")));
+  const totalMin=l.reduce((s,x)=>s+Math.max(0,(new Date(x.fin||x.inicio)-new Date(x.inicio))/60000),0);
+  const usuarios=new Set(l.map(x=>x.usuario_nombre)).size;
+  if(res) res.innerHTML=`<div class="grid grid-cols-2 gap-2"><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Conexiones del día</p><p class="text-lg font-bold text-teal-700">${l.length}</p></div><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Usuarios / tiempo total</p><p class="text-lg font-bold text-teal-700">${usuarios} · ${fmtDuracionMin(totalMin)}</p></div></div>`;
+  if(!l.length){ c.innerHTML=empty("Sin conexiones en la fecha."); return; }
+  c.innerHTML=l.map(s=>{ const min=Math.max(0,(new Date(s.fin||s.inicio)-new Date(s.inicio))/60000); const activa=currentSesionId===s.id;
+    return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(s.usuario_nombre||"—")} ${activa?'<span class="text-[10px] text-emerald-600">● en línea</span>':''}</p><p class="text-xs text-slate-500">${horaDe(s.inicio)} → ${activa?"ahora":horaDe(s.fin)}</p></div><span class="text-sm font-semibold text-teal-700">${fmtDuracionMin(min)}</span></div>`; }).join("");
+}
 function aplicarPermisos(){
   const any=(arr)=> arr.some(v=>puede(v));
   const showTab=(name,vis)=>{ const b=document.querySelector('.tab[data-tab="'+name+'"]'); if(b) b.style.display=vis?"":"none"; };
@@ -1517,7 +1552,7 @@ function render(){
 
   renderEmpleados(); renderBonos(); renderEval(); renderEvalSup(); renderAsistencia(); renderTareas(); renderAsignaciones(); renderNomina(); renderDiasLibres();
   renderProveedores(); renderInventario(); renderOrdenes(); renderRecepcion(); renderRecepHistory(); renderMerma();
-  renderSecciones(); renderIncidencias(); renderCaja(); renderTesoreria(); renderDeudas();
+  renderSecciones(); renderIncidencias(); renderCaja(); renderTesoreria(); renderDeudas(); renderConexiones();
 
   document.getElementById("cfgNombre").value=ajustes.nombre; document.getElementById("cfgHoraEntrada").value=ajustes.horaEntrada; document.getElementById("cfgMoneda").value=ajustes.moneda;
   document.getElementById("logoPreview").innerHTML=`<img src="${ajustes.logo||LOGO_DEFAULT}" class="w-full h-full object-contain">`;
@@ -1563,7 +1598,7 @@ async function cargarDemo(){
   if(!db.list("usuarios").length){ await seedUsuarios(); }
   const savedId=localStorage.getItem("supergestion_user");
   const u=savedId && db.list("usuarios").find(x=>x.id===savedId && x.activo!==false);
-  if(u){ currentUser=u; aplicarPermisos(); show("inicio"); }
+  if(u){ currentUser=u; aplicarPermisos(); iniciarSesion(); show("inicio"); }
   else { mostrarLogin(); }
 })();
 </script>
