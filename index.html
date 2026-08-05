@@ -104,6 +104,7 @@
     <div class="grid grid-cols-3 gap-3" id="tilesFin"></div>
 
     <button onclick="sincronizarMaestro()" class="w-full mt-6 bg-teal-600 text-white font-semibold py-3 rounded-xl active:bg-teal-700">🔄 Sincronizar</button>
+    <p id="ultSync" class="text-[11px] text-center mt-1 text-slate-400">Última sincronización: —</p>
     <button onclick="logout()" class="w-full mt-2 bg-white border border-slate-200 text-slate-600 font-semibold py-3 rounded-xl active:bg-slate-50">⎋ Cerrar sesión</button>
   </section>
 
@@ -416,6 +417,8 @@ const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "F
 function diasEntre(desde,hasta){ if(!desde||!hasta) return NaN; return Math.ceil((new Date(hasta+"T00:00:00")-new Date(desde+"T00:00:00"))/86400000); }
 function diasHasta(f){ return diasEntre(new Date().toISOString().slice(0,10), f); }
 let sb=null, USE_CLOUD=false, store={};
+let ultimaSyncTs=Date.now(), lastSyncISO=null;
+function marcarSync(){ ultimaSyncTs=Date.now(); lastSyncISO=new Date().toISOString(); pintarUltSync(); }
 function uid(){ return "id"+Math.random().toString(36).slice(2,10)+Date.now().toString(36); }
 const LS_KEY="supergestion_v2";
 function lsLoad(){ try{ return JSON.parse(localStorage.getItem(LS_KEY))||{}; }catch(e){ return {}; } }
@@ -432,12 +435,20 @@ const db = {
     }
     if (USE_CLOUD){ for (const t of TABLES){ const { data } = await sb.from(t).select("*"); store[t]=data||[]; } suscribirRealtime(); }
     else { const s=lsLoad(); TABLES.forEach(t=> store[t]=s[t]||[]); }
-    cargarConfigCompartida();
+    cargarConfigCompartida(); marcarSync();
   },
-  async recargar(){ // sincronización maestra: recarga todo desde la nube
-    if(USE_CLOUD){ for (const t of TABLES){ const { data } = await sb.from(t).select("*"); store[t]=data||[]; } }
+  async recargar(){ // sincronización: incremental (solo cambios) con respaldo a completa
+    if(USE_CLOUD){
+      let inc = !!lastSyncISO;
+      if(inc){
+        try{ for (const t of TABLES){ const { data, error } = await sb.from(t).select("*").gt("actualizado", lastSyncISO); if(error) throw error;
+            (data||[]).forEach(row=>{ const i=store[t].findIndex(r=>r.id===row.id); if(i>=0) store[t][i]=row; else store[t].push(row); }); }
+        }catch(e){ inc=false; } // si falta la columna "actualizado", carga completa
+      }
+      if(!inc){ for (const t of TABLES){ const { data } = await sb.from(t).select("*"); store[t]=data||[]; } }
+    }
     else { const s=lsLoad(); TABLES.forEach(t=> store[t]=s[t]||[]); }
-    cargarConfigCompartida();
+    cargarConfigCompartida(); marcarSync();
   },
   list(t){ return store[t]||[]; },
   async insert(t,row){ row.id=row.id||uid(); row.creado=row.creado||new Date().toISOString();
@@ -462,6 +473,7 @@ function aplicarCambioRealtime(t, payload){
   else if(payload.eventType==="DELETE"){ if(viejo) store[t]=arr.filter(r=>r.id!==viejo.id); }
   // si el usuario cambió sus propios permisos en otro dispositivo, refrescar acceso
   if(t==="usuarios" && currentUser && nuevo && nuevo.id===currentUser.id){ currentUser={...currentUser,...nuevo}; aplicarPermisos(); }
+  ultimaSyncTs=Date.now(); pintarUltSync();
   // los latidos de sesiones son muy frecuentes: solo re-render si se está viendo Conexiones
   if(t==="sesiones" && currentView!=="conexiones") return;
   if(currentUser) render();
@@ -1351,6 +1363,9 @@ function escanearBuscarProducto(){ abrirEscaner((code)=>{
 
 /* ===================== SINCRONIZACIÓN MAESTRA ===================== */
 async function sincronizarMaestro(){ toast("Sincronizando…"); try{ await db.recargar(); render(); toast("✔ Sincronizado con todos los dispositivos"); }catch(e){ toast("Error al sincronizar: "+e.message); } }
+function tiempoRel(ts){ const s=Math.floor((Date.now()-ts)/1000); if(s<10) return "justo ahora"; if(s<60) return "hace "+s+" s"; const m=Math.floor(s/60); if(m<60) return "hace "+m+" min"; const h=Math.floor(m/60); return "hace "+h+" h"; }
+function pintarUltSync(){ const el=document.getElementById("ultSync"); if(!el) return; el.textContent="Última sincronización: "+tiempoRel(ultimaSyncTs); const fresco=(Date.now()-ultimaSyncTs)<120000; el.className="text-[11px] text-center mt-1 "+(fresco?"text-emerald-600":"text-amber-600"); }
+setInterval(pintarUltSync, 20000);
 
 /* ===================== PERMISOS TAREAS/ASIGNACIONES ===================== */
 function esSupervisorU(){ return !!(currentUser && (currentUser.es_gerencia || currentUser.es_supervisor || currentUser.es_asistente)); }
@@ -1530,7 +1545,7 @@ async function borrarBanco(b){ if(!confirm("¿Borrar el banco "+b+"?")) return; 
 
 /* ===================== DASHBOARD / RENDER ===================== */
 function render(){
-  renderTiles();
+  renderTiles(); pintarUltSync();
   { const de=document.getElementById("dlEmpleados"); if(de) de.innerHTML=db.list("empleados").map(e=>`<option value="${esc(e.nombre)}">`).join("");
     const dp=document.getElementById("dlProveedores"); if(dp) dp.innerHTML=db.list("proveedores").map(p=>`<option value="${esc(p.nombre)}">`).join(""); }
   const emps=db.list("empleados").filter(e=>e.estado!=="Inactivo");
