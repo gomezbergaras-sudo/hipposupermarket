@@ -1020,9 +1020,9 @@ function renderInventario(){ const q=(document.getElementById("buscarProd")?.val
 
 /* ===================== ÓRDENES DE COMPRA ===================== */
 let tempItems=[];
-function openOrden(id){ const o=id?db.list("ordenes").find(x=>x.id===id):null; tempItems=o?JSON.parse(JSON.stringify(o.items||[])):[];
+function openOrden(id){ const o=id?db.list("ordenes").find(x=>x.id===id):null; tempItems=o?JSON.parse(JSON.stringify(o.items||[])):[]; const provSel=o&&o.proveedor_id?provById(o.proveedor_id):null;
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Orden":"Nueva orden"} de compra</h3><div class="space-y-3">
-    <div><label class="text-xs text-slate-500">Proveedor</label><select id="f_proveedor_id" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${optionsProveedores(o?.proveedor_id)}</select></div>
+    <div><label class="text-xs text-slate-500">Proveedor</label><input id="f_proveedor" list="dlProveedores" value="${provSel?esc(provSel.nombre):""}" placeholder="🔎 Escribe para buscar…" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
     <div class="grid grid-cols-2 gap-3">${field("fecha","Fecha",o?.fecha||hoy(),"date")}${selectField("estado","Estado",["Pendiente","Enviada","Recibida","Cancelada"],o?.estado||"Pendiente")}</div>
     <div class="bg-slate-50 rounded-xl p-3"><p class="text-xs font-semibold text-slate-600 mb-2">Productos</p>
       <div class="grid grid-cols-12 gap-1 items-end">
@@ -1048,7 +1048,10 @@ function ordenTotal(items){ return (items||[]).reduce((s,it)=>s+(Number(it.canti
 function renderItems(){ const c=document.getElementById("oi_lista"); if(!c) return;
   c.innerHTML=tempItems.length?tempItems.map((it,i)=>`<div class="flex items-center justify-between text-sm bg-white rounded-lg px-2 py-1"><span class="truncate">${esc(it.nombre)} × ${it.cantidad}</span><span class="flex items-center gap-2"><b>${money(it.cantidad*it.precio)}</b><button onclick="removeItem(${i})" class="text-red-500">✕</button></span></div>`).join(""):`<p class="text-xs text-slate-400">Aún sin productos.</p>`;
   const tot=document.getElementById("oi_total"); if(tot) tot.textContent="Total: "+money(ordenTotal(tempItems)); }
-async function saveOrden(id){ if(bloqueoEdicion(id)) return; const r=readForm(["proveedor_id","fecha","estado","notas"]); if(!tempItems.length){ toast("Agrega al menos un producto"); return; }
+async function saveOrden(id){ if(bloqueoEdicion(id)) return; const r=readForm(["fecha","estado","notas"]);
+  const nom=(document.getElementById("f_proveedor").value||"").trim().toLowerCase();
+  const prov=nom?db.list("proveedores").find(p=>(p.nombre||"").trim().toLowerCase()===nom):null; r.proveedor_id=prov?prov.id:"";
+  if(!tempItems.length){ toast("Agrega al menos un producto"); return; }
   r.items=tempItems; r.total=ordenTotal(tempItems); try{ id?await db.update("ordenes",id,r):await db.insert("ordenes",r); closeModal(); render(); toast("Orden guardada"); }catch(e){ toast("Error: "+e.message); } }
 async function delOrden(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar orden?")){ await db.remove("ordenes",id); closeModal(); render(); } }
 function ordenTexto(o){ const prov=provById(o.proveedor_id); let t=`*ORDEN DE COMPRA*\n${ajustes.nombre}\nFecha: ${o.fecha||""}\n`; if(prov) t+=`Proveedor: ${prov.nombre}\n`; t+="\n";
@@ -1464,7 +1467,24 @@ function puedeEditarTA(item){ if(!currentUser) return false; if(currentUser.es_g
 function puedeVerTotales(){ return !!(currentUser && !currentUser.es_asistente); }
 
 /* ===================== EXCEL: helpers e importaciones ===================== */
-function leerExcel(file, cb){ const rd=new FileReader(); rd.onload=()=>{ try{ const wb=XLSX.read(new Uint8Array(rd.result),{type:"array"}); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""}); cb(rows); }catch(e){ toast("Error al leer Excel: "+e.message); } }; rd.readAsArrayBuffer(file); }
+const HEADER_KW=["nombre","nombres","apellidos","cedula","cédula","ci","producto","proveedor","empresa","razon","razón","monto","rif","sueldo","salario","ubicacion","ubicación","sede","sucursal","area","área","codigo","código","precio","fecha","cargo","categoria","categoría","abonado","deuda","stock","telefono","teléfono","contacto"];
+function leerExcel(file, cb){ const rd=new FileReader(); rd.onload=()=>{ try{
+    const wb=XLSX.read(new Uint8Array(rd.result),{type:"array"});
+    const sheet=wb.Sheets[wb.SheetNames[0]];
+    const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,defval:""});
+    // Detecta la fila de títulos (salta encabezados/logos arriba): la primera con ≥2 celdas que sean palabras conocidas
+    let hi=-1;
+    for(let i=0;i<Math.min(matrix.length,40);i++){ const row=(matrix[i]||[]).map(c=>String(c).trim().toLowerCase()); const hits=row.filter(c=>HEADER_KW.includes(c)).length; if(hits>=2){ hi=i; break; } }
+    const headless = hi<0;                                   // archivo sin títulos reconocibles
+    const headers = headless ? [] : (matrix[hi]||[]).map(c=>String(c).trim());
+    const start = headless ? 0 : hi+1;
+    const rows=[];
+    for(let i=start;i<matrix.length;i++){ const arr=matrix[i]||[]; if(!arr.some(c=>String(c).trim()!=="")) continue;
+      const o={};
+      arr.forEach((v,j)=>{ o["col"+(j+1)] = v!==undefined?v:""; if(!headless && headers[j]!==undefined && headers[j]!=="") o[headers[j]]=v!==undefined?v:""; });
+      rows.push(o); }
+    cb(rows);
+  }catch(e){ toast("Error al leer Excel: "+e.message); } }; rd.readAsArrayBuffer(file); }
 function bajarPlantilla(nombre, headers, ejemplo){ const ws=XLSX.utils.aoa_to_sheet([headers, ejemplo]); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Datos"); XLSX.writeFile(wb, nombre); }
 function numExcel(v){ return Number(String(v).replace(/[^\d.\-]/g,""))||0; }
 /* Importador genérico tolerante: cuenta cargados, ignora filas vacías y reporta el error exacto */
@@ -1488,12 +1508,20 @@ function importarGenerico(file, tabla, mapRow, msgId){
 }
 function importarExcelPersonal(ev){ const f=ev.target.files[0]; if(!f) return;
   importarGenerico(f, "empleados", raw=>{ const nombre=String(pick(raw,["nombre completo","nombre","name","apellidos y nombres","nombres"])).trim(); if(!nombre) return null;
-    return { nombre, cedula:String(pick(raw,["cedula","cédula","ci","id","c.i","documento"])).trim(), fecha_ingreso:normFecha(pick(raw,["fecha de ingreso","fecha ingreso","ingreso","fecha"])), salario_base:numExcel(pick(raw,["salario mensual","salario","mensual","sueldo","sueldo mensual"])), area:String(pick(raw,["area","área","departamento"])).trim(), cargo:String(pick(raw,["cargo","puesto"])).trim(), estado:"Activo" };
+    return { nombre, cedula:String(pick(raw,["cedula","cédula","ci","id","c.i","documento"])).trim().replace(/\.0$/,""), fecha_ingreso:normFecha(pick(raw,["fecha de ingreso","fecha ingreso","ingreso","fecha"])), salario_base:numExcel(pick(raw,["sueldo mensual","salario mensual","salario","mensual","sueldo"])), area:String(pick(raw,["ubicacion","ubicación","area","área","departamento","sede","sucursal"])).trim(), cargo:String(pick(raw,["cargo","puesto"])).trim(), estado:"Activo" };
   }, "impEmpMsg"); ev.target.value=""; }
 function plantillaPersonal(){ bajarPlantilla("plantilla_personal.xlsx",["Nombre completo","Cedula","Fecha de ingreso","Salario mensual","Salario quincenal","Area","Cargo"],["Juan Pérez","V-12345678","01/03/2024",300,150,"Cajas","Cajero"]); }
 function importarExcelProveedores(ev){ const f=ev.target.files[0]; if(!f) return;
-  importarGenerico(f, "proveedores", raw=>{ const nombre=String(pick(raw,["nombre","empresa","proveedor","razon social","razón social"])).trim(); if(!nombre) return null;
-    return { nombre, rif:String(pick(raw,["rif","identificacion fiscal","identificación fiscal","id fiscal"])).trim(), contacto:String(pick(raw,["contacto","persona"])).trim(), telefono:String(pick(raw,["telefono","teléfono","whatsapp","celular"])).trim(), productos:String(pick(raw,["productos","surte","rubro"])).trim() };
+  importarGenerico(f, "proveedores", raw=>{
+    let nombre=String(pick(raw,["nombre","empresa","proveedor","razon social","razón social","nombre proveedor","descripcion","descripción"])).trim();
+    let rif=String(pick(raw,["rif","identificacion fiscal","identificación fiscal","id fiscal","cedula","cédula","documento"])).trim();
+    // Archivos sin títulos (ej: columna RIF y columna Nombre): deducir por contenido
+    if(!nombre || !rif){ const vals=[]; Object.keys(raw).forEach(k=>{ if(/^col\d+$/.test(k)){ const v=String(raw[k]).trim(); if(v!=="") vals.push(v); } });
+      if(vals.length>=2){ const letras=(s)=>(s.match(/[a-zA-ZñÑáéíóúÁÉÍÓÚ]/g)||[]).length; const ord=[...vals].sort((a,b)=>letras(a)-letras(b));
+        if(!rif) rif=ord[0]; if(!nombre) nombre=ord[ord.length-1]; }
+      else if(vals.length===1 && !nombre){ nombre=vals[0]; } }
+    rif=rif.replace(/\.0$/,""); if(!nombre) return null;
+    return { nombre, rif, contacto:String(pick(raw,["contacto","persona"])).trim(), telefono:String(pick(raw,["telefono","teléfono","whatsapp","celular"])).trim(), productos:String(pick(raw,["productos","surte","rubro"])).trim() };
   }, "impProvMsg"); ev.target.value=""; }
 function plantillaProveedores(){ bajarPlantilla("plantilla_proveedores.xlsx",["Nombre","RIF","Contacto","Telefono","Productos"],["Distribuidora El Sol","J-12345678-9","Pedro","584120000000","Abarrotes"]); }
 function importarExcelProductos(ev){ const f=ev.target.files[0]; if(!f) return;
