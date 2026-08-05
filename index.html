@@ -199,6 +199,14 @@
     <div id="listaDiasLibres" class="space-y-2"></div>
   </section>
 
+  <!-- ======== INCIDENCIAS DE PERSONAL (asistencia) ======== -->
+  <section data-view="incpersonal" hidden>
+    <h2 class="text-lg font-bold mb-1">Incidencias de personal</h2>
+    <p class="text-xs text-slate-500 mb-3">Registra llegadas tarde y faltas. Cada supervisor gestiona solo el personal de su área. Puedes adjuntar foto del justificativo (ej: médico).</p>
+    <div id="ipAreaWrap" class="mb-3"></div>
+    <div id="listaIncPersonal" class="space-y-2"></div>
+  </section>
+
   <!-- ======== PROVEEDORES ======== -->
   <section data-view="proveedores" hidden>
     <div class="flex items-center justify-between mb-3"><h2 class="text-lg font-bold">Proveedores</h2>
@@ -429,11 +437,11 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","deudas","prestamos","sesiones"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","deudas","prestamos","inc_personal","sesiones"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="3.1"; // se incrementa con cada mejora
+const APP_VERSION="3.2"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -662,6 +670,7 @@ const MODULES = {
   tareas:{parent:"supervisores",title:"Tareas",sub:"Supervisores"},
   asignaciones:{parent:"supervisores",title:"Asignaciones de trabajo",sub:"Supervisores"},
   diaslibres:{parent:"supervisores",title:"Días libres",sub:"Supervisores"},
+  incpersonal:{parent:"supervisores",title:"Incidencias de personal",sub:"Supervisores"},
   piso:{parent:"supervisores",title:"Piso de venta",sub:"Supervisores"},
   proveedores:{parent:"productos",title:"Proveedores",sub:"Productos y Compras"},
   inventario:{parent:"productos",title:"Inventario",sub:"Productos y Compras"},
@@ -675,24 +684,24 @@ const MODULES = {
 };
 const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"]];
 const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"]];
-const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"]];
+const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"],["incpersonal","⏰","Asistencia personal"]];
 const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
 let currentView="inicio";
 
 /* ---------- USUARIOS Y PERMISOS ---------- */
 const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia"];
 const PROD_VIEWS=["proveedores","inventario","ordenes","recepcion","merma"];
-const SUP_VIEWS=["piso","tareas","asignaciones","diaslibres"];
+const SUP_VIEWS=["piso","tareas","asignaciones","diaslibres","incpersonal"];
 const FIN_VIEWS=["caja","tesoreria","deudas","conexiones"];
 // Todas las opciones que gerencia puede otorgar/quitar por usuario (tesoreria es solo gerencia, por eso no está aquí)
 const OPCIONES=[
   ["resumen","Resumen / indicadores del inicio"],
   ["empleados","Personal"],["nomina","Nómina"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],
-  ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],
+  ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],["incpersonal","Incidencias de personal (asistencia)"],
   ["proveedores","Proveedores"],["inventario","Inventario"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],
   ["caja","Caja (cierres)"],["deudas","Finanzas (deudas)"]
 ];
-const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","proveedores","inventario","ordenes","recepcion","merma"];
+const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma"];
 const OP_PERM=["tareas","asignaciones","asistencia","piso"];
 let currentUser=null;
 function puede(view){ if(!currentUser) return false; if(view==="inicio") return true; if(currentUser.es_gerencia) return true; if(view==="ajustes") return false; return (currentUser.permisos||[]).includes(view); }
@@ -1018,6 +1027,55 @@ async function saveDiaLibre(empId){ const e=empById(empId); if(!e){ return; }
   try{ await db.insert("dias_libres",r); closeModal(); render(); toast("Día libre asignado"); }catch(err){ toast("Error: "+err.message); } }
 async function delDiaLibre(id){ if(bloqueoBorrado()) return; const d=db.list("dias_libres").find(x=>x.id===id); if(!d) return;
   if(confirm("¿Quitar este día libre?")){ await db.remove("dias_libres",id); render(); toast("Día libre quitado"); } }
+
+/* ===================== INCIDENCIAS DE PERSONAL (asistencia por área) ===================== */
+function mismaAreaCI(a,b){ return (a||"").trim().toLowerCase()===(b||"").trim().toLowerCase(); }
+function puedeGestionarAreaCI(area){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.area && mismaAreaCI(currentUser.area,area)))); }
+function areaActualIP(){ if(currentUser && currentUser.es_gerencia){ return document.getElementById("ipAreaSel")?.value || AREAS[0]; } return currentUser? (currentUser.area||"") : ""; }
+const IP_TIPOS=["Llegada tarde","Falta","Falta justificada","Permiso","Retiro anticipado","Otro"];
+function renderIncPersonal(){
+  const wrap=document.getElementById("ipAreaWrap"), cont=document.getElementById("listaIncPersonal"); if(!cont) return;
+  const esGer=!!(currentUser && currentUser.es_gerencia);
+  if(esGer){ const cur=document.getElementById("ipAreaSel")?.value||AREAS[0];
+    wrap.innerHTML=`<label class="text-xs text-slate-500">Área</label><select id="ipAreaSel" onchange="render()" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${AREAS.map(a=>`<option ${a===cur?"selected":""}>${esc(a)}</option>`).join("")}</select>`;
+  } else { wrap.innerHTML=`<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-sm">Tu área: <b>${esc(currentUser&&currentUser.area?currentUser.area:"(sin área asignada)")}</b></div>`; }
+  const area=areaActualIP();
+  if(!area){ cont.innerHTML=empty("No tienes un área asignada. Pídele a gerencia que te asigne un área."); return; }
+  const emps=db.list("empleados").filter(e=>e.estado!=="Inactivo" && mismaAreaCI(e.area,area)).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+  if(!emps.length){ cont.innerHTML=empty("Sin empleados activos en el área "+esc(area)+"."); return; }
+  const col={"Llegada tarde":"bg-amber-100 text-amber-700","Falta":"bg-red-100 text-red-700","Falta justificada":"bg-emerald-100 text-emerald-700","Permiso":"bg-sky-100 text-sky-700","Retiro anticipado":"bg-amber-100 text-amber-700","Otro":"bg-slate-200 text-slate-600"};
+  cont.innerHTML=emps.map(e=>{ const incs=db.list("inc_personal").filter(x=>x.empleado_id===e.id).sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||""));
+    return `<div class="bg-white rounded-2xl p-3 shadow-sm">
+      <div class="flex items-center justify-between gap-2"><p class="font-semibold truncate">${esc(e.nombre)}</p>
+      <button onclick="openIncPersonal('${e.id}')" class="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg font-semibold shrink-0">+ Incidencia</button></div>
+      <div class="mt-2 space-y-1">${incs.length?incs.map(x=>`<div onclick="openIncPersonal('${e.id}','${x.id}')" class="flex items-center justify-between gap-2 text-[11px] bg-slate-50 rounded-lg px-2 py-1 active:bg-slate-100">
+        <span class="truncate"><span class="px-2 py-0.5 rounded-full ${col[x.tipo]||col.Otro} mr-1">${esc(x.tipo)}</span>${esc(x.fecha||"")}${x.hora?" · "+esc(x.hora):""}${x.foto?" · 📎":""}${x.justificado?" · ✔ justif.":""}</span>
+        <span class="text-slate-400 shrink-0">editar ›</span></div>`).join(""):`<span class="text-xs text-slate-400">Sin incidencias.</span>`}</div>
+    </div>`; }).join("");
+}
+function openIncPersonal(empId,id){ const e=empById(empId); if(!e) return;
+  if(!puedeGestionarAreaCI(e.area)){ toast("Solo el supervisor del área "+(e.area||"")+" puede registrar sus incidencias."); return; }
+  const x=id?db.list("inc_personal").find(i=>i.id===id):{};
+  fotoTmp["incp"]=x.foto||""; fotoTmpTs["incp"]=x.foto_ts||"";
+  openModal(`<h3 class="font-bold text-lg mb-1">${id?"Editar":"Nueva"} incidencia</h3><p class="text-xs text-slate-500 mb-3">${esc(e.nombre)} · Área: ${esc(e.area||"—")}</p><div class="space-y-3">
+    <div class="grid grid-cols-2 gap-3">${selectField("tipo","Tipo",IP_TIPOS,x.tipo||"Llegada tarde")}${field("fecha","Fecha",x.fecha||hoy(),"date")}</div>
+    <div class="grid grid-cols-2 gap-3">${field("hora","Hora (si llegó tarde)",x.hora||"","time")}<label class="flex items-end gap-2 text-sm text-slate-600 pb-2"><input type="checkbox" id="f_justificado" class="w-5 h-5 accent-teal-700" ${x.justificado?"checked":""}> Justificada</label></div>
+    <div><label class="text-xs text-slate-500">Motivo / observación</label><textarea id="f_motivo" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(x.motivo||"")}</textarea></div>
+    <div><label class="text-xs text-slate-500">📷 Foto del justificativo (ej: reposo médico)</label><div id="prevIncpFoto" class="mt-1"></div><div class="mt-2">${fotoBtn("incp","prevIncpFoto","Tomar / elegir foto")}</div></div></div>
+    <div class="flex gap-2 mt-5"><button onclick="saveIncPersonal('${empId}','${id||""}')" class="flex-1 bg-teal-600 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
+    ${id?`<button onclick="delIncPersonal('${id}','${empId}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+  pintarFotoPreview("incp","prevIncpFoto");
+}
+async function saveIncPersonal(empId,id){ const e=empById(empId); if(!e) return;
+  if(!puedeGestionarAreaCI(e.area)){ toast("No autorizado para el área "+(e.area||"")); return; }
+  const r=readForm(["tipo","fecha","hora","motivo"]); if(!r.fecha){ toast("Elige la fecha"); return; }
+  r.justificado=!!document.getElementById("f_justificado")?.checked;
+  r.foto=fotoTmp["incp"]||""; r.foto_ts=r.foto?(fotoTmpTs["incp"]||new Date().toISOString()):"";
+  r.empleado_id=empId; r.nombre=e.nombre||""; r.area=e.area||""; r.supervisor=currentUser?currentUser.nombre:"";
+  try{ if(id) await db.update("inc_personal",id,r); else await db.insert("inc_personal",r); closeModal(); render(); toast("Incidencia guardada"); }catch(err){ toast("Error: "+err.message); } }
+async function delIncPersonal(id,empId){ const e=empById(empId); if(e && !puedeGestionarAreaCI(e.area)){ toast("No autorizado"); return; }
+  if(confirm("¿Eliminar esta incidencia?")){ await db.remove("inc_personal",id); closeModal(); render(); toast("Incidencia eliminada"); } }
 
 /* ===================== PROVEEDORES ===================== */
 function provById(id){ return db.list("proveedores").find(p=>p.id===id); }
@@ -1920,7 +1978,7 @@ function render(){
     if(da){ if(verResumen && (puede("empleados")||puede("nomina"))){ da.style.display=""; renderDesgloseAreas(empsAll,areaR); } else da.style.display="none"; } }
 
   renderEmpleados(); renderBonos(); renderEval(); renderEvalSup(); renderAsistencia(); renderTareas(); renderAsignaciones(); renderNomina(); renderDiasLibres();
-  renderProveedores(); renderInventario(); renderOrdenes(); renderRecepcion(); renderRecepHistory(); renderMerma();
+  renderProveedores(); renderInventario(); renderOrdenes(); renderRecepcion(); renderRecepHistory(); renderMerma(); renderIncPersonal();
   renderSecciones(); renderAsignGondolas(); renderIncidencias(); renderCaja(); renderTesoreria(); renderDeudas(); renderConexiones();
 
   document.getElementById("cfgNombre").value=ajustes.nombre; document.getElementById("cfgHoraEntrada").value=ajustes.horaEntrada; document.getElementById("cfgMoneda").value=ajustes.moneda;
