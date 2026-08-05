@@ -422,6 +422,8 @@
 <datalist id="dlEmpleados"></datalist>
 <datalist id="dlCajeros"></datalist>
 <datalist id="dlProveedores"></datalist>
+<datalist id="dlProductos"></datalist>
+<datalist id="dlProdOrden"></datalist>
 
 <script>
 /* =========================================================
@@ -431,7 +433,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="3.0"; // se incrementa con cada mejora
+const APP_VERSION="3.1"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -771,6 +773,19 @@ function renderTiles(){
   grp("tilesFin","hFin",TILES_FIN);
 }
 
+/* ===================== BUSCADOR REUTILIZABLE (proveedor/personal/producto) =====================
+   Genera un input con autocompletar + un campo oculto con el id, para que la lógica de guardado
+   (que lee f_<base>) siga funcionando igual pero con búsqueda escribiendo. */
+function _itemBuscador(type,id){ return type==="emp"?empById(id):type==="prov"?provById(id):prodById(id); }
+function buscador(base,label,type,curId,extra){ const list=type==="emp"?"dlEmpleados":type==="prov"?"dlProveedores":"dlProductos";
+  const it=curId?_itemBuscador(type,curId):null; const name=it?it.nombre:"";
+  return `<div><label class="text-xs text-slate-500">${label}</label>
+    <input id="f_${base}_txt" list="${list}" value="${esc(name)}" oninput="resolverBuscador('${base}','${type}'${extra?",'"+extra+"'":""})" placeholder="🔎 Escribe para buscar…" class="w-full px-3 py-2 rounded-xl border border-slate-200">
+    <input type="hidden" id="f_${base}" value="${esc(curId||"")}"></div>`; }
+function resolverBuscador(base,type,cb){ const txt=document.getElementById("f_"+base+"_txt"), hid=document.getElementById("f_"+base); if(!txt||!hid) return;
+  const q=(txt.value||"").trim().toLowerCase(); const lista=type==="emp"?db.list("empleados"):type==="prov"?db.list("proveedores"):db.list("productos");
+  const it=q?lista.find(x=>(x.nombre||"").trim().toLowerCase()===q):null; hid.value=it?it.id:""; if(cb&&typeof window[cb]==="function") window[cb](); }
+
 /* ===================== EMPLEADOS ===================== */
 function empById(id){ return db.list("empleados").find(e=>e.id===id); }
 function optionsEmpleados(sel,soloSup){
@@ -833,7 +848,7 @@ function renderEmpleados(){ const q=(document.getElementById("buscarEmp")?.value
 /* ===================== BONOS ===================== */
 function openBono(id){ const b=id?db.list("bonos").find(x=>x.id===id):{};
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} registro</h3><div class="space-y-3">
-    <div><label class="text-xs text-slate-500">Empleado</label><select id="f_empleado_id" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${optionsEmpleados(b.empleado_id)}</select></div>
+    ${buscador("empleado_id","Empleado","emp",b.empleado_id)}
     ${selectField("tipo","Tipo",["Bono","Comisión","Deducción"],b.tipo||"Bono")}${field("concepto","Concepto",b.concepto)}
     <div class="grid grid-cols-2 gap-3">${field("monto","Monto",b.monto,"number")}${field("fecha","Fecha",b.fecha||hoy(),"date")}</div></div>
     <div class="flex gap-2 mt-5"><button onclick="saveBono('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
@@ -854,7 +869,7 @@ const CRIT=[["puntualidad","Puntualidad"],["productividad","Productividad"],["eq
 function critSelect(k,l,v){ return `<div><label class="text-xs text-slate-500">${l}</label><select id="f_${k}" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${[5,4,3,2,1].map(n=>`<option value="${n}" ${String(v)===String(n)?"selected":(v===undefined&&n===4?"selected":"")}>${n} — ${["","Deficiente","Regular","Bueno","Muy bueno","Excelente"][n]}</option>`).join("")}</select></div>`; }
 function openEval(id){ const v=id?db.list("evaluaciones").find(x=>x.id===id):{};
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nueva"} evaluación</h3><div class="space-y-3">
-    <div><label class="text-xs text-slate-500">Empleado</label><select id="f_empleado_id" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${optionsEmpleados(v.empleado_id)}</select></div>
+    ${buscador("empleado_id","Empleado","emp",v.empleado_id)}
     ${field("evaluador","Evaluador",v.evaluador)}${field("fecha","Fecha",v.fecha||hoy(),"date")}
     ${CRIT.map(([k,l])=>critSelect(k,l,v[k])).join("")}
     <div><label class="text-xs text-slate-500">Comentario</label><textarea id="f_comentario" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(v.comentario||"")}</textarea></div></div>
@@ -938,7 +953,7 @@ let tareaFiltro="Todas";
 function openTarea(id){ const t=id?db.list("tareas").find(x=>x.id===id):{};
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nueva"} tarea</h3><div class="space-y-3">
     ${field("titulo","Título",t.titulo)}
-    <div><label class="text-xs text-slate-500">Asignar a</label><select id="f_empleado_id" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="">(sin asignar)</option>${optionsEmpleados(t.empleado_id)}</select></div>
+    ${buscador("empleado_id","Asignar a","emp",t.empleado_id)}
     <div><label class="text-xs text-slate-500">Descripción</label><textarea id="f_descripcion" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(t.descripcion||"")}</textarea></div>
     <div class="grid grid-cols-2 gap-3">${selectField("prioridad","Prioridad",["Alta","Media","Baja"],t.prioridad||"Media")}${field("tiempo_estimado","Tiempo estim. (h)",t.tiempo_estimado,"number")}</div>
     <div class="grid grid-cols-2 gap-3">${field("fecha_limite","Fecha límite",t.fecha_limite,"date")}${selectField("estado","Estado",["Pendiente","En progreso","Hecha"],t.estado||"Pendiente")}</div></div>
@@ -1062,7 +1077,7 @@ function openProducto(id){ const p=id?prodById(id):{};
     <p class="text-[10px] text-slate-400 -mt-1">Ej: 1 caja trae 12 unidades → Empaque: Caja · Unidades por empaque: 12</p>
     <div class="grid grid-cols-2 gap-3">${field("stock","Stock actual",p.stock,"number")}${field("stock_min","Stock mínimo",p.stock_min,"number")}</div>
     ${field("precio_compra","Precio de compra",p.precio_compra,"number")}
-    <div><label class="text-xs text-slate-500">Proveedor</label><select id="f_proveedor_id" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${optionsProveedores(p.proveedor_id)}</select></div></div>
+    ${buscador("proveedor_id","Proveedor","prov",p.proveedor_id)}</div>
     <div class="flex gap-2 mt-5"><button onclick="saveProducto('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
     ${id?`<button onclick="delProducto('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
@@ -1086,7 +1101,7 @@ function openOrden(id){ const o=id?db.list("ordenes").find(x=>x.id===id):null; t
     <div class="grid grid-cols-2 gap-3">${field("fecha","Fecha",o?.fecha||hoy(),"date")}${selectField("estado","Estado",["Pendiente","Enviada","Recibida","Cancelada"],o?.estado||"Pendiente")}</div>
     <div class="bg-slate-50 rounded-xl p-3"><p class="text-xs font-semibold text-slate-600 mb-2">Productos</p>
       <div class="grid grid-cols-12 gap-1 items-end">
-        <div class="col-span-6"><select id="oi_prod" class="w-full px-2 py-2 rounded-lg border border-slate-200 bg-white text-sm">${optionsProductos("",provSel?provSel.id:"")||'<option value="">— sin productos para este proveedor —</option>'}</select></div>
+        <div class="col-span-6"><input id="oi_prod_txt" list="dlProdOrden" oninput="resolverOrdProd()" placeholder="🔎 Buscar producto…" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"><input type="hidden" id="oi_prod"></div>
         <div class="col-span-3"><input id="oi_cant" type="number" placeholder="Cant" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"></div>
         <div class="col-span-3"><button onclick="addItem()" class="w-full bg-teal-700 text-white rounded-lg py-2 text-sm font-semibold">+</button></div>
       </div>
@@ -1097,14 +1112,17 @@ function openOrden(id){ const o=id?db.list("ordenes").find(x=>x.id===id):null; t
     <div class="flex flex-wrap gap-2 mt-5"><button onclick="saveOrden('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
     ${id?`<button onclick="delOrden('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
-  renderItems();
+  poblarProdOrden(); renderItems();
 }
 function provIdFromInput(){ const nom=(document.getElementById("f_proveedor")?.value||"").trim().toLowerCase(); const prov=nom?db.list("proveedores").find(p=>(p.nombre||"").trim().toLowerCase()===nom):null; return prov?prov.id:""; }
-function filtrarProdOrden(){ const sel=document.getElementById("oi_prod"); if(!sel) return; const pid=provIdFromInput(); sel.innerHTML = optionsProductos("",pid) || `<option value="">— sin productos para este proveedor —</option>`; }
+function prodOrdenLista(){ const pid=provIdFromInput(); let l=db.list("productos"); if(pid) l=l.filter(p=>p.proveedor_id===pid); return l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")); }
+function poblarProdOrden(){ const dl=document.getElementById("dlProdOrden"); if(dl) dl.innerHTML=prodOrdenLista().map(p=>`<option value="${esc(p.nombre)}">`).join(""); }
+function resolverOrdProd(){ const t=document.getElementById("oi_prod_txt"), h=document.getElementById("oi_prod"); if(!t||!h) return; const q=(t.value||"").trim().toLowerCase(); const p=q?prodOrdenLista().find(x=>(x.nombre||"").trim().toLowerCase()===q):null; h.value=p?p.id:""; }
+function filtrarProdOrden(){ poblarProdOrden(); const t=document.getElementById("oi_prod_txt"), h=document.getElementById("oi_prod"); if(t) t.value=""; if(h) h.value=""; }
 function addItem(){ const pid=document.getElementById("oi_prod").value; const cant=Number(document.getElementById("oi_cant").value)||0;
   if(!pid||cant<=0){ toast("Elige producto y cantidad"); return; } const p=prodById(pid);
   tempItems.push({ producto_id:pid, nombre:p?p.nombre:"?", cantidad:cant, precio:p?Number(p.precio_compra)||0:0, unidad:p?p.unidad:"" });
-  document.getElementById("oi_cant").value=""; renderItems(); }
+  document.getElementById("oi_cant").value=""; const ot=document.getElementById("oi_prod_txt"); if(ot) ot.value=""; const oh=document.getElementById("oi_prod"); if(oh) oh.value=""; renderItems(); }
 function removeItem(i){ tempItems.splice(i,1); renderItems(); }
 function ordenTotal(items){ return (items||[]).reduce((s,it)=>s+(Number(it.cantidad)||0)*(Number(it.precio)||0),0); }
 function renderItems(){ const c=document.getElementById("oi_lista"); if(!c) return;
@@ -1154,9 +1172,9 @@ function recibirOrden(id){ openRecepcion(id); }
 /* ===================== MERMA ===================== */
 function openMerma(id){ const m=id?db.list("merma").find(x=>x.id===id):{};
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Registrar"} merma</h3><div class="space-y-3">
-    <div class="flex gap-2"><div class="flex-1"><label class="text-xs text-slate-500">Producto</label><select id="f_producto_id" onchange="mermaProd()" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="">(elige del inventario)</option>${optionsProductos(m.producto_id)}</select></div>
-      <div class="flex items-end"><button type="button" onclick="escanearMerma()" class="bg-teal-600 text-white px-3 py-2 rounded-xl font-semibold">📷</button></div></div>
-    <div><label class="text-xs text-slate-500">Proveedor que lo distribuye</label><select id="f_proveedor_id" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${optionsProveedores(m.proveedor_id)}</select></div>
+    <div class="flex gap-2 items-end"><div class="flex-1">${buscador("producto_id","Producto","prod",m.producto_id,"mermaProd")}</div>
+      <button type="button" onclick="escanearMerma()" class="bg-teal-600 text-white px-3 py-2 rounded-xl font-semibold">📷</button></div>
+    ${buscador("proveedor_id","Proveedor que lo distribuye","prov",m.proveedor_id)}
     <div class="grid grid-cols-2 gap-3">${field("cantidad","Cantidad",m.cantidad,"number")}${selectField("motivo","Motivo",["Vencido","Dañado","Roto","Robo","Error","Otro"],m.motivo||"Vencido")}</div>
     <div class="grid grid-cols-2 gap-3">${selectField("area","Área",["Almacén","Cajas","Charcutería","Panadería","Frutas y verduras","Carnicería","Otros"],m.area)}${field("fecha","Fecha",m.fecha||hoy(),"date")}</div>
     <label class="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" id="f_descontar" ${id?"":"checked"}> Descontar del inventario</label></div>
@@ -1164,9 +1182,9 @@ function openMerma(id){ const m=id?db.list("merma").find(x=>x.id===id):{};
     ${id?`<button onclick="delMerma('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
 }
-function mermaProd(){ const pid=document.getElementById("f_producto_id")?.value; const p=prodById(pid); const ps=document.getElementById("f_proveedor_id"); if(p && p.proveedor_id && ps) ps.value=p.proveedor_id; }
-function escanearMerma(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c); const sel=document.getElementById("f_producto_id");
-  if(p && sel){ sel.value=p.id; mermaProd(); toast("✔ "+p.nombre); const cant=document.getElementById("f_cantidad"); if(cant) cant.focus(); }
+function mermaProd(){ const pid=document.getElementById("f_producto_id")?.value; const p=prodById(pid); if(p && p.proveedor_id){ const ps=document.getElementById("f_proveedor_id"); const pt=document.getElementById("f_proveedor_id_txt"); const prov=provById(p.proveedor_id); if(ps) ps.value=p.proveedor_id; if(pt&&prov) pt.value=prov.nombre; } }
+function escanearMerma(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c);
+  if(p){ const hid=document.getElementById("f_producto_id"), txt=document.getElementById("f_producto_id_txt"); if(hid) hid.value=p.id; if(txt) txt.value=p.nombre; mermaProd(); toast("✔ "+p.nombre); const cant=document.getElementById("f_cantidad"); if(cant) cant.focus(); }
   else toast("Código "+c+" no está en productos."); }); }
 function mermaCosto(m){ const pc=(m.precio_compra!=null&&m.precio_compra!=="")?Number(m.precio_compra):(Number(prodById(m.producto_id)?.precio_compra)||0); return { pc, costo:(m.costo!=null&&m.costo!=="")?Number(m.costo):+(pc*(Number(m.cantidad)||0)).toFixed(2) }; }
 async function saveMerma(id){ if(bloqueoEdicion(id)) return; const r=readForm(["producto_id","proveedor_id","cantidad","motivo","area","fecha"]); r.cantidad=Number(r.cantidad)||0;
@@ -1198,7 +1216,7 @@ function exportarMermaExcel(){ if(!window.XLSX){ toast("Abre la app publicada pa
 function openAsignacion(id){ const a=id?db.list("asignaciones").find(x=>x.id===id):{};
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nueva"} asignación</h3><div class="space-y-3">
     ${field("titulo","Trabajo a realizar",a.titulo)}
-    <div><label class="text-xs text-slate-500">Asignar a</label><select id="f_empleado_id" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${optionsEmpleados(a.empleado_id)}</select></div>
+    ${buscador("empleado_id","Asignar a","emp",a.empleado_id)}
     <div><label class="text-xs text-slate-500">Descripción</label><textarea id="f_descripcion" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(a.descripcion||"")}</textarea></div>
     <div class="grid grid-cols-2 gap-3">${field("objetivo_min","Tiempo objetivo (min)",a.objetivo_min,"number")}${field("fecha","Fecha",a.fecha||hoy(),"date")}</div></div>
     <div class="flex gap-2 mt-5"><button onclick="saveAsignacion('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
@@ -1279,11 +1297,11 @@ function openRecepcion(orderId){
   const o=orderId? db.list("ordenes").find(x=>x.id===orderId):null;
   recItems = o? (o.items||[]).map(it=>({...it, categoria:(it.categoria||(prodById(it.producto_id)?.categoria)||""), vencimiento:""})) : [];
   openModal(`<h3 class="font-bold text-lg mb-3">${o?"Recibir orden de compra":"Recepción manual"}</h3><div class="space-y-3">
-    <div><label class="text-xs text-slate-500">Proveedor</label><select id="f_proveedor_id" ${o?"disabled":""} class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${optionsProveedores(o?o.proveedor_id:undefined)}</select></div>
+    ${o?`<div><label class="text-xs text-slate-500">Proveedor</label><input value="${esc(provById(o.proveedor_id)?.nombre||'')}" disabled class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50"><input type="hidden" id="f_proveedor_id" value="${esc(o.proveedor_id||'')}"></div>`:buscador("proveedor_id","Proveedor","prov","")}
     <div class="grid grid-cols-2 gap-3">${field("fecha","Fecha de recepción",hoy(),"date")}${selectField("tipo_documento","Tipo de documento",["Factura fiscal","Nota de entrega"],"Factura fiscal")}</div>
     <div class="bg-slate-50 rounded-xl p-3"><p class="text-xs font-semibold text-slate-600 mb-2">Productos recibidos ${o?"(de la orden)":""} · indica su vencimiento</p>
       ${o?"":`<div class="space-y-1 mb-2">
-        <div class="flex gap-2"><select id="rec_prod" class="flex-1 px-2 py-2 rounded-lg border border-slate-200 bg-white text-sm">${optionsProductos()}</select>
+        <div class="flex gap-2"><input id="rec_prod_txt" list="dlProductos" oninput="resolverRecProd()" placeholder="🔎 Escribe para buscar…" class="flex-1 px-2 py-2 rounded-lg border border-slate-200 text-sm"><input type="hidden" id="rec_prod">
           <button type="button" onclick="escanearRecepcion()" class="bg-teal-600 text-white px-3 rounded-lg font-semibold shrink-0">📷</button></div>
         <div class="grid grid-cols-12 gap-1 items-end">
           <div class="col-span-4"><input id="rec_cant" type="number" placeholder="Cant" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"></div>
@@ -1305,7 +1323,8 @@ function addRecItem(){ const pid=document.getElementById("rec_prod").value; cons
   let bultos=0, total=cantIn, m="unidad";
   if(modo==="empaque"){ if(uxe<=0){ toast("Este producto no tiene «unidades por empaque». Edítalo primero o usa «Unidad suelta»."); return; } m="empaque"; bultos=cantIn; total=cantIn*uxe; }
   recItems.push({producto_id:pid,nombre:p?p.nombre:"?",cantidad:total,bultos:bultos,unidades_empaque:uxe,empaque:p?(p.empaque||"Bulto"):"",modo:m,precio:p?Number(p.precio_compra)||0:0,unidad:p?p.unidad:"",categoria:p?p.categoria:"",vencimiento:""});
-  document.getElementById("rec_cant").value=""; renderRecItems(); }
+  document.getElementById("rec_cant").value=""; const rt=document.getElementById("rec_prod_txt"); if(rt) rt.value=""; const rh=document.getElementById("rec_prod"); if(rh) rh.value=""; renderRecItems(); }
+function resolverRecProd(){ const txt=document.getElementById("rec_prod_txt"), hid=document.getElementById("rec_prod"); if(!txt||!hid) return; const q=(txt.value||"").trim().toLowerCase(); const p=q?db.list("productos").find(x=>(x.nombre||"").trim().toLowerCase()===q):null; hid.value=p?p.id:""; }
 function removeRecItem(i){ recItems.splice(i,1); renderRecItems(); }
 function setRecVenc(i,val){ recItems[i].vencimiento=val; renderRecItems(); }
 function renderRecItems(){ const c=document.getElementById("rec_lista"); if(!c) return;
@@ -1401,7 +1420,7 @@ function openSeccion(id){ const s=id?db.list("piso_secciones").find(x=>x.id===id
   fotoTmp["sdes"]=s.foto_despues||""; fotoTmpTs["sdes"]=s.foto_despues_ts||"";
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nueva"} sección</h3><div class="space-y-3">
     ${field("nombre","Nombre (ej: Góndola Bebidas)",s.nombre)}
-    <div><label class="text-xs text-slate-500">Responsable</label><select id="f_responsable_id" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="">(sin asignar)</option>${optionsEmpleados(s.responsable_id)}</select></div>
+    ${buscador("responsable_id","Responsable","emp",s.responsable_id)}
     ${selectField("estado","Estado de reposición",SEC_ESTADOS,s.estado||"Surtida")}
     <div><label class="text-xs text-slate-500">Notas</label><textarea id="f_notas" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(s.notas||"")}</textarea></div>
     <div class="grid grid-cols-2 gap-3">
@@ -1553,8 +1572,8 @@ function escanearBuscarProducto(){ abrirEscaner((code)=>{
   else { openProducto(); const el=document.getElementById("f_codigo"); if(el) el.value=code; toast("Código nuevo: "+code+". Completa el producto."); }
 }); }
 function escanearRecepcion(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c);
-  const sel=document.getElementById("rec_prod");
-  if(p && sel){ sel.value=p.id; toast("✔ "+p.nombre); const cant=document.getElementById("rec_cant"); if(cant) cant.focus(); }
+  const hid=document.getElementById("rec_prod"), txt=document.getElementById("rec_prod_txt");
+  if(p && hid){ hid.value=p.id; if(txt) txt.value=p.nombre; toast("✔ "+p.nombre); const cant=document.getElementById("rec_cant"); if(cant) cant.focus(); }
   else { toast("Código "+c+" no está en productos. Cárgalo primero en Inventario."); }
 }); }
 
@@ -1874,7 +1893,8 @@ function render(){
   renderTiles(); pintarUltSync();
   { const de=document.getElementById("dlEmpleados"); if(de) de.innerHTML=db.list("empleados").map(e=>`<option value="${esc(e.nombre)}">`).join("");
     const dc=document.getElementById("dlCajeros"); if(dc) dc.innerHTML=db.list("empleados").filter(e=>e.estado!=="Inactivo" && /caja/i.test(e.area||"")).map(e=>`<option value="${esc(e.nombre)}">`).join("");
-    const dp=document.getElementById("dlProveedores"); if(dp) dp.innerHTML=db.list("proveedores").map(p=>`<option value="${esc(p.nombre)}">`).join(""); }
+    const dp=document.getElementById("dlProveedores"); if(dp) dp.innerHTML=db.list("proveedores").map(p=>`<option value="${esc(p.nombre)}">`).join("");
+    const dpr=document.getElementById("dlProductos"); if(dpr) dpr.innerHTML=db.list("productos").map(p=>`<option value="${esc(p.nombre)}">`).join(""); }
   const empsAll=db.list("empleados").filter(e=>e.estado!=="Inactivo");
   // Filtro de área del Resumen (áreas oficiales de la app, coincidencia sin mayúsculas)
   const faR=document.getElementById("filtroAreaResumen");
