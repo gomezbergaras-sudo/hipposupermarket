@@ -299,6 +299,10 @@
         <button onclick="guardarTasa()" class="bg-teal-600 text-white text-sm font-semibold px-3 py-2 rounded-xl">Guardar</button>
       </div>
     </div>
+    <div class="grid grid-cols-2 gap-2 mb-3">
+      <button onclick="openPrestamos()" class="bg-teal-700 text-white text-sm font-semibold py-2.5 rounded-xl">💵 Préstamos al personal</button>
+      <button onclick="openFaltanteCajero()" class="bg-slate-700 text-white text-sm font-semibold py-2.5 rounded-xl">📉 Faltante por cajero</button>
+    </div>
     <div class="flex gap-2 mb-3">
       <button id="btnTesDia" onclick="tesPeriodo='dia';renderTesoreria()" class="flex-1 text-sm font-semibold py-2 rounded-xl bg-slate-200">Diario</button>
       <button id="btnTesMes" onclick="tesPeriodo='mes';renderTesoreria()" class="flex-1 text-sm font-semibold py-2 rounded-xl bg-slate-200">Mensual</button>
@@ -412,7 +416,7 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","deudas","sesiones"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","deudas","prestamos","sesiones"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
@@ -1600,7 +1604,11 @@ function renderCaja(){ const el=document.getElementById("cajaFecha"); if(el&&!el
   const c=document.getElementById("listaCajas"); if(!c) return; const tot=document.getElementById("cajaTotal");
   if(!cajas.length){ c.innerHTML=empty("Sin cajas. Toca «+ Caja» para crear una."); if(tot) tot.innerHTML=""; return; }
   c.innerHTML=cajas.map(cj=>{ const ci=cierreDe(cj.id,fecha); const r=ci?calcCierre(ci):null; const arqs=arqueosDe(cj.id,fecha);
-    const arqHtml=arqs.length?`<div class="mt-2 border-t border-slate-100 pt-2"><p class="text-[11px] font-semibold text-amber-600 mb-1">Arqueos parciales (${arqs.length})</p>${arqs.map(a=>{ const rr=calcCierre(a); return `<div class="flex items-center justify-between text-[11px] py-0.5 gap-2"><span class="truncate">🕒 ${esc(a.hora||"")} · ${esc(a.motivo||"Parcial")} · ${esc(a.cajero||"—")}</span><span class="flex items-center gap-2 shrink-0"><span class="font-semibold">${fmtBs(rr.contadoBs)}</span>${esGerencia()?`<button onclick="delArqueo('${a.id}')" class="text-red-500 font-bold">✕</button>`:""}</span></div>`; }).join("")}</div>`:"";
+    let aFalta=0, aSobra=0;
+    const arqHtml=arqs.length?`<div class="mt-2 border-t border-slate-100 pt-2"><p class="text-[11px] font-semibold text-amber-600 mb-1">Arqueos parciales (${arqs.length})</p>${arqs.map(a=>{ const rr=calcCierre(a); if(rr.difBs<0) aFalta+=Math.abs(rr.difBs); else aSobra+=rr.difBs;
+      return `<div class="py-1 border-b border-slate-100 last:border-0"><div class="flex items-center justify-between text-[11px] gap-2"><span class="truncate">🕒 ${esc(a.hora||"")} · ${esc(a.motivo||"Parcial")} · ${esc(a.cajero||"—")}</span>${esGerencia()?`<button onclick="delArqueo('${a.id}')" class="text-red-500 font-bold shrink-0">✕</button>`:""}</div>
+        <div class="grid grid-cols-3 gap-1 mt-0.5 text-center text-[10px]"><div><p class="text-slate-400">Contado</p><p class="font-semibold">${fmtBs(rr.contadoBs)}</p></div><div><p class="text-slate-400">Facturado</p><p class="font-semibold">${fmtBs(rr.facturadoBs)}</p></div><div><p class="text-slate-400">${rr.difBs<0?"Faltante":"Sobrante"}</p><p class="font-bold ${rr.difBs<0?"text-red-600":"text-emerald-600"}">${fmtBs(Math.abs(rr.difBs))}<br><span class="text-[9px] font-normal">${fmtUsd(Math.abs(rr.difUsd))}</span></p></div></div></div>`; }).join("")}
+      <div class="flex items-center justify-between mt-1 text-[11px] bg-amber-50 rounded-lg px-2 py-1"><span class="text-slate-500">Total arqueos</span><span class="font-semibold">Faltante <span class="text-red-600">${fmtBs(aFalta)}</span> · Sobrante <span class="text-emerald-600">${fmtBs(aSobra)}</span></span></div></div>`:"";
     return `<div class="bg-white rounded-2xl p-3 shadow-sm"><div class="flex items-center justify-between"><div><p class="font-semibold">Caja ${esc(cj.numero)}${cj.nombre?" · "+esc(cj.nombre):""}</p>${ci?`<p class="text-xs text-slate-500">Cajero: ${esc(ci.cajero||"—")}</p>`:`<p class="text-xs text-slate-400">Sin cierre en la fecha</p>`}</div>${esGerencia()?`<button onclick="delCaja('${cj.id}')" class="text-slate-300">🗑</button>`:""}</div>
       ${r?`<div class="grid grid-cols-3 gap-2 mt-2 text-center text-[11px]"><div><p class="text-slate-400">Contado</p><p class="font-semibold">${fmtBs(r.contadoBs)}</p></div><div><p class="text-slate-400">Facturado</p><p class="font-semibold">${fmtBs(r.facturadoBs)}</p></div><div><p class="text-slate-400">${r.difBs<0?"Faltante":"Sobrante"}</p><p class="font-bold ${r.difBs<0?"text-red-600":"text-emerald-600"}">${fmtBs(Math.abs(r.difBs))}<br><span class="text-[10px]">${fmtUsd(Math.abs(r.difUsd))}</span></p></div></div>`:""}
       ${arqHtml}
@@ -1630,6 +1638,64 @@ function renderTesoreria(){ const el=document.getElementById("tesFecha"); if(el&
   cont.innerHTML=`<div class="bg-slate-800 text-white rounded-2xl p-4 mb-3"><p class="text-xs text-slate-300">${tesPeriodo==="dia"?"Total del día "+fecha:"Acumulado del mes hasta "+fecha}</p><p class="text-2xl font-bold mt-1">${fmtBs(T.cont)}</p><p class="text-sm text-slate-300">${fmtUsd(bsToUsd(T.cont))}</p><div class="grid grid-cols-2 gap-2 mt-2 text-xs"><div><p class="text-slate-400">Facturado</p><p class="font-semibold">${fmtBs(T.fact)}</p></div><div><p class="text-slate-400">${T.dif<0?"Faltante":"Sobrante"}</p><p class="font-semibold ${T.dif<0?"text-red-400":"text-emerald-400"}">${fmtBs(Math.abs(T.dif))} · ${fmtUsd(Math.abs(bsToUsd(T.dif)))}</p></div></div></div>
     <p class="text-xs font-semibold text-slate-600 mb-1">Por caja</p><div class="space-y-2">${Object.keys(porCaja).sort().map(k=>`<div class="bg-white rounded-xl p-3 shadow-sm flex items-center justify-between"><span class="font-semibold text-sm">Caja ${esc(k)}</span><span class="text-sm">${fmtBs(porCaja[k].cont)} · <span class="${porCaja[k].dif<0?"text-red-600":"text-emerald-600"}">${porCaja[k].dif<0?"−":"+"}${fmtBs(Math.abs(porCaja[k].dif))}</span></span></div>`).join("")}</div>`;
 }
+
+/* ===================== PRÉSTAMOS AL PERSONAL ===================== */
+function restantePrestamo(p){ return Math.max(0,(Number(p.monto)||0)-(Number(p.abonado)||0)); }
+function openPrestamos(){ if(!puede("tesoreria")){ toast("Sin acceso"); return; }
+  const l=db.list("prestamos").sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||""));
+  const totMonto=l.reduce((s,p)=>s+(Number(p.monto)||0),0), totRest=l.reduce((s,p)=>s+restantePrestamo(p),0);
+  const lista=l.length? l.map(p=>{ const rest=restantePrestamo(p); const pagado=rest<=0;
+    return `<div class="bg-slate-50 rounded-xl p-3">
+      <div class="flex items-center justify-between gap-2"><p class="font-semibold text-sm truncate">👤 ${esc(p.empleado||"—")}</p><span class="text-[10px] px-2 py-0.5 rounded-full ${pagado?"bg-emerald-100 text-emerald-700":"bg-amber-100 text-amber-700"} shrink-0">${pagado?"Pagado":"Debe "+fmtBs(rest)}</span></div>
+      <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-1 text-[11px] text-slate-500">
+        <span>Préstamo: <b class="text-slate-700">${fmtBs(p.monto)}</b></span><span>Fecha: ${esc(p.fecha||"—")}</span>
+        <span>Cuota quincenal: <b class="text-slate-700">${fmtBs(p.cuota_quincenal)}</b></span><span>Abonado: ${fmtBs(p.abonado)}</span>
+        <span class="col-span-2">Restante por cancelar: <b class="${rest>0?"text-red-600":"text-emerald-600"}">${fmtBs(rest)}</b></span>${p.notas?`<span class="col-span-2 text-slate-400">${esc(p.notas)}</span>`:""}</div>
+      <div class="flex gap-1 mt-2">${!pagado?`<button onclick="abonarPrestamo('${p.id}')" class="text-[11px] bg-teal-700 text-white px-2 py-1 rounded-lg font-semibold">Abonar cuota</button>`:""}
+        <button onclick="openPrestamo('${p.id}')" class="text-[11px] bg-slate-200 px-2 py-1 rounded-lg font-semibold">Editar</button>
+        ${esGerencia()?`<button onclick="delPrestamo('${p.id}')" class="text-[11px] bg-red-100 text-red-700 px-2 py-1 rounded-lg font-semibold">Eliminar</button>`:""}</div></div>`; }).join("")
+    : `<p class="text-sm text-slate-400 text-center py-6">Sin préstamos registrados.</p>`;
+  openModal(`<div class="flex items-center justify-between mb-1"><h3 class="font-bold text-lg">Préstamos al personal</h3><button onclick="openPrestamo()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">＋ Nuevo</button></div>
+    <p class="text-xs text-slate-500 mb-3">Total prestado: <b>${fmtBs(totMonto)}</b> · Por cobrar: <b class="text-red-600">${fmtBs(totRest)}</b></p>
+    <div class="space-y-2 max-h-80 overflow-y-auto">${lista}</div>
+    <button onclick="closeModal()" class="w-full mt-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`); }
+function openPrestamo(id){ const p=id?db.list("prestamos").find(x=>x.id===id):{};
+  openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} préstamo</h3><div class="space-y-3">
+    <div><label class="text-xs text-slate-500">Empleado</label><input id="f_empleado" list="dlEmpleados" value="${esc(p.empleado||"")}" placeholder="Selecciona o escribe" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
+    <div class="grid grid-cols-2 gap-3">${field("monto","Monto del préstamo",p.monto,"number")}${field("fecha","Fecha del préstamo",p.fecha||hoy(),"date")}</div>
+    <div class="grid grid-cols-2 gap-3">${field("cuota_quincenal","Cuota quincenal",p.cuota_quincenal,"number")}${field("abonado","Abonado hasta ahora",p.abonado,"number")}</div>
+    <div><label class="text-xs text-slate-500">Notas</label><input id="f_notas" value="${esc(p.notas||"")}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div></div>
+    <div class="flex gap-2 mt-5"><button onclick="savePrestamo('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
+    ${id&&esGerencia()?`<button onclick="delPrestamo('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
+    <button onclick="openPrestamos()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Volver</button></div>`); }
+async function savePrestamo(id){ if(!puede("tesoreria")){ toast("Sin acceso"); return; } const r=readForm(["empleado","monto","fecha","cuota_quincenal","abonado","notas"]);
+  if(!r.empleado){ toast("Falta el empleado"); return; } ["monto","cuota_quincenal","abonado"].forEach(k=>r[k]=Number(r[k])||0);
+  try{ id?await db.update("prestamos",id,r):await db.insert("prestamos",r); openPrestamos(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
+async function abonarPrestamo(id){ if(!puede("tesoreria")){ toast("Sin acceso"); return; } const p=db.list("prestamos").find(x=>x.id===id); if(!p) return;
+  const nuevo=Math.min(Number(p.monto)||0,(Number(p.abonado)||0)+(Number(p.cuota_quincenal)||0));
+  try{ await db.update("prestamos",id,{abonado:nuevo}); openPrestamos(); render(); toast("Abono registrado"); }catch(e){ toast("Error: "+e.message); } }
+async function delPrestamo(id){ if(!esGerencia()){ toast("Solo gerencia puede eliminar"); return; } if(confirm("¿Eliminar este préstamo?")){ await db.remove("prestamos",id); openPrestamos(); render(); toast("Eliminado"); } }
+
+/* ===================== FALTANTE POR CAJERO (por periodo) ===================== */
+function openFaltanteCajero(){ if(!puede("tesoreria")){ toast("Sin acceso"); return; } const finMes=hoy(); const iniMes=finMes.slice(0,8)+"01";
+  openModal(`<h3 class="font-bold text-lg mb-1">Faltante por cajero</h3><p class="text-xs text-slate-500 mb-3">Suma los faltantes/sobrantes de los cierres de un cajero en el periodo. Solo personal del área Cajas.</p><div class="space-y-3">
+    <div><label class="text-xs text-slate-500">Cajero</label><input id="fc_cajero" list="dlCajeros" placeholder="Selecciona o escribe" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
+    <div class="grid grid-cols-2 gap-3"><div><label class="text-xs text-slate-500">Desde</label><input id="fc_desde" type="date" value="${iniMes}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div><div><label class="text-xs text-slate-500">Hasta</label><input id="fc_hasta" type="date" value="${finMes}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div></div>
+    <button onclick="calcularFaltanteCajero()" class="w-full bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Calcular</button>
+    <div id="fc_result"></div></div>
+    <button onclick="closeModal()" class="w-full mt-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`); }
+function calcularFaltanteCajero(){ const cajero=(document.getElementById("fc_cajero").value||"").trim(); const desde=document.getElementById("fc_desde").value, hasta=document.getElementById("fc_hasta").value;
+  const res=document.getElementById("fc_result"); if(!cajero){ res.innerHTML=`<p class="text-xs text-amber-600">Elige un cajero.</p>`; return; }
+  const cl=(cajero||"").toLowerCase();
+  const cierres=db.list("cierres_caja").filter(c=>!c.arqueo && (c.cajero||"").toLowerCase()===cl && (!desde||(c.fecha||"")>=desde) && (!hasta||(c.fecha||"")<=hasta)).sort((a,b)=>(a.fecha||"").localeCompare(b.fecha||""));
+  if(!cierres.length){ res.innerHTML=`<p class="text-xs text-slate-400 text-center py-4">Sin cierres de ${esc(cajero)} en el periodo.</p>`; return; }
+  let falta=0, sobra=0; const filas=cierres.map(ci=>{ const r=calcCierre(ci); if(r.difBs<0) falta+=Math.abs(r.difBs); else sobra+=r.difBs;
+    return `<div class="flex items-center justify-between text-[11px] py-1 border-b border-slate-100"><span>${esc(ci.fecha||"")} · Caja ${esc(ci.numero_caja||"—")}</span><span class="font-semibold ${r.difBs<0?"text-red-600":"text-emerald-600"}">${r.difBs<0?"Falta ":"Sobra "}${fmtBs(Math.abs(r.difBs))}</span></div>`; }).join("");
+  const neto=sobra-falta;
+  res.innerHTML=`<div class="bg-slate-800 text-white rounded-2xl p-4 mt-1"><p class="text-xs text-slate-300">${esc(cajero)} · ${cierres.length} cierre(s)</p>
+    <div class="grid grid-cols-2 gap-2 mt-2 text-center text-xs"><div><p class="text-slate-400">Faltante total</p><p class="font-bold text-red-400">${fmtBs(falta)}</p><p class="text-[10px] text-slate-400">${fmtUsd(bsToUsd(falta))}</p></div><div><p class="text-slate-400">Sobrante total</p><p class="font-bold text-emerald-400">${fmtBs(sobra)}</p></div></div>
+    <p class="text-center text-xs mt-2 text-slate-300">Neto: <b class="${neto<0?"text-red-400":"text-emerald-400"}">${neto<0?"−":"+"}${fmtBs(Math.abs(neto))}</b></p></div>
+    <div class="mt-2 max-h-48 overflow-y-auto">${filas}</div>`; }
 
 /* ===================== FINANZAS (DEUDAS) ===================== */
 function openDeuda(id){ const d=id?db.list("deudas").find(x=>x.id===id):{};
