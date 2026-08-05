@@ -267,6 +267,10 @@
     <div class="flex items-center justify-between mb-2"><p class="text-sm font-semibold text-slate-600">Secciones / góndolas</p>
       <button onclick="openSeccion()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Sección</button></div>
     <div id="listaSecciones" class="space-y-2 mb-5"></div>
+    <div class="flex items-center justify-between mb-1 mt-6"><p class="text-sm font-semibold text-slate-600">Asignación de góndolas al personal</p>
+      <button onclick="openDesignarPicker()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">＋ Designar</button></div>
+    <p class="text-[11px] text-slate-400 mb-2">Personal del área «Piso de venta». Usa «Designar» o toca a una persona para asignarle o modificarle sus góndolas.</p>
+    <div id="listaAsignGondolas" class="space-y-2 mb-5"></div>
     <div class="flex items-center justify-between mb-2"><p class="text-sm font-semibold text-slate-600">Incidencias</p>
       <button onclick="openIncidencia()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Incidencia</button></div>
     <div id="listaIncidencias" class="space-y-2"></div>
@@ -401,6 +405,7 @@
 
 <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-sm px-4 py-2 rounded-xl shadow-lg opacity-0 transition pointer-events-none"></div>
 <datalist id="dlEmpleados"></datalist>
+<datalist id="dlCajeros"></datalist>
 <datalist id="dlProveedores"></datalist>
 
 <script>
@@ -408,7 +413,7 @@
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
 const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","deudas","sesiones"];
-let AREAS=["Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
+let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
@@ -1287,16 +1292,25 @@ function exportarNominaPDF(){ const per=periodoNomina(); const { jsPDF }=window.
 /* ===================== PISO DE VENTA ===================== */
 const SEC_ESTADOS=["Surtida","Por reponer","Vacía"];
 function openSeccion(id){ const s=id?db.list("piso_secciones").find(x=>x.id===id):{};
+  fotoTmp["sant"]=s.foto_antes||""; fotoTmpTs["sant"]=s.foto_antes_ts||"";
+  fotoTmp["sdes"]=s.foto_despues||""; fotoTmpTs["sdes"]=s.foto_despues_ts||"";
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nueva"} sección</h3><div class="space-y-3">
     ${field("nombre","Nombre (ej: Góndola Bebidas)",s.nombre)}
     <div><label class="text-xs text-slate-500">Responsable</label><select id="f_responsable_id" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="">(sin asignar)</option>${optionsEmpleados(s.responsable_id)}</select></div>
     ${selectField("estado","Estado de reposición",SEC_ESTADOS,s.estado||"Surtida")}
-    <div><label class="text-xs text-slate-500">Notas</label><textarea id="f_notas" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(s.notas||"")}</textarea></div></div>
+    <div><label class="text-xs text-slate-500">Notas</label><textarea id="f_notas" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(s.notas||"")}</textarea></div>
+    <div class="grid grid-cols-2 gap-3">
+      <div><label class="text-xs font-semibold text-slate-600">📷 Foto ANTES</label><div id="prevSecAntes" class="mt-1"></div><div class="mt-2">${fotoBtn("sant","prevSecAntes","Antes")}</div></div>
+      <div><label class="text-xs font-semibold text-slate-600">📷 Foto DESPUÉS</label><div id="prevSecDespues" class="mt-1"></div><div class="mt-2">${fotoBtn("sdes","prevSecDespues","Después")}</div></div></div>
+    <p class="text-[10px] text-slate-400">Las fotos se borran solas a las 48 h (evidencia de que se hizo el trabajo).</p></div>
     <div class="flex gap-2 mt-5"><button onclick="saveSeccion('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
     ${id?`<button onclick="delSeccion('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+  pintarFotoPreview("sant","prevSecAntes"); pintarFotoPreview("sdes","prevSecDespues");
 }
 async function saveSeccion(id){ if(bloqueoEdicion(id)) return; const r=readForm(["nombre","responsable_id","estado","notas"]); if(!r.nombre){ toast("Falta el nombre"); return; } r.actualizado=hoy();
+  r.foto_antes=fotoTmp["sant"]||""; r.foto_antes_ts=r.foto_antes?(fotoTmpTs["sant"]||new Date().toISOString()):"";
+  r.foto_despues=fotoTmp["sdes"]||""; r.foto_despues_ts=r.foto_despues?(fotoTmpTs["sdes"]||new Date().toISOString()):"";
   try{ id?await db.update("piso_secciones",id,r):await db.insert("piso_secciones",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delSeccion(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar sección?")){ await db.remove("piso_secciones",id); closeModal(); render(); } }
 async function cicloEstadoSeccion(id,ev){ ev.stopPropagation(); const s=db.list("piso_secciones").find(x=>x.id===id); const i=SEC_ESTADOS.indexOf(s.estado||"Surtida"); const next=SEC_ESTADOS[(i+1)%SEC_ESTADOS.length]; await db.update("piso_secciones",id,{estado:next,actualizado:hoy()}); render(); }
@@ -1304,23 +1318,69 @@ function renderSecciones(){ const l=db.list("piso_secciones").sort((a,b)=>(a.nom
   if(!l.length){ c.innerHTML=empty("Sin secciones. Toca «+ Sección»."); return; }
   const ec={Surtida:"bg-emerald-100 text-emerald-700","Por reponer":"bg-amber-100 text-amber-700","Vacía":"bg-red-100 text-red-700"};
   c.innerHTML=l.map(s=>{ const e=empById(s.responsable_id);
-    return `<div onclick="openSeccion('${s.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50">
-      <div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(s.nombre)}</p><p class="text-xs text-slate-500 truncate">${e?"👤 "+esc(e.nombre):"(sin responsable)"}${s.actualizado?" · "+esc(s.actualizado):""}</p></div>
-      <button onclick="cicloEstadoSeccion('${s.id}',event)" class="text-[10px] px-2 py-1 rounded-full ${ec[s.estado]||ec.Surtida} font-semibold shrink-0">${esc(s.estado||"Surtida")} ▸</button></div>`; }).join("");
+    const vacia=`<div class="text-[10px] text-slate-300 flex items-center justify-center border border-dashed border-slate-200 rounded-xl h-24">sin foto</div>`;
+    const fotos=(s.foto_antes||s.foto_despues)?`<div class="grid grid-cols-2 gap-2 mt-2">${miniFoto(s.foto_antes,s.foto_antes_ts,"Antes")||vacia}${miniFoto(s.foto_despues,s.foto_despues_ts,"Después")||vacia}</div>`:"";
+    return `<div onclick="openSeccion('${s.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50">
+      <div class="flex items-center gap-3"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(s.nombre)}</p><p class="text-xs text-slate-500 truncate">${e?"👤 "+esc(e.nombre):"(sin responsable)"}${s.actualizado?" · "+esc(s.actualizado):""}</p></div>
+      <button onclick="cicloEstadoSeccion('${s.id}',event)" class="text-[10px] px-2 py-1 rounded-full ${ec[s.estado]||ec.Surtida} font-semibold shrink-0">${esc(s.estado||"Surtida")} ▸</button></div>${fotos}</div>`; }).join("");
 }
+/* -------- Asignación de góndolas al personal de Piso de venta -------- */
+function esPisoVenta(area){ return /piso\s*de\s*venta/i.test(String(area||"")); }
+function renderAsignGondolas(){ const c=document.getElementById("listaAsignGondolas"); if(!c) return;
+  const staff=db.list("empleados").filter(e=>e.estado!=="Inactivo" && esPisoVenta(e.area)).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+  if(!staff.length){ c.innerHTML=empty("No hay personal con área «Piso de venta». Asígnala en Personal (y créala en Áreas si hace falta)."); return; }
+  const secs=db.list("piso_secciones");
+  c.innerHTML=staff.map(e=>{ const suyas=secs.filter(s=>s.responsable_id===e.id);
+    const chips=suyas.length? suyas.map(s=>`<span class="text-[10px] px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">${esc(s.nombre)}</span>`).join(" ") : `<span class="text-[11px] text-slate-400">Sin góndolas asignadas</span>`;
+    return `<div onclick="openDesignarGondolas('${e.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50">
+      <div class="flex items-center justify-between gap-2"><p class="font-semibold truncate">👤 ${esc(e.nombre)}</p>
+        <div class="flex items-center gap-2 shrink-0"><span class="text-[10px] px-2 py-1 rounded-full bg-slate-100 text-slate-600">${suyas.length} góndola${suyas.length===1?"":"s"}</span>
+        <button onclick="event.stopPropagation();openDesignarGondolas('${e.id}')" class="text-[10px] bg-teal-700 text-white px-2 py-1 rounded-lg font-semibold">Designar</button></div></div>
+      <div class="flex flex-wrap gap-1 mt-1">${chips}</div></div>`; }).join("");
+}
+function openDesignarPicker(){ if(!puede("piso")){ toast("Sin acceso"); return; }
+  const staff=db.list("empleados").filter(e=>e.estado!=="Inactivo" && esPisoVenta(e.area)).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+  if(!staff.length){ toast("No hay personal con área «Piso de venta»"); return; }
+  const opts=staff.map(e=>`<button onclick="openDesignarGondolas('${e.id}')" class="w-full text-left px-3 py-2.5 rounded-xl bg-slate-50 active:bg-slate-100 border border-slate-100 font-medium">👤 ${esc(e.nombre)}</button>`).join("");
+  openModal(`<h3 class="font-bold text-lg mb-1">Designar góndolas</h3><p class="text-xs text-slate-500 mb-3">Elige a la persona para asignar o modificar sus góndolas.</p><div class="space-y-2 max-h-80 overflow-y-auto">${opts}</div><button onclick="closeModal()" class="w-full mt-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button>`);
+}
+function openDesignarGondolas(empId){ if(!puede("piso")){ toast("Sin acceso"); return; }
+  const e=empById(empId); if(!e) return;
+  const secs=db.list("piso_secciones").sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+  const body=secs.length? secs.map(s=>{ const mine=s.responsable_id===empId; const otro=s.responsable_id&&!mine?empById(s.responsable_id):null;
+    return `<label class="flex items-center gap-2 py-2 border-b border-slate-100">
+      <input type="checkbox" class="dg-chk w-5 h-5 accent-teal-700" value="${s.id}" ${mine?"checked":""}>
+      <span class="flex-1"><span class="font-medium">${esc(s.nombre)}</span>${otro?`<span class="text-[10px] text-amber-600 block">Actualmente de ${esc(otro.nombre)}</span>`:""}</span></label>`; }).join("")
+    : `<p class="text-sm text-slate-400 py-4 text-center">No hay góndolas creadas. Usa «+ Sección».</p>`;
+  openModal(`<h3 class="font-bold text-lg mb-1">Designar góndolas</h3><p class="text-xs text-slate-500 mb-3">${esc(e.nombre)} · ${esc(e.area||"")}</p>
+    <div class="max-h-72 overflow-y-auto">${body}</div>
+    <div class="flex gap-2 mt-4"><button onclick="guardarDesignacion('${empId}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+}
+async function guardarDesignacion(empId){ const checks=[...document.querySelectorAll(".dg-chk")]; const marcadas=new Set(checks.filter(c=>c.checked).map(c=>c.value));
+  try{ for(const c of checks){ const sid=c.value; const s=db.list("piso_secciones").find(x=>x.id===sid); if(!s) continue;
+      if(marcadas.has(sid)){ if(s.responsable_id!==empId) await db.update("piso_secciones",sid,{responsable_id:empId,actualizado:hoy()}); }
+      else if(s.responsable_id===empId){ await db.update("piso_secciones",sid,{responsable_id:"",actualizado:hoy()}); } }
+    closeModal(); render(); toast("Designación guardada"); }catch(err){ toast("Error: "+err.message); } }
 const INC_TIPOS=["Precio faltante","Derrame","Góndola desordenada","Producto vencido","Equipo dañado","Falta de stock","Otro"];
 function openIncidencia(id){ const x=id?db.list("piso_incidencias").find(i=>i.id===id):{};
+  fotoTmp["inc"]=x.foto||""; fotoTmpTs["inc"]=x.foto_ts||"";
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nueva"} incidencia</h3><div class="space-y-3">
     ${selectField("tipo","Tipo",INC_TIPOS,x.tipo||"Precio faltante")}
     ${field("ubicacion","Ubicación / sección",x.ubicacion)}
     <div class="grid grid-cols-2 gap-3">${selectField("prioridad","Prioridad",["Alta","Media","Baja"],x.prioridad||"Media")}${field("fecha","Fecha",x.fecha||hoy(),"date")}</div>
     <div><label class="text-xs text-slate-500">Descripción</label><textarea id="f_descripcion" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(x.descripcion||"")}</textarea></div>
-    ${selectField("estado","Estado",["Abierta","Resuelta"],x.estado||"Abierta")}</div>
+    ${selectField("estado","Estado",["Abierta","Resuelta"],x.estado||"Abierta")}
+    <div><label class="text-xs text-slate-500">📷 Foto de evidencia (se borra sola a las 48 h)</label>
+      <div id="prevIncFoto" class="mt-1"></div>
+      <div class="mt-2">${fotoBtn("inc","prevIncFoto","Tomar / elegir foto")}</div></div></div>
     <div class="flex gap-2 mt-5"><button onclick="saveIncidencia('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
     ${id?`<button onclick="delIncidencia('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+  pintarFotoPreview("inc","prevIncFoto");
 }
 async function saveIncidencia(id){ if(bloqueoEdicion(id)) return; const r=readForm(["tipo","ubicacion","prioridad","fecha","descripcion","estado"]);
+  r.foto=fotoTmp["inc"]||""; r.foto_ts=r.foto?(fotoTmpTs["inc"]||new Date().toISOString()):"";
   try{ id?await db.update("piso_incidencias",id,r):await db.insert("piso_incidencias",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delIncidencia(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar?")){ await db.remove("piso_incidencias",id); closeModal(); render(); } }
 async function resolverIncidencia(id,ev){ ev.stopPropagation(); const x=db.list("piso_incidencias").find(i=>i.id===id); await db.update("piso_incidencias",id,{estado:x.estado==="Resuelta"?"Abierta":"Resuelta"}); render(); }
@@ -1332,8 +1392,35 @@ function renderIncidencias(){ const l=db.list("piso_incidencias").sort((a,b)=>{ 
       <div class="flex items-start justify-between gap-2"><p class="font-semibold ${res?"line-through text-slate-400":""}">${esc(x.tipo)}</p>
       <button onclick="resolverIncidencia('${x.id}',event)" class="text-[10px] px-2 py-1 rounded-full ${res?"bg-emerald-100 text-emerald-700":"bg-slate-200 text-slate-600"} font-semibold shrink-0">${res?"✔ Resuelta":"Marcar resuelta"}</button></div>
       <div class="flex flex-wrap items-center gap-2 mt-1 text-[11px]"><span class="px-2 py-0.5 rounded-full ${pc[x.prioridad]||pc.Media}">${esc(x.prioridad||"Media")}</span>${x.ubicacion?`<span class="text-slate-500">📍 ${esc(x.ubicacion)}</span>`:""}<span class="text-slate-400">${esc(x.fecha||"")}</span></div>
-      ${x.descripcion?`<p class="text-xs text-slate-500 mt-1">${esc(x.descripcion)}</p>`:""}</div>`; }).join("");
+      ${x.descripcion?`<p class="text-xs text-slate-500 mt-1">${esc(x.descripcion)}</p>`:""}
+      ${miniFoto(x.foto,x.foto_ts,"Evidencia")}</div>`; }).join("");
 }
+
+/* ===================== FOTOS DE EVIDENCIA (se borran a las 48h) ===================== */
+const FOTO_TTL_MS=48*3600*1000;
+let fotoTmp={}, fotoTmpTs={};
+function comprimirImagen(file, cb){ const rd=new FileReader();
+  rd.onload=()=>{ const img=new Image(); img.onload=()=>{ const max=1000; let w=img.width, h=img.height;
+      if(w>h&&w>max){ h=Math.round(h*max/w); w=max; } else if(h>=w&&h>max){ w=Math.round(w*max/h); h=max; }
+      const cv=document.createElement("canvas"); cv.width=w; cv.height=h; cv.getContext("2d").drawImage(img,0,0,w,h);
+      try{ cb(cv.toDataURL("image/jpeg",0.6)); }catch(e){ toast("No se pudo procesar la foto"); } };
+    img.onerror=()=>toast("Imagen no válida"); img.src=rd.result; };
+  rd.onerror=()=>toast("No se pudo leer la foto"); rd.readAsDataURL(file); }
+function tomarFoto(slot, previewId){ const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*"; inp.setAttribute("capture","environment");
+  inp.onchange=(ev)=>{ const f=ev.target.files&&ev.target.files[0]; if(!f) return; toast("Procesando foto…"); comprimirImagen(f, url=>{ fotoTmp[slot]=url; fotoTmpTs[slot]=new Date().toISOString(); pintarFotoPreview(slot, previewId); }); };
+  inp.click(); }
+function quitarFoto(slot, previewId){ fotoTmp[slot]=""; fotoTmpTs[slot]=""; pintarFotoPreview(slot, previewId); }
+function pintarFotoPreview(slot, previewId){ const el=document.getElementById(previewId); if(!el) return; const src=fotoTmp[slot];
+  el.innerHTML = src
+    ? `<div class="relative inline-block w-full"><img src="${src}" class="w-full max-h-52 object-cover rounded-xl border border-slate-200"><button type="button" onclick="quitarFoto('${slot}','${previewId}')" class="absolute top-1 right-1 bg-red-600 text-white text-xs w-7 h-7 rounded-full shadow">✕</button></div>`
+    : `<p class="text-xs text-slate-400">Sin foto.</p>`; }
+function fotoBtn(slot, previewId, label){ return `<button type="button" onclick="tomarFoto('${slot}','${previewId}')" class="w-full text-xs font-semibold px-3 py-2 rounded-xl bg-slate-100 text-slate-700 border border-slate-200">📷 ${label}</button>`; }
+function horasRestantes(ts){ if(!ts) return null; const ms=FOTO_TTL_MS-(Date.now()-Date.parse(ts)); if(ms<=0) return "expira pronto"; const h=Math.floor(ms/3600000); return h>=1?("quedan "+h+" h"):"quedan <1 h"; }
+function miniFoto(src, ts, label){ if(!src) return ""; const r=horasRestantes(ts);
+  return `<div class="mt-2">${label?`<p class="text-[10px] font-semibold text-slate-500">${label}</p>`:""}<img src="${src}" class="w-full max-h-40 object-cover rounded-xl border border-slate-200">${r?`<p class="text-[10px] text-slate-400 mt-0.5">🕒 ${r}</p>`:""}</div>`; }
+async function purgarFotosVencidas(){ const now=Date.now(); const venc=(ts)=> ts && (now-Date.parse(ts) > FOTO_TTL_MS);
+  for(const x of db.list("piso_incidencias")){ if(x.foto && venc(x.foto_ts)){ try{ await db.update("piso_incidencias",x.id,{foto:"",foto_ts:""}); }catch(e){} } }
+  for(const s of db.list("piso_secciones")){ const p={}; if(s.foto_antes&&venc(s.foto_antes_ts)){ p.foto_antes=""; p.foto_antes_ts=""; } if(s.foto_despues&&venc(s.foto_despues_ts)){ p.foto_despues=""; p.foto_despues_ts=""; } if(Object.keys(p).length){ try{ await db.update("piso_secciones",s.id,p); }catch(e){} } } }
 
 /* ===================== ESCÁNER DE CÓDIGO DE BARRAS ===================== */
 let scanReader=null, scannerOnResult=null;
@@ -1362,7 +1449,7 @@ function escanearBuscarProducto(){ abrirEscaner((code)=>{
 }); }
 
 /* ===================== SINCRONIZACIÓN MAESTRA ===================== */
-async function sincronizarMaestro(){ toast("Sincronizando…"); try{ await db.recargar(); render(); toast("✔ Sincronizado con todos los dispositivos"); }catch(e){ toast("Error al sincronizar: "+e.message); } }
+async function sincronizarMaestro(){ toast("Sincronizando…"); try{ await db.recargar(); purgarFotosVencidas(); render(); toast("✔ Sincronizado con todos los dispositivos"); }catch(e){ toast("Error al sincronizar: "+e.message); } }
 function tiempoRel(ts){ const s=Math.floor((Date.now()-ts)/1000); if(s<10) return "justo ahora"; if(s<60) return "hace "+s+" s"; const m=Math.floor(s/60); if(m<60) return "hace "+m+" min"; const h=Math.floor(m/60); return "hace "+h+" h"; }
 function pintarUltSync(){ const el=document.getElementById("ultSync"); if(!el) return; el.textContent="Última sincronización: "+tiempoRel(ultimaSyncTs); const fresco=(Date.now()-ultimaSyncTs)<120000; el.className="text-[11px] text-center mt-1 "+(fresco?"text-emerald-600":"text-amber-600"); }
 setInterval(pintarUltSync, 20000);
@@ -1452,10 +1539,10 @@ function openCaja(id){ const c=id?db.list("cajas").find(x=>x.id===id):{};
 async function saveCaja(id){ if(!puede("caja")){ toast("Sin acceso"); return; } const r=readForm(["numero","nombre"]); if(!r.numero){ toast("Falta el número"); return; } r.activa=true;
   try{ id?await db.update("cajas",id,r):await db.insert("cajas",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delCaja(id){ if(!puede("caja")){ toast("Sin acceso"); return; } if(confirm("¿Eliminar esta caja?")){ await db.remove("cajas",id); closeModal(); render(); } }
-function fieldEmp(id,label,val){ return `<div><label class="text-xs text-slate-500">${label}</label><input id="f_${id}" list="dlEmpleados" value="${esc(val??"")}" placeholder="Selecciona o escribe" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>`; }
+function fieldEmp(id,label,val,listId){ return `<div><label class="text-xs text-slate-500">${label}</label><input id="f_${id}" list="${listId||"dlEmpleados"}" value="${esc(val??"")}" placeholder="Selecciona o escribe" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>`; }
 function openCierre(cajaId){ const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal(); const c=cierreDe(cajaId,fecha)||{};
   openModal(`<h3 class="font-bold text-lg mb-3">Cierre — Caja ${esc(caja?caja.numero:"")}</h3><p class="text-xs text-slate-500 mb-3">Fecha: ${fecha} · Tasa: ${tipoCambio} Bs/$</p><div class="space-y-3">
-    ${fieldEmp("cajero","Cajero",c.cajero)}
+    ${fieldEmp("cajero","Cajero",c.cajero,"dlCajeros")}
     <div class="grid grid-cols-2 gap-3">${fieldEmp("nombre_asistente","Asistente supervisor",c.nombre_asistente)}${fieldEmp("nombre_supervisor","Supervisor",c.nombre_supervisor)}</div>
     <p class="text-xs font-semibold text-slate-600">Desglose de pagos</p>
     <div class="grid grid-cols-2 gap-3">${field("cashea","Cashea (Bs)",c.cashea,"number")}${field("biopago","Biopago (Bs)",c.biopago,"number")}</div>
@@ -1562,6 +1649,7 @@ async function borrarBanco(b){ if(!confirm("¿Borrar el banco "+b+"?")) return; 
 function render(){
   renderTiles(); pintarUltSync();
   { const de=document.getElementById("dlEmpleados"); if(de) de.innerHTML=db.list("empleados").map(e=>`<option value="${esc(e.nombre)}">`).join("");
+    const dc=document.getElementById("dlCajeros"); if(dc) dc.innerHTML=db.list("empleados").filter(e=>e.estado!=="Inactivo" && /caja/i.test(e.area||"")).map(e=>`<option value="${esc(e.nombre)}">`).join("");
     const dp=document.getElementById("dlProveedores"); if(dp) dp.innerHTML=db.list("proveedores").map(p=>`<option value="${esc(p.nombre)}">`).join(""); }
   const emps=db.list("empleados").filter(e=>e.estado!=="Inactivo");
   document.getElementById("mEmpleados").textContent=emps.length;
@@ -1582,7 +1670,7 @@ function render(){
 
   renderEmpleados(); renderBonos(); renderEval(); renderEvalSup(); renderAsistencia(); renderTareas(); renderAsignaciones(); renderNomina(); renderDiasLibres();
   renderProveedores(); renderInventario(); renderOrdenes(); renderRecepcion(); renderRecepHistory(); renderMerma();
-  renderSecciones(); renderIncidencias(); renderCaja(); renderTesoreria(); renderDeudas(); renderConexiones();
+  renderSecciones(); renderAsignGondolas(); renderIncidencias(); renderCaja(); renderTesoreria(); renderDeudas(); renderConexiones();
 
   document.getElementById("cfgNombre").value=ajustes.nombre; document.getElementById("cfgHoraEntrada").value=ajustes.horaEntrada; document.getElementById("cfgMoneda").value=ajustes.moneda;
   document.getElementById("logoPreview").innerHTML=`<img src="${ajustes.logo||LOGO_DEFAULT}" class="w-full h-full object-contain">`;
@@ -1626,6 +1714,7 @@ async function cargarDemo(){
 /* ===================== ARRANQUE ===================== */
 (async function(){ cargarConfig(); await db.init();
   if(!db.list("usuarios").length){ await seedUsuarios(); }
+  purgarFotosVencidas(); setInterval(purgarFotosVencidas, 3600000);
   const savedId=localStorage.getItem("supergestion_user");
   const u=savedId && db.list("usuarios").find(x=>x.id===savedId && x.activo!==false);
   if(u){ currentUser=u; aplicarPermisos(); iniciarSesion(); show("inicio"); }
