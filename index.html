@@ -986,12 +986,34 @@ async function delProveedor(id){ if(bloqueoBorrado()) return; if(confirm("¿Elim
 function renderProveedores(){ const q=(document.getElementById("buscarProv")?.value||"").toLowerCase();
   const l=db.list("proveedores").filter(p=>[p.nombre,p.contacto,p.productos].join(" ").toLowerCase().includes(q)).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
   const c=document.getElementById("listaProveedores"); if(!l.length){ c.innerHTML=empty("Sin proveedores."); return; }
-  c.innerHTML=l.map(p=>`<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3"><div onclick="openProveedor('${p.id}')" class="flex-1 min-w-0 active:opacity-60"><p class="font-semibold truncate">${esc(p.nombre)}</p><p class="text-xs text-slate-500 truncate">${esc(p.productos||"—")}${p.contacto?" · "+esc(p.contacto):""}</p></div>${p.telefono?`<a href="https://wa.me/${esc(String(p.telefono).replace(/\D/g,''))}" target="_blank" class="text-lg">💬</a>`:""}</div>`).join("");
+  c.innerHTML=l.map(p=>{ const nprod=db.list("productos").filter(x=>x.proveedor_id===p.id).length;
+    return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-2"><div onclick="openProveedor('${p.id}')" class="flex-1 min-w-0 active:opacity-60"><p class="font-semibold truncate">${esc(p.nombre)}</p><p class="text-xs text-slate-500 truncate">${esc(p.productos||"—")}${p.contacto?" · "+esc(p.contacto):""}</p></div>
+    <button onclick="openProductosProveedor('${p.id}')" class="text-[10px] bg-teal-50 text-teal-700 border border-teal-200 px-2 py-1 rounded-lg font-semibold shrink-0">📦 ${nprod}</button>
+    ${p.telefono?`<a href="https://wa.me/${esc(String(p.telefono).replace(/\D/g,''))}" target="_blank" class="text-lg shrink-0">💬</a>`:""}</div>`; }).join("");
 }
+/* -------- Asignar productos a un proveedor (se guardan al marcar) -------- */
+let _ppSearch="";
+function openProductosProveedor(provId){ if(!puede("proveedores")){ toast("Sin acceso"); return; } const prov=provById(provId); if(!prov) return; _ppSearch=""; renderPPModal(provId); }
+function renderPPModal(provId){ const prov=provById(provId); if(!prov) return; const q=_ppSearch.trim().toLowerCase();
+  const all=db.list("productos"); const asignados=all.filter(p=>p.proveedor_id===provId).length;
+  let l=q?all.filter(p=>[p.nombre,p.codigo,p.categoria].join(" ").toLowerCase().includes(q)):all;
+  l=l.sort((a,b)=>{ const am=a.proveedor_id===provId?0:1, bm=b.proveedor_id===provId?0:1; return am-bm || (a.nombre||"").localeCompare(b.nombre||""); });
+  const tot=l.length; l=l.slice(0,300);
+  const body=l.length? l.map(p=>{ const mine=p.proveedor_id===provId; const otro=p.proveedor_id&&!mine?provById(p.proveedor_id):null;
+    return `<label class="flex items-center gap-2 py-1.5 border-b border-slate-100"><input type="checkbox" class="w-5 h-5 accent-teal-700" ${mine?"checked":""} onchange="togglePP('${p.id}','${provId}',this.checked)"><span class="flex-1 text-sm"><span class="font-medium">${esc(p.nombre)}</span>${otro?`<span class="text-[10px] text-amber-600 block">Ahora asignado a ${esc(otro.nombre)}</span>`:""}</span></label>`; }).join("")
+    : `<p class="text-sm text-slate-400 text-center py-4">${q?"Sin coincidencias.":"No hay productos cargados."}</p>`;
+  openModal(`<h3 class="font-bold text-lg mb-1">Productos de ${esc(prov.nombre)}</h3><p class="text-xs text-slate-500 mb-2">Marca los productos que surte este proveedor. Asignados: <b>${asignados}</b>. Se guardan al marcar.</p>
+    <input id="ppBuscar" value="${esc(_ppSearch)}" oninput="_ppSearch=this.value;renderPPModal('${provId}')" placeholder="🔎 Buscar producto por nombre o código…" class="w-full px-3 py-2 mb-2 rounded-xl border border-slate-200">
+    <div class="max-h-72 overflow-y-auto">${body}</div>
+    ${tot>300?`<p class="text-[10px] text-amber-600 mt-1">Mostrando 300 de ${tot}. Usa el buscador para acotar.</p>`:""}
+    <button onclick="closeModal();render()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Listo</button>`);
+  const el=document.getElementById("ppBuscar"); if(el){ el.focus(); el.setSelectionRange(el.value.length,el.value.length); }
+}
+async function togglePP(prodId, provId, checked){ if(!puede("proveedores")){ toast("Sin acceso"); return; } try{ await db.update("productos",prodId,{proveedor_id: checked?provId:""}); }catch(e){ toast("Error: "+e.message); } }
 
 /* ===================== INVENTARIO ===================== */
 function prodById(id){ return db.list("productos").find(p=>p.id===id); }
-function optionsProductos(sel){ return db.list("productos").sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(p=>`<option value="${p.id}" ${p.id===sel?"selected":""}>${esc(p.nombre)}</option>`).join(""); }
+function optionsProductos(sel,provId){ let l=db.list("productos"); if(provId) l=l.filter(p=>p.proveedor_id===provId); return l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(p=>`<option value="${p.id}" ${p.id===sel?"selected":""}>${esc(p.nombre)}</option>`).join(""); }
 function optionsProveedores(sel){ return `<option value="">(ninguno)</option>`+db.list("proveedores").map(p=>`<option value="${p.id}" ${p.id===sel?"selected":""}>${esc(p.nombre)}</option>`).join(""); }
 function openProducto(id){ const p=id?prodById(id):{};
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} producto</h3><div class="space-y-3">
@@ -1000,6 +1022,8 @@ function openProducto(id){ const p=id?prodById(id):{};
       <div class="flex gap-2"><input id="f_codigo" value="${esc(p.codigo||"")}" placeholder="Escanéalo o escríbelo" class="flex-1 px-3 py-2 rounded-xl border border-slate-200">
       <button type="button" onclick="escanearACampo('f_codigo')" class="bg-teal-600 text-white px-4 rounded-xl font-semibold">📷</button></div></div>
     <div class="grid grid-cols-2 gap-3">${selectField("categoria","Categoría",["Abarrotes","Bebidas","Lácteos","Carnes","Frutas y verduras","Limpieza","Panadería","Charcutería","Otros"],p.categoria)}${selectField("unidad","Unidad",["Unidad","Kg","Litro","Caja","Paquete","Docena"],p.unidad)}</div>
+    <div class="grid grid-cols-2 gap-3">${selectField("empaque","Empaque de compra",["Bulto","Caja","Saco","Paca","Fardo","Display","Bandeja","Kg","Unidad"],p.empaque||"Bulto")}${field("unidades_empaque","Unidades por empaque",p.unidades_empaque,"number")}</div>
+    <p class="text-[10px] text-slate-400 -mt-1">Ej: 1 caja trae 12 unidades → Empaque: Caja · Unidades por empaque: 12</p>
     <div class="grid grid-cols-2 gap-3">${field("stock","Stock actual",p.stock,"number")}${field("stock_min","Stock mínimo",p.stock_min,"number")}</div>
     ${field("precio_compra","Precio de compra",p.precio_compra,"number")}
     <div><label class="text-xs text-slate-500">Proveedor</label><select id="f_proveedor_id" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${optionsProveedores(p.proveedor_id)}</select></div></div>
@@ -1007,14 +1031,14 @@ function openProducto(id){ const p=id?prodById(id):{};
     ${id?`<button onclick="delProducto('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
 }
-async function saveProducto(id){ if(bloqueoEdicion(id)) return; const r=readForm(["nombre","codigo","categoria","unidad","stock","stock_min","precio_compra","proveedor_id"]); if(!r.nombre){ toast("Falta el nombre"); return; }
-  ["stock","stock_min","precio_compra"].forEach(k=>r[k]=Number(r[k])||0); try{ id?await db.update("productos",id,r):await db.insert("productos",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
+async function saveProducto(id){ if(bloqueoEdicion(id)) return; const r=readForm(["nombre","codigo","categoria","unidad","empaque","unidades_empaque","stock","stock_min","precio_compra","proveedor_id"]); if(!r.nombre){ toast("Falta el nombre"); return; }
+  ["stock","stock_min","precio_compra","unidades_empaque"].forEach(k=>r[k]=Number(r[k])||0); try{ id?await db.update("productos",id,r):await db.insert("productos",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delProducto(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar?")){ await db.remove("productos",id); closeModal(); render(); } }
 function renderInventario(){ const q=(document.getElementById("buscarProd")?.value||"").toLowerCase(); const soloBajo=document.getElementById("soloBajo")?.checked;
   let l=db.list("productos").filter(p=>[p.nombre,p.categoria,p.codigo].join(" ").toLowerCase().includes(q)); if(soloBajo) l=l.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0));
   l=l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")); const c=document.getElementById("listaInventario"); if(!l.length){ c.innerHTML=empty("Sin productos."); return; }
   c.innerHTML=l.map(p=>{ const bajo=(Number(p.stock)||0)<=(Number(p.stock_min)||0);
-    return `<div onclick="openProducto('${p.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(p.nombre)}</p><p class="text-xs text-slate-500 truncate">${p.codigo?"🏷 "+esc(p.codigo)+" · ":""}${esc(p.categoria||"—")} · ${money(p.precio_compra)}</p></div>
+    return `<div onclick="openProducto('${p.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(p.nombre)}</p><p class="text-xs text-slate-500 truncate">${p.codigo?"🏷 "+esc(p.codigo)+" · ":""}${esc(p.categoria||"—")} · ${money(p.precio_compra)}${(Number(p.unidades_empaque)||0)>0?" · 📦 "+esc(p.empaque||"Bulto")+" x"+(Number(p.unidades_empaque)||0):""}</p></div>
     <div class="text-right"><p class="text-sm font-bold ${bajo?"text-red-600":"text-slate-700"}">${Number(p.stock)||0} ${esc(p.unidad||"")}</p>${bajo?`<span class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700">Bajo mínimo</span>`:`<span class="text-[10px] text-slate-400">mín: ${Number(p.stock_min)||0}</span>`}</div></div>`; }).join("");
 }
 
@@ -1022,11 +1046,11 @@ function renderInventario(){ const q=(document.getElementById("buscarProd")?.val
 let tempItems=[];
 function openOrden(id){ const o=id?db.list("ordenes").find(x=>x.id===id):null; tempItems=o?JSON.parse(JSON.stringify(o.items||[])):[]; const provSel=o&&o.proveedor_id?provById(o.proveedor_id):null;
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Orden":"Nueva orden"} de compra</h3><div class="space-y-3">
-    <div><label class="text-xs text-slate-500">Proveedor</label><input id="f_proveedor" list="dlProveedores" value="${provSel?esc(provSel.nombre):""}" placeholder="🔎 Escribe para buscar…" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
+    <div><label class="text-xs text-slate-500">Proveedor</label><input id="f_proveedor" list="dlProveedores" value="${provSel?esc(provSel.nombre):""}" oninput="filtrarProdOrden()" placeholder="🔎 Escribe para buscar…" class="w-full px-3 py-2 rounded-xl border border-slate-200"><p class="text-[10px] text-slate-400 mt-0.5">Al elegir proveedor, abajo solo aparecen sus productos.</p></div>
     <div class="grid grid-cols-2 gap-3">${field("fecha","Fecha",o?.fecha||hoy(),"date")}${selectField("estado","Estado",["Pendiente","Enviada","Recibida","Cancelada"],o?.estado||"Pendiente")}</div>
     <div class="bg-slate-50 rounded-xl p-3"><p class="text-xs font-semibold text-slate-600 mb-2">Productos</p>
       <div class="grid grid-cols-12 gap-1 items-end">
-        <div class="col-span-6"><select id="oi_prod" class="w-full px-2 py-2 rounded-lg border border-slate-200 bg-white text-sm">${optionsProductos()}</select></div>
+        <div class="col-span-6"><select id="oi_prod" class="w-full px-2 py-2 rounded-lg border border-slate-200 bg-white text-sm">${optionsProductos("",provSel?provSel.id:"")||'<option value="">— sin productos para este proveedor —</option>'}</select></div>
         <div class="col-span-3"><input id="oi_cant" type="number" placeholder="Cant" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"></div>
         <div class="col-span-3"><button onclick="addItem()" class="w-full bg-teal-700 text-white rounded-lg py-2 text-sm font-semibold">+</button></div>
       </div>
@@ -1039,6 +1063,8 @@ function openOrden(id){ const o=id?db.list("ordenes").find(x=>x.id===id):null; t
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
   renderItems();
 }
+function provIdFromInput(){ const nom=(document.getElementById("f_proveedor")?.value||"").trim().toLowerCase(); const prov=nom?db.list("proveedores").find(p=>(p.nombre||"").trim().toLowerCase()===nom):null; return prov?prov.id:""; }
+function filtrarProdOrden(){ const sel=document.getElementById("oi_prod"); if(!sel) return; const pid=provIdFromInput(); sel.innerHTML = optionsProductos("",pid) || `<option value="">— sin productos para este proveedor —</option>`; }
 function addItem(){ const pid=document.getElementById("oi_prod").value; const cant=Number(document.getElementById("oi_cant").value)||0;
   if(!pid||cant<=0){ toast("Elige producto y cantidad"); return; } const p=prodById(pid);
   tempItems.push({ producto_id:pid, nombre:p?p.nombre:"?", cantidad:cant, precio:p?Number(p.precio_compra)||0:0, unidad:p?p.unidad:"" });
@@ -1200,10 +1226,14 @@ function openRecepcion(orderId){
     <div><label class="text-xs text-slate-500">Proveedor</label><select id="f_proveedor_id" ${o?"disabled":""} class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${optionsProveedores(o?o.proveedor_id:undefined)}</select></div>
     <div class="grid grid-cols-2 gap-3">${field("fecha","Fecha de recepción",hoy(),"date")}${selectField("tipo_documento","Tipo de documento",["Factura fiscal","Nota de entrega"],"Factura fiscal")}</div>
     <div class="bg-slate-50 rounded-xl p-3"><p class="text-xs font-semibold text-slate-600 mb-2">Productos recibidos ${o?"(de la orden)":""} · indica su vencimiento</p>
-      ${o?"":`<div class="grid grid-cols-12 gap-1 items-end mb-2">
-        <div class="col-span-7"><select id="rec_prod" class="w-full px-2 py-2 rounded-lg border border-slate-200 bg-white text-sm">${optionsProductos()}</select></div>
-        <div class="col-span-3"><input id="rec_cant" type="number" placeholder="Cant" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"></div>
-        <div class="col-span-2"><button onclick="addRecItem()" class="w-full bg-teal-700 text-white rounded-lg py-2 text-sm font-semibold">+</button></div>
+      ${o?"":`<div class="space-y-1 mb-2">
+        <select id="rec_prod" class="w-full px-2 py-2 rounded-lg border border-slate-200 bg-white text-sm">${optionsProductos()}</select>
+        <div class="grid grid-cols-12 gap-1 items-end">
+          <div class="col-span-4"><input id="rec_cant" type="number" placeholder="Cant" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"></div>
+          <div class="col-span-5"><select id="rec_modo" class="w-full px-2 py-2 rounded-lg border border-slate-200 bg-white text-sm"><option value="empaque">Bulto / Caja</option><option value="unidad">Unidad suelta</option></select></div>
+          <div class="col-span-3"><button onclick="addRecItem()" class="w-full bg-teal-700 text-white rounded-lg py-2 text-sm font-semibold">+</button></div>
+        </div>
+        <p class="text-[10px] text-slate-400">«Bulto / Caja» suma por empaque (usa las unidades por empaque del producto). «Unidad suelta» suma unidades una a una.</p>
       </div>`}
       <div id="rec_lista" class="space-y-2"></div>
     </div>
@@ -1213,9 +1243,11 @@ function openRecepcion(orderId){
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
   renderRecItems();
 }
-function addRecItem(){ const pid=document.getElementById("rec_prod").value; const cant=Number(document.getElementById("rec_cant").value)||0;
-  if(!pid||cant<=0){ toast("Elige producto y cantidad"); return; } const p=prodById(pid);
-  recItems.push({producto_id:pid,nombre:p?p.nombre:"?",cantidad:cant,precio:p?Number(p.precio_compra)||0:0,unidad:p?p.unidad:"",categoria:p?p.categoria:"",vencimiento:""});
+function addRecItem(){ const pid=document.getElementById("rec_prod").value; const cantIn=Number(document.getElementById("rec_cant").value)||0; const modo=(document.getElementById("rec_modo")||{}).value||"unidad";
+  if(!pid||cantIn<=0){ toast("Elige producto y cantidad"); return; } const p=prodById(pid); const uxe=Number(p&&p.unidades_empaque)||0;
+  let bultos=0, total=cantIn, m="unidad";
+  if(modo==="empaque"){ if(uxe<=0){ toast("Este producto no tiene «unidades por empaque». Edítalo primero o usa «Unidad suelta»."); return; } m="empaque"; bultos=cantIn; total=cantIn*uxe; }
+  recItems.push({producto_id:pid,nombre:p?p.nombre:"?",cantidad:total,bultos:bultos,unidades_empaque:uxe,empaque:p?(p.empaque||"Bulto"):"",modo:m,precio:p?Number(p.precio_compra)||0:0,unidad:p?p.unidad:"",categoria:p?p.categoria:"",vencimiento:""});
   document.getElementById("rec_cant").value=""; renderRecItems(); }
 function removeRecItem(i){ recItems.splice(i,1); renderRecItems(); }
 function setRecVenc(i,val){ recItems[i].vencimiento=val; renderRecItems(); }
@@ -1225,8 +1257,9 @@ function renderRecItems(){ const c=document.getElementById("rec_lista"); if(!c) 
     if(min>0){ if(!it.vencimiento){ aviso=`<span class="text-[10px] text-amber-600">Falta vencimiento (mín ${min}d)</span>`; }
       else { const d=diasHasta(it.vencimiento); aviso=d<min?`<span class="text-[10px] text-red-600 font-semibold">⚠ vence en ${d}d (mín ${min}d)</span>`:`<span class="text-[10px] text-emerald-600">✔ ${d}d</span>`; } }
     else if(it.vencimiento){ aviso=`<span class="text-[10px] text-slate-400">vence en ${diasHasta(it.vencimiento)}d</span>`; }
+    const cantTxt = (it.modo==="empaque" && (Number(it.unidades_empaque)||0)>0) ? `${it.bultos} ${esc(it.empaque||"Bulto")}${it.bultos>1?"s":""} × ${it.unidades_empaque} = ${it.cantidad} u` : `× ${it.cantidad} u`;
     return `<div class="bg-white rounded-lg p-2">
-      <div class="flex items-center justify-between"><span class="text-sm font-medium truncate">${esc(it.nombre)} × ${it.cantidad}${cat?` · ${esc(cat)}`:""}</span><button onclick="removeRecItem(${i})" class="text-red-500 text-sm">✕</button></div>
+      <div class="flex items-center justify-between"><span class="text-sm font-medium truncate">${esc(it.nombre)} ${cantTxt}${cat?` · ${esc(cat)}`:""}</span><button onclick="removeRecItem(${i})" class="text-red-500 text-sm">✕</button></div>
       <div class="flex items-center gap-2 mt-1"><input type="date" value="${esc(it.vencimiento||"")}" onchange="setRecVenc(${i},this.value)" class="px-2 py-1 rounded border border-slate-200 text-xs">${aviso}</div></div>`; }).join("");
 }
 async function saveRecepcion(){
@@ -1526,9 +1559,9 @@ function importarExcelProveedores(ev){ const f=ev.target.files[0]; if(!f) return
 function plantillaProveedores(){ bajarPlantilla("plantilla_proveedores.xlsx",["Nombre","RIF","Contacto","Telefono","Productos"],["Distribuidora El Sol","J-12345678-9","Pedro","584120000000","Abarrotes"]); }
 function importarExcelProductos(ev){ const f=ev.target.files[0]; if(!f) return;
   importarGenerico(f, "productos", raw=>{ const nombre=String(pick(raw,["nombre","producto","descripcion","descripción"])).trim(); if(!nombre) return null;
-    return { nombre, codigo:String(pick(raw,["codigo","código","barra","barcode","codigo de barras"])).trim(), categoria:String(pick(raw,["categoria","categoría"])).trim()||"Otros", unidad:String(pick(raw,["unidad","um"])).trim()||"Unidad", precio_compra:numExcel(pick(raw,["precio costo","precio compra","costo","precio","costo unitario"])), stock:numExcel(pick(raw,["stock","existencia","cantidad"])), stock_min:numExcel(pick(raw,["stock minimo","stock mínimo","minimo","mínimo"])) };
+    return { nombre, codigo:String(pick(raw,["codigo","código","barra","barcode","codigo de barras"])).trim(), categoria:String(pick(raw,["categoria","categoría"])).trim()||"Otros", unidad:String(pick(raw,["unidad","um"])).trim()||"Unidad", empaque:String(pick(raw,["empaque","presentacion","presentación","bulto","embalaje"])).trim()||"Bulto", unidades_empaque:numExcel(pick(raw,["unidades por empaque","unidades por bulto","unidades bulto","und x bulto","cantidad por bulto","unidades caja","contenido"])), precio_compra:numExcel(pick(raw,["precio costo","precio compra","costo","precio","costo unitario"])), stock:numExcel(pick(raw,["stock","existencia","cantidad"])), stock_min:numExcel(pick(raw,["stock minimo","stock mínimo","minimo","mínimo"])) };
   }, "impProdMsg"); ev.target.value=""; }
-function plantillaProductos(){ bajarPlantilla("plantilla_productos.xlsx",["Nombre","Codigo","Categoria","Unidad","Precio costo","Stock","Stock minimo"],["Arroz 1kg","7591234567890","Abarrotes","Unidad",1.2,50,20]); }
+function plantillaProductos(){ bajarPlantilla("plantilla_productos.xlsx",["Nombre","Codigo","Categoria","Unidad","Empaque","Unidades por empaque","Precio costo","Stock","Stock minimo"],["Arroz 1kg","7591234567890","Abarrotes","Unidad","Bulto",24,1.2,50,20]); }
 
 /* ===================== RECIBO DE PAGO ===================== */
 function parseLineas(txt){ return String(txt||"").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{ const i=l.lastIndexOf("="); if(i<0) return {c:l,m:0}; return {c:l.slice(0,i).trim(), m:numExcel(l.slice(i+1))}; }); }
