@@ -790,13 +790,12 @@ async function saveEmpleado(id){ if(bloqueoEdicion(id)) return; const r=readForm
   try{ id?await db.update("empleados",id,r):await db.insert("empleados",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delEmpleado(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar empleado?")){ await db.remove("empleados",id); closeModal(); render(); } }
 function renderEmpleados(){ const q=(document.getElementById("buscarEmp")?.value||"").toLowerCase();
-  // Poblar el filtro de áreas con las que existen en el personal cargado
+  // Poblar el filtro solo con las áreas designadas por la app (config)
   const fa=document.getElementById("filtroAreaEmp");
-  const areas=[...new Set(db.list("empleados").map(e=>(e.area||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  if(fa){ const actual=fa.value; fa.innerHTML=`<option value="">Todas las áreas</option>`+areas.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join(""); if(areas.includes(actual)) fa.value=actual; }
+  if(fa){ const actual=fa.value; fa.innerHTML=`<option value="">Todas las áreas</option>`+AREAS.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join(""); if(AREAS.includes(actual)) fa.value=actual; }
   const areaSel=fa?fa.value:"";
   let l=db.list("empleados").filter(e=>[e.nombre,e.cargo,e.area].join(" ").toLowerCase().includes(q));
-  if(areaSel) l=l.filter(e=>(e.area||"").trim()===areaSel);
+  if(areaSel){ const s=areaSel.trim().toLowerCase(); l=l.filter(e=>(e.area||"").trim().toLowerCase()===s); }
   l=l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
   const cont=document.getElementById("contadorEmp"); if(cont) cont.textContent=l.length+" empleado"+(l.length===1?"":"s")+(areaSel?" · "+areaSel:"");
   const c=document.getElementById("listaEmpleados"); if(!l.length){ c.innerHTML=empty(areaSel||q?"Sin resultados con ese filtro.":"Sin empleados. Toca «+ Empleado»."); return; }
