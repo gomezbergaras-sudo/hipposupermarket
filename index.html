@@ -347,6 +347,13 @@
         <button onclick="agregarArea()" class="bg-teal-600 text-white text-sm font-semibold px-3 py-2 rounded-xl">Agregar</button></div>
     </div>
     <div class="bg-white rounded-2xl p-4 shadow-sm mb-3">
+      <p class="font-semibold text-sm mb-1">Bancos</p>
+      <p class="text-xs text-slate-500 mb-2">Agrega o borra los bancos disponibles para el número de cuenta de los empleados.</p>
+      <div id="listaBancos" class="mb-2"></div>
+      <div class="flex gap-2"><input id="nuevoBanco" placeholder="Nuevo banco" class="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-sm">
+        <button onclick="agregarBanco()" class="bg-teal-600 text-white text-sm font-semibold px-3 py-2 rounded-xl">Agregar</button></div>
+    </div>
+    <div class="bg-white rounded-2xl p-4 shadow-sm mb-3">
       <p class="font-semibold text-sm mb-2">Datos</p>
       <div class="flex flex-wrap gap-2">
         <button onclick="exportarJSON()" class="bg-slate-200 text-slate-700 text-sm font-semibold px-3 py-2 rounded-xl">⬇ Respaldar</button>
@@ -389,6 +396,7 @@
    ========================================================= */
 const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","deudas"];
 let AREAS=["Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
+let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
@@ -469,6 +477,7 @@ function guardarAjustes(){
 function cargarConfigCompartida(){ const rows=store.config||[];
   const tc=rows.find(r=>r.id==="tipo_cambio"); if(tc && Number(tc.valor)>0) tipoCambio=Number(tc.valor);
   const ar=rows.find(r=>r.id==="areas"); let av=ar&&ar.valor; if(typeof av==="string"){ try{av=JSON.parse(av);}catch(e){} } if(Array.isArray(av)&&av.length) AREAS=av;
+  const bk=rows.find(r=>r.id==="bancos"); let bv=bk&&bk.valor; if(typeof bv==="string"){ try{bv=JSON.parse(bv);}catch(e){} } if(Array.isArray(bv)) BANCOS=bv;
 }
 async function setConfig(id,valor){ const rows=store.config||[]; const ex=rows.find(r=>r.id===id);
   try{ if(ex) await db.update("config",id,{valor}); else await db.insert("config",{id,valor}); }catch(e){ toast("Error: "+e.message); } cargarConfigCompartida(); }
@@ -706,12 +715,17 @@ function openEmpleado(id){ const e=id?empById(id):{};
     ${field("nombre","Nombre completo",e.nombre)}${field("cedula","Cédula / ID",e.cedula)}
     <div class="grid grid-cols-2 gap-3">${field("cargo","Cargo",e.cargo)}${selectField("area","Área",AREAS,e.area)}</div>
     <div class="grid grid-cols-2 gap-3">${field("salario_base","Salario base",e.salario_base,"number")}${field("fecha_ingreso","Fecha ingreso",e.fecha_ingreso,"date")}</div>
-    <div class="grid grid-cols-2 gap-3">${field("telefono","Teléfono",e.telefono)}${selectField("estado","Estado",["Activo","Inactivo"],e.estado||"Activo")}</div></div>
+    <div class="grid grid-cols-2 gap-3">${field("telefono","Teléfono",e.telefono)}${selectField("estado","Estado",["Activo","Inactivo"],e.estado||"Activo")}</div>
+    <p class="text-xs font-semibold text-slate-600 pt-1">Horario</p>
+    <div class="grid grid-cols-2 gap-3">${field("h_entrada","Entrada",e.h_entrada,"time")}${field("h_salida","Salida",e.h_salida,"time")}</div>
+    <div class="grid grid-cols-2 gap-3">${field("h_almuerzo_ini","Entrada al almuerzo",e.h_almuerzo_ini,"time")}${field("h_almuerzo_fin","Salida del almuerzo",e.h_almuerzo_fin,"time")}</div>
+    <p class="text-xs font-semibold text-slate-600 pt-1">Datos bancarios</p>
+    <div class="grid grid-cols-2 gap-3">${selectField("banco","Banco",["",...BANCOS],e.banco||"")}${field("numero_cuenta","Número de cuenta",e.numero_cuenta)}</div></div>
     <div class="flex gap-2 mt-5"><button onclick="saveEmpleado('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
     ${id?`<button onclick="delEmpleado('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
 }
-async function saveEmpleado(id){ if(bloqueoEdicion(id)) return; const r=readForm(["nombre","cedula","cargo","area","salario_base","fecha_ingreso","telefono","estado"]);
+async function saveEmpleado(id){ if(bloqueoEdicion(id)) return; const r=readForm(["nombre","cedula","cargo","area","salario_base","fecha_ingreso","telefono","estado","h_entrada","h_salida","h_almuerzo_ini","h_almuerzo_fin","banco","numero_cuenta"]);
   if(!r.nombre){ toast("El nombre es obligatorio"); return; } r.salario_base=Number(r.salario_base)||0;
   try{ id?await db.update("empleados",id,r):await db.insert("empleados",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delEmpleado(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar empleado?")){ await db.remove("empleados",id); closeModal(); render(); } }
@@ -789,7 +803,8 @@ function hoy(){ return new Date().toISOString().slice(0,10); }
 function hhmmToMin(t){ if(!t) return null; const m=String(t).match(/(\d{1,2}):(\d{2})/); return m?(+m[1])*60+(+m[2]):null; }
 function calcAsistencia(r){ const ent=hhmmToMin(r.entrada),sal=hhmmToMin(r.salida),ai=hhmmToMin(r.almuerzo_inicio),af=hhmmToMin(r.almuerzo_fin);
   let horas=null,tardanza=0; if(ent!=null&&sal!=null){ let t=sal-ent; if(ai!=null&&af!=null) t-=(af-ai); horas=Math.max(0,+(t/60).toFixed(2)); }
-  const esp=hhmmToMin(ajustes.horaEntrada); if(ent!=null&&esp!=null&&ent>esp) tardanza=ent-esp; return {horas,tardanza}; }
+  const emp=r.empleado?db.list("empleados").find(e=>(e.nombre||"").trim().toLowerCase()===String(r.empleado).trim().toLowerCase()):null;
+  const esp=hhmmToMin((emp&&emp.h_entrada)?emp.h_entrada:ajustes.horaEntrada); if(ent!=null&&esp!=null&&ent>esp) tardanza=ent-esp; return {horas,tardanza}; }
 function openAsistencia(id){ const a=id?db.list("asistencia").find(x=>x.id===id):{};
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Registrar"} asistencia</h3><div class="space-y-3">
     ${field("empleado","Empleado (nombre)",a.empleado)}${field("fecha","Fecha",a.fecha||hoy(),"date")}
@@ -1380,13 +1395,16 @@ function openCierre(cajaId){ const caja=db.list("cajas").find(x=>x.id===cajaId);
     <div class="grid grid-cols-2 gap-3">${field("cashea","Cashea (Bs)",c.cashea,"number")}${field("biopago","Biopago (Bs)",c.biopago,"number")}</div>
     <div class="grid grid-cols-2 gap-3">${field("punto_venta","Punto de venta (Bs)",c.punto_venta,"number")}${field("efectivo","Efectivo (Bs)",c.efectivo,"number")}</div>
     ${field("divisa_usd","Divisa (USD $)",c.divisa_usd,"number")}
-    ${field("facturado_bs","Facturado en sistema (Bs)",c.facturado_bs,"number")}</div>
+    ${field("facturado_bs","Facturado en sistema (Bs)",c.facturado_bs,"number")}
+    <p class="text-xs font-semibold text-slate-600">Facturas autorizadas</p>
+    ${field("autorizado_monto","Monto autorizado (Bs)",c.autorizado_monto,"number")}
+    <div class="grid grid-cols-2 gap-3">${fieldEmp("autorizado_por","Autorizado por",c.autorizado_por)}${field("autorizado_a","Autorizado a",c.autorizado_a)}</div></div>
     <div class="flex gap-2 mt-5"><button onclick="saveCierre('${cajaId}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar cierre</button>
     ${cierreDe(cajaId,fecha)&&esGerencia()?`<button onclick="delCierre('${cajaId}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`); }
 async function saveCierre(cajaId){ if(!puede("caja")){ toast("Sin acceso"); return; } const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal();
-  const r=readForm(["cajero","nombre_asistente","nombre_supervisor","cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs"]);
-  ["cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs"].forEach(k=>r[k]=Number(r[k])||0);
+  const r=readForm(["cajero","nombre_asistente","nombre_supervisor","cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","autorizado_monto","autorizado_por","autorizado_a"]);
+  ["cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","autorizado_monto"].forEach(k=>r[k]=Number(r[k])||0);
   r.caja_id=cajaId; r.numero_caja=caja?caja.numero:""; r.fecha=fecha; const ex=cierreDe(cajaId,fecha);
   try{ if(ex) await db.update("cierres_caja",ex.id,r); else await db.insert("cierres_caja",r); closeModal(); render(); toast("Cierre guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delCierre(cajaId){ if(!esGerencia()){ toast("Solo gerencia puede eliminar cierres"); return; } const fecha=cajaFechaVal(); const ex=cierreDe(cajaId,fecha); if(!ex) return;
@@ -1470,6 +1488,10 @@ function renderAreasAjustes(){ const c=document.getElementById("listaAreas"); if
   c.innerHTML=AREAS.map(a=>`<span class="inline-flex items-center gap-1 bg-slate-100 rounded-full px-3 py-1 text-sm m-0.5">${esc(a)} <button onclick="borrarArea('${esc(a).replace(/'/g,"")}')" class="text-red-500">✕</button></span>`).join(""); }
 async function agregarArea(){ const el=document.getElementById("nuevaArea"); const v=(el.value||"").trim(); if(!v) return; if(AREAS.includes(v)){ toast("Ya existe"); return; } await setConfig("areas",[...AREAS,v]); el.value=""; render(); toast("Área agregada"); }
 async function borrarArea(a){ if(!confirm("¿Borrar el área "+a+"?")) return; await setConfig("areas",AREAS.filter(x=>x!==a)); render(); toast("Área borrada"); }
+function renderBancosAjustes(){ const c=document.getElementById("listaBancos"); if(!c) return;
+  c.innerHTML=BANCOS.map(b=>`<span class="inline-flex items-center gap-1 bg-slate-100 rounded-full px-3 py-1 text-sm m-0.5">${esc(b)} <button onclick="borrarBanco('${esc(b).replace(/'/g,"")}')" class="text-red-500">✕</button></span>`).join(""); }
+async function agregarBanco(){ const el=document.getElementById("nuevoBanco"); const v=(el.value||"").trim(); if(!v) return; if(BANCOS.includes(v)){ toast("Ya existe"); return; } await setConfig("bancos",[...BANCOS,v]); el.value=""; render(); toast("Banco agregado"); }
+async function borrarBanco(b){ if(!confirm("¿Borrar el banco "+b+"?")) return; await setConfig("bancos",BANCOS.filter(x=>x!==b)); render(); toast("Banco borrado"); }
 
 /* ===================== DASHBOARD / RENDER ===================== */
 function render(){
@@ -1499,7 +1521,7 @@ function render(){
 
   document.getElementById("cfgNombre").value=ajustes.nombre; document.getElementById("cfgHoraEntrada").value=ajustes.horaEntrada; document.getElementById("cfgMoneda").value=ajustes.moneda;
   document.getElementById("logoPreview").innerHTML=`<img src="${ajustes.logo||LOGO_DEFAULT}" class="w-full h-full object-contain">`;
-  renderUsuarios(); renderAreasAjustes(); pintarMarca();
+  renderUsuarios(); renderAreasAjustes(); renderBancosAjustes(); pintarMarca();
   const badge=document.getElementById("modeBadge"); badge.textContent=USE_CLOUD?"compartido ☁":"local"; badge.className="text-[10px] font-semibold px-2 py-1 rounded-full "+(USE_CLOUD?"bg-emerald-400/30":"bg-white/15");
   const est=document.getElementById("estadoBD"); est.className="rounded-2xl p-4 text-sm "+(USE_CLOUD?"bg-emerald-50 text-emerald-800":"bg-amber-50 text-amber-800");
   est.innerHTML=USE_CLOUD?"☁ <b>Base de datos compartida activa.</b>":"📱 <b>Modo local.</b> Datos solo en este dispositivo. Configura Supabase para compartir (ver guía).";
