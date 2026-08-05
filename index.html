@@ -117,7 +117,11 @@
       <button onclick="plantillaPersonal()" class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl">⬇ Plantilla</button>
     </div>
     <p id="impEmpMsg" class="text-xs mb-2"></p>
-    <input id="buscarEmp" oninput="renderEmpleados()" placeholder="Buscar…" class="w-full mb-3 px-3 py-2 rounded-xl border border-slate-200 bg-white" />
+    <div class="flex gap-2 mb-3">
+      <input id="buscarEmp" oninput="renderEmpleados()" placeholder="Buscar…" class="flex-1 px-3 py-2 rounded-xl border border-slate-200 bg-white" />
+      <select id="filtroAreaEmp" onchange="renderEmpleados()" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm max-w-[45%]"><option value="">Todas las áreas</option></select>
+    </div>
+    <p id="contadorEmp" class="text-xs text-slate-400 mb-2"></p>
     <div id="listaEmpleados" class="space-y-2"></div>
   </section>
 
@@ -786,8 +790,16 @@ async function saveEmpleado(id){ if(bloqueoEdicion(id)) return; const r=readForm
   try{ id?await db.update("empleados",id,r):await db.insert("empleados",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delEmpleado(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar empleado?")){ await db.remove("empleados",id); closeModal(); render(); } }
 function renderEmpleados(){ const q=(document.getElementById("buscarEmp")?.value||"").toLowerCase();
-  const l=db.list("empleados").filter(e=>[e.nombre,e.cargo,e.area].join(" ").toLowerCase().includes(q)).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
-  const c=document.getElementById("listaEmpleados"); if(!l.length){ c.innerHTML=empty("Sin empleados. Toca «+ Empleado»."); return; }
+  // Poblar el filtro de áreas con las que existen en el personal cargado
+  const fa=document.getElementById("filtroAreaEmp");
+  const areas=[...new Set(db.list("empleados").map(e=>(e.area||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  if(fa){ const actual=fa.value; fa.innerHTML=`<option value="">Todas las áreas</option>`+areas.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join(""); if(areas.includes(actual)) fa.value=actual; }
+  const areaSel=fa?fa.value:"";
+  let l=db.list("empleados").filter(e=>[e.nombre,e.cargo,e.area].join(" ").toLowerCase().includes(q));
+  if(areaSel) l=l.filter(e=>(e.area||"").trim()===areaSel);
+  l=l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+  const cont=document.getElementById("contadorEmp"); if(cont) cont.textContent=l.length+" empleado"+(l.length===1?"":"s")+(areaSel?" · "+areaSel:"");
+  const c=document.getElementById("listaEmpleados"); if(!l.length){ c.innerHTML=empty(areaSel||q?"Sin resultados con ese filtro.":"Sin empleados. Toca «+ Empleado»."); return; }
   c.innerHTML=l.map(e=>`<div onclick="openPerfil('${e.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50">
     <div class="w-11 h-11 rounded-full bg-teal-100 text-teal-700 grid place-items-center font-bold">${esc((e.nombre||"?").slice(0,1).toUpperCase())}</div>
     <div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(e.nombre)}</p><p class="text-xs text-slate-500 truncate">${esc(e.cargo||"—")} · ${esc(e.area||"—")}</p></div>
