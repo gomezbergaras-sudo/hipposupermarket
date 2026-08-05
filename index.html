@@ -247,11 +247,13 @@
   <!-- ======== NÓMINA ======== -->
   <section data-view="nomina" hidden>
     <h2 class="text-lg font-bold mb-2">Nómina</h2>
-    <div class="flex flex-wrap items-center gap-2 mb-3">
+    <div class="flex flex-wrap items-center gap-2 mb-2">
       <input id="nomPeriodo" type="month" onchange="renderNomina()" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" />
+      <select id="filtroAreaNom" onchange="renderNomina()" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm"><option value="">Todas las áreas</option></select>
       <button onclick="exportarNominaExcel()" class="bg-emerald-600 text-white text-sm font-semibold px-3 py-2 rounded-xl">⬇ Excel</button>
       <button onclick="exportarNominaPDF()" class="bg-slate-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">📄 PDF</button>
     </div>
+    <p id="contadorNom" class="text-xs text-slate-400 mb-1"></p>
     <p class="text-xs text-slate-500 mb-3">Descuentos y bonos se toman de «Salarios y bonos» del mes elegido. Edita los días feriados y observaciones por empleado; se guardan solos.</p>
     <div id="listaNomina" class="space-y-2"></div>
   </section>
@@ -389,6 +391,7 @@
     </div>
     <div id="estadoBD" class="rounded-2xl p-4 text-sm"></div>
   </section>
+  <p id="appVersion" class="text-center text-[10px] text-slate-400 mt-8 mb-24"></p>
 </main>
 
 <!-- Barra inferior -->
@@ -424,6 +427,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
+const APP_VERSION="2.7"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1304,7 +1308,9 @@ function nominaRec(empId,per){ return db.list("nomina").find(n=>n.empleado_id===
 async function setNominaCampo(empId,campo,val){ if(!esGerencia()){ toast("Solo gerencia puede modificar la nómina"); render(); return; } const per=periodoNomina(); let rec=nominaRec(empId,per);
   if(rec) await db.update("nomina",rec.id,{[campo]:val}); else { const o={empleado_id:empId,periodo:per}; o[campo]=val; await db.insert("nomina",o); } }
 function periodoNomina(){ return document.getElementById("nomPeriodo")?.value || hoy().slice(0,7); }
-function buildNomina(per){ return db.list("empleados").filter(e=>e.estado!=="Inactivo").sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(e=>{
+function areaNomina(){ return document.getElementById("filtroAreaNom")?.value || ""; }
+function buildNomina(per, area){ let emps=db.list("empleados").filter(e=>e.estado!=="Inactivo"); if(area){ const s=area.trim().toLowerCase(); emps=emps.filter(e=>(e.area||"").trim().toLowerCase()===s); }
+  return emps.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(e=>{
     const bmes=db.list("bonos").filter(b=>b.empleado_id===e.id&&(b.fecha||"").startsWith(per));
     const desc=bmes.filter(b=>b.tipo==="Deducción").reduce((s,b)=>s+(Number(b.monto)||0),0);
     const bono=bmes.filter(b=>b.tipo!=="Deducción").reduce((s,b)=>s+(Number(b.monto)||0),0);
@@ -1312,8 +1318,11 @@ function buildNomina(per){ return db.list("empleados").filter(e=>e.estado!=="Ina
     return { id:e.id, nombre:e.nombre||"", cedula:e.cedula||"", ingreso:e.fecha_ingreso||"", mensual, quincenal:+(mensual/2).toFixed(2), descuentos:desc, feriados:rec?.dias_feriados||0, bono, observaciones:rec?.observaciones||"" };
   }); }
 function renderNomina(){ const el=document.getElementById("nomPeriodo"); if(el&&!el.value) el.value=hoy().slice(0,7);
-  const per=periodoNomina(); const rows=buildNomina(per); const c=document.getElementById("listaNomina");
-  if(!rows.length){ c.innerHTML=empty("Sin empleados activos."); return; }
+  const fa=document.getElementById("filtroAreaNom");
+  if(fa){ const actual=fa.value; fa.innerHTML=`<option value="">Todas las áreas</option>`+AREAS.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join(""); if(AREAS.includes(actual)) fa.value=actual; }
+  const per=periodoNomina(); const area=areaNomina(); const rows=buildNomina(per,area); const c=document.getElementById("listaNomina");
+  const cont=document.getElementById("contadorNom"); if(cont) cont.textContent=rows.length+" empleado"+(rows.length===1?"":"s")+(area?" · "+area:"");
+  if(!rows.length){ c.innerHTML=empty(area?"Sin empleados en «"+area+"».":"Sin empleados activos."); return; }
   c.innerHTML=rows.map(r=>`<div class="bg-white rounded-2xl p-3 shadow-sm">
     <div class="flex items-center justify-between"><p class="font-semibold truncate">${esc(r.nombre)}</p><p class="text-sm font-bold text-teal-700">${money(r.mensual+r.bono-r.descuentos)}</p></div>
     <p class="text-[11px] text-slate-500 mb-2">${esc(r.cedula||"—")} · ingreso ${esc(r.ingreso||"—")}</p>
@@ -1329,16 +1338,19 @@ function renderNomina(){ const el=document.getElementById("nomPeriodo"); if(el&&
     </div></div>`).join("");
 }
 const NOM_HEADERS=["Nombre completo","Cédula","Fecha de ingreso","Salario mensual","Salario quincenal","Descuentos","Días feriados","Bono","Observaciones"];
-function nominaMatriz(per){ return buildNomina(per).map(r=>[r.nombre,r.cedula,r.ingreso,r.mensual,r.quincenal,r.descuentos,r.feriados,r.bono,r.observaciones]); }
-function exportarNominaExcel(){ const per=periodoNomina(); const data=[NOM_HEADERS,...nominaMatriz(per)];
+function nominaMatriz(per, area){ return buildNomina(per, area).map(r=>[r.nombre,r.cedula,r.ingreso,r.mensual,r.quincenal,r.descuentos,r.feriados,r.bono,r.observaciones]); }
+function slugArea(a){ return a?("_"+a.trim().replace(/\s+/g,"-").replace(/[^\wáéíóúñÁÉÍÓÚÑ-]/g,"")):""; }
+function exportarNominaExcel(){ const per=periodoNomina(); const area=areaNomina(); const data=[NOM_HEADERS,...nominaMatriz(per,area)];
+  if(data.length<=1){ toast("No hay empleados para exportar"); return; }
   const ws=XLSX.utils.aoa_to_sheet(data); ws["!cols"]=[{wch:24},{wch:16},{wch:14},{wch:14},{wch:14},{wch:12},{wch:12},{wch:10},{wch:28}];
-  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Nómina"); XLSX.writeFile(wb,`nomina_${per}.xlsx`); toast("Excel descargado"); }
-function exportarNominaPDF(){ const per=periodoNomina(); const { jsPDF }=window.jspdf; const doc=new jsPDF({orientation:"landscape"}); let y=15;
-  doc.setFontSize(14); doc.text(`Nómina — ${ajustes.nombre} — ${per}`,14,y); y+=8; doc.setFontSize(7.5);
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Nómina"); XLSX.writeFile(wb,`nomina_${per}${slugArea(area)}.xlsx`); toast("Excel descargado"+(area?" · "+area:"")); }
+function exportarNominaPDF(){ const per=periodoNomina(); const area=areaNomina(); const mat=nominaMatriz(per,area); if(!mat.length){ toast("No hay empleados para exportar"); return; }
+  const { jsPDF }=window.jspdf; const doc=new jsPDF({orientation:"landscape"}); let y=15;
+  doc.setFontSize(14); doc.text(`Nómina — ${ajustes.nombre} — ${per}${area?" — "+area:""}`,14,y); y+=8; doc.setFontSize(7.5);
   const xs=[14,60,88,112,134,156,176,196,212]; doc.setFont(undefined,"bold");
   NOM_HEADERS.forEach((h,i)=>doc.text(h,xs[i],y)); doc.setFont(undefined,"normal"); y+=2; doc.line(14,y,283,y); y+=5;
-  nominaMatriz(per).forEach(row=>{ row.forEach((v,i)=>{ let t=String(v); const m=ajustes.moneda; if([3,4,5,7].includes(i)) t=(Number(v)||0).toLocaleString("es-VE")+" "+m; if(i===0) t=t.slice(0,26); if(i===8) t=t.slice(0,22); doc.text(t,xs[i],y); }); y+=6; if(y>195){ doc.addPage(); y=20; } });
-  doc.save(`nomina_${per}.pdf`); toast("PDF descargado"); }
+  mat.forEach(row=>{ row.forEach((v,i)=>{ let t=String(v); const m=ajustes.moneda; if([3,4,5,7].includes(i)) t=(Number(v)||0).toLocaleString("es-VE")+" "+m; if(i===0) t=t.slice(0,26); if(i===8) t=t.slice(0,22); doc.text(t,xs[i],y); }); y+=6; if(y>195){ doc.addPage(); y=20; } });
+  doc.save(`nomina_${per}${slugArea(area)}.pdf`); toast("PDF descargado"+(area?" · "+area:"")); }
 
 /* ===================== PISO DE VENTA ===================== */
 const SEC_ESTADOS=["Surtida","Por reponer","Vacía"];
@@ -1877,7 +1889,7 @@ async function cargarDemo(){
 }
 
 /* ===================== ARRANQUE ===================== */
-(async function(){ cargarConfig(); await db.init();
+(async function(){ const av=document.getElementById("appVersion"); if(av) av.textContent="Hipposupermarket · v"+APP_VERSION; cargarConfig(); await db.init();
   if(!db.list("usuarios").length){ await seedUsuarios(); }
   purgarFotosVencidas(); setInterval(purgarFotosVencidas, 3600000);
   const savedId=localStorage.getItem("supergestion_user");
