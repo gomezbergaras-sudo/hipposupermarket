@@ -429,7 +429,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="2.8"; // se incrementa con cada mejora
+const APP_VERSION="2.9"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1261,7 +1261,8 @@ function openRecepcion(orderId){
     <div class="grid grid-cols-2 gap-3">${field("fecha","Fecha de recepción",hoy(),"date")}${selectField("tipo_documento","Tipo de documento",["Factura fiscal","Nota de entrega"],"Factura fiscal")}</div>
     <div class="bg-slate-50 rounded-xl p-3"><p class="text-xs font-semibold text-slate-600 mb-2">Productos recibidos ${o?"(de la orden)":""} · indica su vencimiento</p>
       ${o?"":`<div class="space-y-1 mb-2">
-        <select id="rec_prod" class="w-full px-2 py-2 rounded-lg border border-slate-200 bg-white text-sm">${optionsProductos()}</select>
+        <div class="flex gap-2"><select id="rec_prod" class="flex-1 px-2 py-2 rounded-lg border border-slate-200 bg-white text-sm">${optionsProductos()}</select>
+          <button type="button" onclick="escanearRecepcion()" class="bg-teal-600 text-white px-3 rounded-lg font-semibold shrink-0">📷</button></div>
         <div class="grid grid-cols-12 gap-1 items-end">
           <div class="col-span-4"><input id="rec_cant" type="number" placeholder="Cant" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"></div>
           <div class="col-span-5"><select id="rec_modo" class="w-full px-2 py-2 rounded-lg border border-slate-200 bg-white text-sm"><option value="empaque">Bulto / Caja</option><option value="unidad">Unidad suelta</option></select></div>
@@ -1528,6 +1529,11 @@ function escanearBuscarProducto(){ abrirEscaner((code)=>{
   const p=db.list("productos").find(x=>String(x.codigo||"")===String(code));
   if(p){ toast("Producto encontrado"); openProducto(p.id); }
   else { openProducto(); const el=document.getElementById("f_codigo"); if(el) el.value=code; toast("Código nuevo: "+code+". Completa el producto."); }
+}); }
+function escanearRecepcion(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c);
+  const sel=document.getElementById("rec_prod");
+  if(p && sel){ sel.value=p.id; toast("✔ "+p.nombre); const cant=document.getElementById("rec_cant"); if(cant) cant.focus(); }
+  else { toast("Código "+c+" no está en productos. Cárgalo primero en Inventario."); }
 }); }
 
 /* ===================== SINCRONIZACIÓN MAESTRA ===================== */
