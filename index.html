@@ -1376,23 +1376,39 @@ function puedeVerTotales(){ return !!(currentUser && !currentUser.es_asistente);
 function leerExcel(file, cb){ const rd=new FileReader(); rd.onload=()=>{ try{ const wb=XLSX.read(new Uint8Array(rd.result),{type:"array"}); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""}); cb(rows); }catch(e){ toast("Error al leer Excel: "+e.message); } }; rd.readAsArrayBuffer(file); }
 function bajarPlantilla(nombre, headers, ejemplo){ const ws=XLSX.utils.aoa_to_sheet([headers, ejemplo]); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Datos"); XLSX.writeFile(wb, nombre); }
 function numExcel(v){ return Number(String(v).replace(/[^\d.\-]/g,""))||0; }
-async function importarExcelPersonal(ev){ const f=ev.target.files[0]; if(!f) return; const msg=document.getElementById("impEmpMsg");
-  leerExcel(f, async(rows)=>{ let ok=0; for(const raw of rows){ const nombre=String(pick(raw,["nombre completo","nombre","name"])).trim(); if(!nombre) continue;
-    const r={ nombre, cedula:String(pick(raw,["cedula","cédula","ci","id"])).trim(), fecha_ingreso:normFecha(pick(raw,["fecha de ingreso","fecha ingreso","ingreso"])), salario_base:numExcel(pick(raw,["salario mensual","salario","mensual"])), area:String(pick(raw,["area","área"])).trim(), cargo:String(pick(raw,["cargo"])).trim(), estado:"Activo" };
-    await db.insert("empleados", r); ok++; }
-    if(msg){ msg.textContent="✅ "+ok+" empleados cargados."; msg.className="text-xs mt-2 text-emerald-600"; } ev.target.value=""; render(); }); }
+/* Importador genérico tolerante: cuenta cargados, ignora filas vacías y reporta el error exacto */
+function importarGenerico(file, tabla, mapRow, msgId){
+  const msg=document.getElementById(msgId);
+  const setMsg=(txt,cls)=>{ if(msg){ msg.textContent=txt; msg.className="text-xs mt-2 "+cls; } };
+  if(!window.XLSX){ setMsg("No se pudo leer el Excel (sin conexión a internet para la librería). Abre la app publicada.","text-red-600"); return; }
+  setMsg("Leyendo…","text-slate-500");
+  leerExcel(file, async(rows)=>{
+    if(!rows || !rows.length){ setMsg("El archivo no tiene filas (o los títulos están en otra fila). Usa la plantilla.","text-amber-600"); return; }
+    let ok=0, err=0, vac=0, primerError="";
+    for(const raw of rows){ let r=null; try{ r=mapRow(raw); }catch(e){ r=null; } if(!r){ vac++; continue; }
+      try{ await db.insert(tabla, r); ok++; }catch(e){ err++; if(!primerError) primerError=(e&&e.message)||String(e); }
+    }
+    if(ok && !err) setMsg("✅ "+ok+" registros cargados.","text-emerald-600");
+    else if(ok && err) setMsg("✅ "+ok+" cargados · ❌ "+err+" con error: "+primerError,"text-amber-600");
+    else if(err) setMsg("❌ No se cargó ninguno. Error: "+primerError+" — suele faltar correr el SQL de actualización.","text-red-600");
+    else setMsg("No se reconocieron datos. Descarga la plantilla y llénala SIN cambiar los títulos de las columnas.","text-amber-600");
+    render();
+  });
+}
+function importarExcelPersonal(ev){ const f=ev.target.files[0]; if(!f) return;
+  importarGenerico(f, "empleados", raw=>{ const nombre=String(pick(raw,["nombre completo","nombre","name","apellidos y nombres","nombres"])).trim(); if(!nombre) return null;
+    return { nombre, cedula:String(pick(raw,["cedula","cédula","ci","id","c.i","documento"])).trim(), fecha_ingreso:normFecha(pick(raw,["fecha de ingreso","fecha ingreso","ingreso","fecha"])), salario_base:numExcel(pick(raw,["salario mensual","salario","mensual","sueldo","sueldo mensual"])), area:String(pick(raw,["area","área","departamento"])).trim(), cargo:String(pick(raw,["cargo","puesto"])).trim(), estado:"Activo" };
+  }, "impEmpMsg"); ev.target.value=""; }
 function plantillaPersonal(){ bajarPlantilla("plantilla_personal.xlsx",["Nombre completo","Cedula","Fecha de ingreso","Salario mensual","Salario quincenal","Area","Cargo"],["Juan Pérez","V-12345678","01/03/2024",300,150,"Cajas","Cajero"]); }
-async function importarExcelProveedores(ev){ const f=ev.target.files[0]; if(!f) return; const msg=document.getElementById("impProvMsg");
-  leerExcel(f, async(rows)=>{ let ok=0; for(const raw of rows){ const nombre=String(pick(raw,["nombre","empresa","proveedor"])).trim(); if(!nombre) continue;
-    const r={ nombre, rif:String(pick(raw,["rif","identificacion fiscal","identificación fiscal","id fiscal"])).trim(), contacto:String(pick(raw,["contacto"])).trim(), telefono:String(pick(raw,["telefono","teléfono","whatsapp"])).trim(), productos:String(pick(raw,["productos","surte"])).trim() };
-    await db.insert("proveedores", r); ok++; }
-    if(msg){ msg.textContent="✅ "+ok+" proveedores cargados."; msg.className="text-xs mt-2 text-emerald-600"; } ev.target.value=""; render(); }); }
+function importarExcelProveedores(ev){ const f=ev.target.files[0]; if(!f) return;
+  importarGenerico(f, "proveedores", raw=>{ const nombre=String(pick(raw,["nombre","empresa","proveedor","razon social","razón social"])).trim(); if(!nombre) return null;
+    return { nombre, rif:String(pick(raw,["rif","identificacion fiscal","identificación fiscal","id fiscal"])).trim(), contacto:String(pick(raw,["contacto","persona"])).trim(), telefono:String(pick(raw,["telefono","teléfono","whatsapp","celular"])).trim(), productos:String(pick(raw,["productos","surte","rubro"])).trim() };
+  }, "impProvMsg"); ev.target.value=""; }
 function plantillaProveedores(){ bajarPlantilla("plantilla_proveedores.xlsx",["Nombre","RIF","Contacto","Telefono","Productos"],["Distribuidora El Sol","J-12345678-9","Pedro","584120000000","Abarrotes"]); }
-async function importarExcelProductos(ev){ const f=ev.target.files[0]; if(!f) return; const msg=document.getElementById("impProdMsg");
-  leerExcel(f, async(rows)=>{ let ok=0; for(const raw of rows){ const nombre=String(pick(raw,["nombre","producto"])).trim(); if(!nombre) continue;
-    const r={ nombre, codigo:String(pick(raw,["codigo","código","barra","barcode"])).trim(), categoria:String(pick(raw,["categoria","categoría"])).trim()||"Otros", unidad:String(pick(raw,["unidad"])).trim()||"Unidad", precio_compra:numExcel(pick(raw,["precio costo","precio compra","costo","precio"])), stock:numExcel(pick(raw,["stock","existencia"])), stock_min:numExcel(pick(raw,["stock minimo","stock mínimo","minimo"])) };
-    await db.insert("productos", r); ok++; }
-    if(msg){ msg.textContent="✅ "+ok+" productos cargados."; msg.className="text-xs mt-2 text-emerald-600"; } ev.target.value=""; render(); }); }
+function importarExcelProductos(ev){ const f=ev.target.files[0]; if(!f) return;
+  importarGenerico(f, "productos", raw=>{ const nombre=String(pick(raw,["nombre","producto","descripcion","descripción"])).trim(); if(!nombre) return null;
+    return { nombre, codigo:String(pick(raw,["codigo","código","barra","barcode","codigo de barras"])).trim(), categoria:String(pick(raw,["categoria","categoría"])).trim()||"Otros", unidad:String(pick(raw,["unidad","um"])).trim()||"Unidad", precio_compra:numExcel(pick(raw,["precio costo","precio compra","costo","precio","costo unitario"])), stock:numExcel(pick(raw,["stock","existencia","cantidad"])), stock_min:numExcel(pick(raw,["stock minimo","stock mínimo","minimo","mínimo"])) };
+  }, "impProdMsg"); ev.target.value=""; }
 function plantillaProductos(){ bajarPlantilla("plantilla_productos.xlsx",["Nombre","Codigo","Categoria","Unidad","Precio costo","Stock","Stock minimo"],["Arroz 1kg","7591234567890","Abarrotes","Unidad",1.2,50,20]); }
 
 /* ===================== RECIBO DE PAGO ===================== */
@@ -1526,11 +1542,10 @@ function renderDeudas(){ const l=db.list("deudas").sort((a,b)=>(b.fecha||"").loc
     return `<div onclick="openDeuda('${d.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50"><div class="flex items-center justify-between"><p class="font-semibold truncate">${esc(d.proveedor)} ${d.tipo==="Nota de crédito"?'<span class="text-[10px] text-emerald-600">NC</span>':''}</p><button onclick="ciclarStatus('${d.id}',event)" class="text-[10px] px-2 py-1 rounded-full ${sc[d.status]||sc.Pendiente} font-semibold shrink-0">${esc(d.status||"Pendiente")} ▸</button></div>
       <p class="text-xs text-slate-500 mt-0.5">${d.rif?esc(d.rif)+" · ":""}${esc(d.fecha||"")} · Monto ${money(d.monto)}${d.abonado?" · Abonado "+money(d.abonado):""}${saldo>0&&d.tipo!=="Nota de crédito"?" · Saldo "+money(saldo):""}</p></div>`; }).join("");
 }
-async function importarExcelDeudas(ev){ const f=ev.target.files[0]; if(!f) return; if(!puede("deudas")){ toast("Sin acceso"); return; } const msg=document.getElementById("deudaMsg");
-  leerExcel(f, async(rows)=>{ let ok=0; for(const raw of rows){ const proveedor=String(pick(raw,["proveedor","nombre"])).trim(); if(!proveedor) continue;
-    const r={ proveedor, rif:String(pick(raw,["rif","id fiscal","identificacion fiscal"])).trim(), tipo:String(pick(raw,["tipo"])).trim()||"Deuda", monto:numExcel(pick(raw,["monto","total"])), abonado:numExcel(pick(raw,["abonado","pagado"])), fecha:normFecha(pick(raw,["fecha"])), status:String(pick(raw,["status","estado"])).trim()||"Pendiente", notas:String(pick(raw,["notas","observaciones"])).trim() };
-    await db.insert("deudas", r); ok++; }
-    if(msg){ msg.textContent="✅ "+ok+" registros cargados."; msg.className="text-xs mb-2 text-emerald-600"; } ev.target.value=""; render(); }); }
+function importarExcelDeudas(ev){ const f=ev.target.files[0]; if(!f) return; if(!puede("deudas")){ toast("Sin acceso"); return; }
+  importarGenerico(f, "deudas", raw=>{ const proveedor=String(pick(raw,["proveedor","nombre","empresa"])).trim(); if(!proveedor) return null;
+    return { proveedor, rif:String(pick(raw,["rif","id fiscal","identificacion fiscal","identificación fiscal"])).trim(), tipo:String(pick(raw,["tipo"])).trim()||"Deuda", monto:numExcel(pick(raw,["monto","total","deuda"])), abonado:numExcel(pick(raw,["abonado","pagado","abono"])), fecha:normFecha(pick(raw,["fecha"])), status:String(pick(raw,["status","estado"])).trim()||"Pendiente", notas:String(pick(raw,["notas","observaciones","nota"])).trim() };
+  }, "deudaMsg"); ev.target.value=""; }
 function plantillaDeudas(){ bajarPlantilla("plantilla_finanzas.xlsx",["Proveedor","RIF","Tipo","Monto","Abonado","Fecha","Status","Notas"],["Distribuidora El Sol","J-12345678-9","Deuda",1500,500,"01/08/2026","Pagado parcial","Factura #123"]); }
 
 /* ===================== ÁREAS (gerencia) ===================== */
