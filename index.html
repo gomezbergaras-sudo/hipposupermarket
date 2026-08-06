@@ -231,7 +231,8 @@
     </div>
     <p id="impProdMsg" class="text-xs mb-2"></p>
     <input id="buscarProd" oninput="renderInventario()" placeholder="Buscar por nombre, categoría o código…" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 bg-white" />
-    <label class="flex items-center gap-2 text-xs text-slate-600 mb-3"><input type="checkbox" id="soloBajo" onchange="renderInventario()"> Mostrar solo bajo mínimo</label>
+    <label class="flex items-center gap-2 text-xs text-slate-600 mb-2"><input type="checkbox" id="soloBajo" onchange="renderInventario()"> Mostrar solo bajo mínimo</label>
+    <div id="contadorProd" class="mb-2"></div>
     <div id="listaInventario" class="space-y-2"></div>
   </section>
 
@@ -441,7 +442,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="3.6"; // se incrementa con cada mejora
+const APP_VERSION="3.7"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1150,8 +1151,12 @@ async function saveProducto(id){ if(bloqueoEdicion(id)) return; const r=readForm
   ["stock","stock_min","precio_compra","unidades_empaque"].forEach(k=>r[k]=Number(r[k])||0); try{ id?await db.update("productos",id,r):await db.insert("productos",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delProducto(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar?")){ await db.remove("productos",id); closeModal(); render(); } }
 function renderInventario(){ const q=(document.getElementById("buscarProd")?.value||"").toLowerCase(); const soloBajo=document.getElementById("soloBajo")?.checked;
-  let l=db.list("productos").filter(p=>[p.nombre,p.categoria,p.codigo].join(" ").toLowerCase().includes(q)); if(soloBajo) l=l.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0));
-  l=l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")); const c=document.getElementById("listaInventario"); if(!l.length){ c.innerHTML=empty("Sin productos."); return; }
+  const todos=db.list("productos"); const bajoMin=todos.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0)).length;
+  let l=todos.filter(p=>[p.nombre,p.categoria,p.codigo].join(" ").toLowerCase().includes(q)); if(soloBajo) l=l.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0));
+  l=l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+  const cnt=document.getElementById("contadorProd");
+  if(cnt){ const filtrando=q||soloBajo; cnt.innerHTML=`<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-xs flex items-center justify-between"><span>📦 <b>${todos.length.toLocaleString("es-VE")}</b> productos en total${bajoMin?` · <span class="text-red-600">${bajoMin} bajo mínimo</span>`:""}</span>${filtrando?`<span class="text-slate-500">${l.length.toLocaleString("es-VE")} mostrados</span>`:""}</div>`; }
+  const c=document.getElementById("listaInventario"); if(!l.length){ c.innerHTML=empty(q||soloBajo?"Sin resultados.":"Sin productos."); return; }
   c.innerHTML=l.map(p=>{ const bajo=(Number(p.stock)||0)<=(Number(p.stock_min)||0);
     return `<div onclick="openProducto('${p.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(p.nombre)}</p><p class="text-xs text-slate-500 truncate">${p.codigo?"🏷 "+esc(p.codigo)+" · ":""}${esc(p.categoria||"—")} · ${money(p.precio_compra)}${(Number(p.unidades_empaque)||0)>0?" · 📦 "+esc(p.empaque||"Bulto")+" x"+(Number(p.unidades_empaque)||0):""}</p></div>
     <div class="text-right"><p class="text-sm font-bold ${bajo?"text-red-600":"text-slate-700"}">${Number(p.stock)||0} ${esc(p.unidad||"")}</p>${bajo?`<span class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700">Bajo mínimo</span>`:`<span class="text-[10px] text-slate-400">mín: ${Number(p.stock_min)||0}</span>`}</div></div>`; }).join("");
