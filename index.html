@@ -442,7 +442,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="3.7"; // se incrementa con cada mejora
+const APP_VERSION="3.8"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1679,28 +1679,33 @@ function leerExcel(file, cb){ const rd=new FileReader(); rd.onload=()=>{ try{
 function bajarPlantilla(nombre, headers, ejemplo){ const ws=XLSX.utils.aoa_to_sheet([headers, ejemplo]); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Datos"); XLSX.writeFile(wb, nombre); }
 function numExcel(v){ return Number(String(v).replace(/[^\d.\-]/g,""))||0; }
 /* Importador genérico tolerante: cuenta cargados, ignora filas vacías y reporta el error exacto */
-function importarGenerico(file, tabla, mapRow, msgId){
+async function insertConReintento(tabla, r){ try{ return await db.insert(tabla, r); }catch(e){ await new Promise(res=>setTimeout(res,200)); return await db.insert(tabla, r); } }
+function importarGenerico(file, tabla, mapRow, msgId, dedupeKey){
   const msg=document.getElementById(msgId);
   const setMsg=(txt,cls)=>{ if(msg){ msg.textContent=txt; msg.className="text-xs mt-2 "+cls; } };
   if(!window.XLSX){ setMsg("No se pudo leer el Excel (sin conexión a internet para la librería). Abre la app publicada.","text-red-600"); return; }
   setMsg("Leyendo…","text-slate-500");
   leerExcel(file, async(rows)=>{
     if(!rows || !rows.length){ setMsg("El archivo no tiene filas (o los títulos están en otra fila). Usa la plantilla.","text-amber-600"); return; }
-    let ok=0, err=0, vac=0, primerError="";
-    for(const raw of rows){ let r=null; try{ r=mapRow(raw); }catch(e){ r=null; } if(!r){ vac++; continue; }
-      try{ await db.insert(tabla, r); ok++; }catch(e){ err++; if(!primerError) primerError=(e&&e.message)||String(e); }
+    let ok=0, err=0, vac=0, omit=0, primerError="", i=0;
+    // Evita duplicados: no vuelve a insertar lo que ya existe (por código/rif/cédula o nombre)
+    const existentes = dedupeKey ? new Set(db.list(tabla).map(x=>dedupeKey(x)).filter(Boolean)) : null;
+    for(const raw of rows){ i++;
+      let r=null; try{ r=mapRow(raw); }catch(e){ r=null; } if(!r){ vac++; continue; }
+      if(existentes){ const k=dedupeKey(r); if(k && existentes.has(k)){ omit++; continue; } if(k) existentes.add(k); }
+      try{ await insertConReintento(tabla, r); ok++; }catch(e){ err++; if(!primerError) primerError=(e&&e.message)||String(e); }
+      if(i%150===0) setMsg("Cargando… "+ok+" nuevos"+(omit?" · "+omit+" ya existían":"")+(err?" · "+err+" con error":""),"text-slate-500");
     }
-    if(ok && !err) setMsg("✅ "+ok+" registros cargados.","text-emerald-600");
-    else if(ok && err) setMsg("✅ "+ok+" cargados · ❌ "+err+" con error: "+primerError,"text-amber-600");
-    else if(err) setMsg("❌ No se cargó ninguno. Error: "+primerError+" — suele faltar correr el SQL de actualización.","text-red-600");
-    else setMsg("No se reconocieron datos. Descarga la plantilla y llénala SIN cambiar los títulos de las columnas.","text-amber-600");
+    const partes=[]; if(ok) partes.push("✅ "+ok+" nuevos cargados"); if(omit) partes.push("↔ "+omit+" ya existían (omitidos)"); if(err) partes.push("❌ "+err+" con error: "+primerError);
+    if(!ok && !omit && !err) setMsg("No se reconocieron datos. Descarga la plantilla y respeta los títulos de las columnas.","text-amber-600");
+    else setMsg(partes.join(" · "), err?"text-amber-600":"text-emerald-600");
     render();
   });
 }
 function importarExcelPersonal(ev){ const f=ev.target.files[0]; if(!f) return;
   importarGenerico(f, "empleados", raw=>{ const nombre=String(pick(raw,["nombre completo","nombre","name","apellidos y nombres","nombres"])).trim(); if(!nombre) return null;
     return { nombre, cedula:String(pick(raw,["cedula","cédula","ci","id","c.i","documento"])).trim().replace(/\.0$/,""), fecha_ingreso:normFecha(pick(raw,["fecha de ingreso","fecha ingreso","ingreso","fecha"])), salario_base:numExcel(pick(raw,["sueldo mensual","salario mensual","salario","mensual","sueldo"])), area:String(pick(raw,["ubicacion","ubicación","area","área","departamento","sede","sucursal"])).trim(), cargo:String(pick(raw,["cargo","puesto"])).trim(), estado:"Activo" };
-  }, "impEmpMsg"); ev.target.value=""; }
+  }, "impEmpMsg", e=> (String(e.cedula||"").trim()? "C:"+String(e.cedula).trim() : "N:"+String(e.nombre||"").trim().toLowerCase())); ev.target.value=""; }
 function plantillaPersonal(){ bajarPlantilla("plantilla_personal.xlsx",["Nombre completo","Cedula","Fecha de ingreso","Salario mensual","Salario quincenal","Area","Cargo"],["Juan Pérez","V-12345678","01/03/2024",300,150,"Cajas","Cajero"]); }
 function importarExcelProveedores(ev){ const f=ev.target.files[0]; if(!f) return;
   importarGenerico(f, "proveedores", raw=>{
@@ -1713,12 +1718,12 @@ function importarExcelProveedores(ev){ const f=ev.target.files[0]; if(!f) return
       else if(vals.length===1 && !nombre){ nombre=vals[0]; } }
     rif=rif.replace(/\.0$/,""); if(!nombre) return null;
     return { nombre, rif, contacto:String(pick(raw,["contacto","persona"])).trim(), telefono:String(pick(raw,["telefono","teléfono","whatsapp","celular"])).trim(), productos:String(pick(raw,["productos","surte","rubro"])).trim() };
-  }, "impProvMsg"); ev.target.value=""; }
+  }, "impProvMsg", p=> (String(p.rif||"").trim()? "R:"+String(p.rif).trim() : "N:"+String(p.nombre||"").trim().toLowerCase())); ev.target.value=""; }
 function plantillaProveedores(){ bajarPlantilla("plantilla_proveedores.xlsx",["Nombre","RIF","Contacto","Telefono","Productos"],["Distribuidora El Sol","J-12345678-9","Pedro","584120000000","Abarrotes"]); }
 function importarExcelProductos(ev){ const f=ev.target.files[0]; if(!f) return;
   importarGenerico(f, "productos", raw=>{ const nombre=String(pick(raw,["nombre","producto","descripcion","descripción"])).trim(); if(!nombre) return null;
     return { nombre, codigo:String(pick(raw,["codigo","código","barra","barcode","codigo de barras"])).trim(), categoria:String(pick(raw,["categoria","categoría"])).trim()||"Otros", unidad:String(pick(raw,["unidad","um"])).trim()||"Unidad", empaque:String(pick(raw,["empaque","presentacion","presentación","bulto","embalaje"])).trim()||"Bulto", unidades_empaque:numExcel(pick(raw,["unidades por empaque","unidades por bulto","unidades bulto","und x bulto","cantidad por bulto","unidades caja","contenido"])), precio_compra:numExcel(pick(raw,["precio costo","precio compra","costo","precio","costo unitario"])), stock:numExcel(pick(raw,["stock","existencia","cantidad"])), stock_min:numExcel(pick(raw,["stock minimo","stock mínimo","minimo","mínimo"])) };
-  }, "impProdMsg"); ev.target.value=""; }
+  }, "impProdMsg", p=> (String(p.codigo||"").trim()? "C:"+String(p.codigo).trim() : "N:"+String(p.nombre||"").trim().toLowerCase())); ev.target.value=""; }
 function plantillaProductos(){ bajarPlantilla("plantilla_productos.xlsx",["Nombre","Codigo","Categoria","Unidad","Empaque","Unidades por empaque","Precio costo","Stock","Stock minimo"],["Arroz 1kg","7591234567890","Abarrotes","Unidad","Bulto",24,1.2,50,20]); }
 
 /* ===================== RECIBO DE PAGO ===================== */
