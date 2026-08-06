@@ -452,7 +452,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="4.2"; // se incrementa con cada mejora
+const APP_VERSION="4.3"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -460,6 +460,7 @@ function diasEntre(desde,hasta){ if(!desde||!hasta) return NaN; return Math.ceil
 function diasHasta(f){ return diasEntre(new Date().toISOString().slice(0,10), f); }
 let sb=null, USE_CLOUD=false, store={};
 let ultimaSyncTs=Date.now(), lastSyncISO=null;
+let _dlCache={emp:-1,prov:-1,prod:-1}; // memo de datalists grandes
 function marcarSync(){ ultimaSyncTs=Date.now(); lastSyncISO=new Date().toISOString(); pintarUltSync(); }
 function uid(){ return "id"+Math.random().toString(36).slice(2,10)+Date.now().toString(36); }
 const LS_KEY="supergestion_v2";
@@ -481,19 +482,21 @@ const db = {
         if (error) throw error; USE_CLOUD = true;
       }catch(e){ USE_CLOUD=false; console.warn("Supabase no disponible, modo local:", e.message); }
     }
-    if (USE_CLOUD){ for (const t of TABLES){ try{ store[t]=await fetchAllRows(t); }catch(e){ const {data}=await sb.from(t).select("*"); store[t]=data||[]; } } suscribirRealtime(); }
+    // Carga TODAS las tablas EN PARALELO (mucho más rápido que una por una)
+    if (USE_CLOUD){ await Promise.all(TABLES.map(async t=>{ try{ store[t]=await fetchAllRows(t); }catch(e){ try{ const {data}=await sb.from(t).select("*"); store[t]=data||[]; }catch(_){ store[t]=[]; } } })); suscribirRealtime(); }
     else { const s=lsLoad(); TABLES.forEach(t=> store[t]=s[t]||[]); }
-    cargarConfigCompartida(); marcarSync();
+    _dlCache={emp:-1,prov:-1,prod:-1}; cargarConfigCompartida(); marcarSync();
   },
   async recargar(){ // sincronización: incremental (solo cambios) con respaldo a completa
     if(USE_CLOUD){
       let inc = !!lastSyncISO;
       if(inc){
-        try{ for (const t of TABLES){ const data = await fetchAllRows(t, lastSyncISO);
-            (data||[]).forEach(row=>{ const i=store[t].findIndex(r=>r.id===row.id); if(i>=0) store[t][i]=row; else store[t].push(row); }); }
+        try{ await Promise.all(TABLES.map(async t=>{ const data = await fetchAllRows(t, lastSyncISO);
+            (data||[]).forEach(row=>{ const i=store[t].findIndex(r=>r.id===row.id); if(i>=0) store[t][i]=row; else store[t].push(row); }); }));
         }catch(e){ inc=false; } // si falta la columna "actualizado", carga completa
       }
-      if(!inc){ for (const t of TABLES){ try{ store[t]=await fetchAllRows(t); }catch(e){ const {data}=await sb.from(t).select("*"); store[t]=data||[]; } } }
+      if(!inc){ await Promise.all(TABLES.map(async t=>{ try{ store[t]=await fetchAllRows(t); }catch(e){ try{ const {data}=await sb.from(t).select("*"); store[t]=data||[]; }catch(_){ } } })); }
+      _dlCache={emp:-1,prov:-1,prod:-1};
     }
     else { const s=lsLoad(); TABLES.forEach(t=> store[t]=s[t]||[]); }
     cargarConfigCompartida(); marcarSync();
@@ -2111,14 +2114,17 @@ async function agregarBanco(){ const el=document.getElementById("nuevoBanco"); c
 async function borrarBanco(b){ if(!confirm("¿Borrar el banco "+b+"?")) return; await setConfig("bancos",BANCOS.filter(x=>x!==b)); render(); toast("Banco borrado"); }
 
 /* ===================== DASHBOARD / RENDER ===================== */
-function render(){
-  renderTiles(); pintarUltSync();
-  { const de=document.getElementById("dlEmpleados"); if(de) de.innerHTML=db.list("empleados").map(e=>`<option value="${esc(e.nombre)}">`).join("");
-    const dc=document.getElementById("dlCajeros"); if(dc) dc.innerHTML=db.list("empleados").filter(e=>e.estado!=="Inactivo" && /caja/i.test(e.area||"")).map(e=>`<option value="${esc(e.nombre)}">`).join("");
-    const dp=document.getElementById("dlProveedores"); if(dp) dp.innerHTML=db.list("proveedores").map(p=>`<option value="${esc(p.nombre)}">`).join("");
-    const dpr=document.getElementById("dlProductos"); if(dpr) dpr.innerHTML=db.list("productos").map(p=>`<option value="${esc(p.nombre)}">`).join(""); }
+// Datalists grandes (productos 5k+, proveedores 1k+): reconstruir solo si cambió la cantidad (memo)
+function actualizarDatalists(){
+  const ne=db.list("empleados").length, np=db.list("proveedores").length, npr=db.list("productos").length;
+  if(ne!==_dlCache.emp){ const de=document.getElementById("dlEmpleados"); if(de) de.innerHTML=db.list("empleados").map(e=>`<option value="${esc(e.nombre)}">`).join("");
+    const dc=document.getElementById("dlCajeros"); if(dc) dc.innerHTML=db.list("empleados").filter(e=>e.estado!=="Inactivo" && /caja/i.test(e.area||"")).map(e=>`<option value="${esc(e.nombre)}">`).join(""); _dlCache.emp=ne; }
+  if(np!==_dlCache.prov){ const dp=document.getElementById("dlProveedores"); if(dp) dp.innerHTML=db.list("proveedores").map(p=>`<option value="${esc(p.nombre)}">`).join(""); _dlCache.prov=np; }
+  if(npr!==_dlCache.prod){ const dpr=document.getElementById("dlProductos"); if(dpr) dpr.innerHTML=db.list("productos").map(p=>`<option value="${esc(p.nombre)}">`).join(""); _dlCache.prod=npr; }
+}
+function renderInicio(){
+  renderTiles();
   const empsAll=db.list("empleados").filter(e=>e.estado!=="Inactivo");
-  // Filtro de área del Resumen (áreas oficiales de la app, coincidencia sin mayúsculas)
   const faR=document.getElementById("filtroAreaResumen");
   if(faR){ const actual=faR.value; faR.innerHTML=`<option value="">Todas las áreas</option>`+AREAS.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join(""); if(AREAS.includes(actual)) faR.value=actual; }
   const areaR=faR?faR.value:""; const sR=areaR.trim().toLowerCase();
@@ -2132,7 +2138,6 @@ function render(){
   document.getElementById("mIncid").textContent=db.list("piso_incidencias").filter(x=>x.estado!=="Resuelta").length;
   document.getElementById("mRepo").textContent=db.list("piso_secciones").filter(s=>s.estado!=="Surtida").length;
   { const mq=document.getElementById("mQuiebre"); if(mq) mq.textContent=db.list("quiebres").filter(q=>(q.status||"Pendiente")!=="Resuelto").length; }
-  // Resumen/indicadores según permisos
   const verResumen=puede("resumen");
   const rbx=document.getElementById("resumenBox"), hR=document.getElementById("hResumen");
   if(rbx) rbx.style.display=verResumen?"":"none"; if(hR) hR.style.display=verResumen?"":"none";
@@ -2141,17 +2146,31 @@ function render(){
     showCard("card_inv","inventario"); showCard("card_ordenes","ordenes"); showCard("card_incid","piso"); showCard("card_repo","piso"); showCard("card_quiebre","quiebre"); }
   { const da=document.getElementById("desgloseAreas");
     if(da){ if(verResumen && (puede("empleados")||puede("nomina"))){ da.style.display=""; renderDesgloseAreas(empsAll,areaR); } else da.style.display="none"; } }
-
-  renderEmpleados(); renderBonos(); renderEval(); renderEvalSup(); renderAsistencia(); renderTareas(); renderAsignaciones(); renderNomina(); renderDiasLibres();
-  renderProveedores(); renderInventario(); renderOrdenes(); renderRecepcion(); renderRecepHistory(); renderMerma(); renderIncPersonal(); renderQuiebre();
-  renderSecciones(); renderAsignGondolas(); renderIncidencias(); renderCaja(); renderTesoreria(); renderDeudas(); renderConexiones();
-
-  document.getElementById("cfgNombre").value=ajustes.nombre; document.getElementById("cfgHoraEntrada").value=ajustes.horaEntrada; document.getElementById("cfgMoneda").value=ajustes.moneda;
-  document.getElementById("logoPreview").innerHTML=`<img src="${ajustes.logo||LOGO_DEFAULT}" class="w-full h-full object-contain">`;
-  renderUsuarios(); renderAreasAjustes(); renderBancosAjustes(); pintarMarca();
-  const badge=document.getElementById("modeBadge"); badge.textContent=USE_CLOUD?"compartido ☁":"local"; badge.className="text-[10px] font-semibold px-2 py-1 rounded-full "+(USE_CLOUD?"bg-emerald-400/30":"bg-white/15");
-  const est=document.getElementById("estadoBD"); est.className="rounded-2xl p-4 text-sm "+(USE_CLOUD?"bg-emerald-50 text-emerald-800":"bg-amber-50 text-amber-800");
-  est.innerHTML=USE_CLOUD?"☁ <b>Base de datos compartida activa.</b>":"📱 <b>Modo local.</b> Datos solo en este dispositivo. Configura Supabase para compartir (ver guía).";
+}
+function renderAjustesView(){
+  const n=document.getElementById("cfgNombre"); if(n) n.value=ajustes.nombre;
+  const h=document.getElementById("cfgHoraEntrada"); if(h) h.value=ajustes.horaEntrada;
+  const m=document.getElementById("cfgMoneda"); if(m) m.value=ajustes.moneda;
+  const lp=document.getElementById("logoPreview"); if(lp) lp.innerHTML=`<img src="${ajustes.logo||LOGO_DEFAULT}" class="w-full h-full object-contain">`;
+  renderUsuarios(); renderAreasAjustes(); renderBancosAjustes();
+  const est=document.getElementById("estadoBD"); if(est){ est.className="rounded-2xl p-4 text-sm "+(USE_CLOUD?"bg-emerald-50 text-emerald-800":"bg-amber-50 text-amber-800");
+    est.innerHTML=USE_CLOUD?"☁ <b>Base de datos compartida activa.</b>":"📱 <b>Modo local.</b> Datos solo en este dispositivo. Configura Supabase para compartir (ver guía)."; }
+}
+// Cada vista renderiza SOLO su contenido (no reconstruye todas las listas en cada cambio)
+const RENDER_VISTA={
+  inicio:renderInicio, empleados:renderEmpleados, bonos:renderBonos, eval:renderEval, evalsup:renderEvalSup,
+  asistencia:renderAsistencia, tareas:renderTareas, asignaciones:renderAsignaciones, nomina:renderNomina,
+  diaslibres:renderDiasLibres, incpersonal:renderIncPersonal,
+  piso:function(){ renderSecciones(); renderAsignGondolas(); renderIncidencias(); },
+  proveedores:renderProveedores, inventario:renderInventario, ordenes:renderOrdenes,
+  recepcion:function(){ renderRecepcion(); renderRecepHistory(); }, merma:renderMerma, quiebre:renderQuiebre,
+  caja:renderCaja, tesoreria:renderTesoreria, deudas:renderDeudas, conexiones:renderConexiones,
+  ajustes:renderAjustesView
+};
+function render(){
+  pintarUltSync(); pintarMarca(); actualizarDatalists();
+  const badge=document.getElementById("modeBadge"); if(badge){ badge.textContent=USE_CLOUD?"compartido ☁":"local"; badge.className="text-[10px] font-semibold px-2 py-1 rounded-full "+(USE_CLOUD?"bg-emerald-400/30":"bg-white/15"); }
+  const fn=RENDER_VISTA[currentView]; if(fn) fn();
 }
 
 /* ===================== DATOS / RESPALDO ===================== */
