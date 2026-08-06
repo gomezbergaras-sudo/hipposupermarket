@@ -343,16 +343,20 @@
 
   <!-- ======== FINANZAS (DEUDAS) ======== -->
   <section data-view="deudas" hidden>
-    <div class="flex items-center justify-between mb-1"><h2 class="text-lg font-bold">Finanzas</h2>
-      <div class="flex gap-2"><button onclick="openPagoProv()" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold">💵 Pago a proveedor</button>
-      <button onclick="openDeuda()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Deuda</button></div></div>
-    <p class="text-xs text-slate-500 mb-2">Deudas y notas de crédito con proveedores.</p>
+    <div class="mb-1"><h2 class="text-lg font-bold">Finanzas</h2></div>
+    <div class="flex flex-wrap gap-2 mb-2">
+      <button onclick="openFacturasRec()" class="text-xs bg-slate-700 text-white px-3 py-1.5 rounded-lg font-semibold">📥 Facturas recibidas</button>
+      <button onclick="openPagoProv()" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold">💵 Pago a proveedor</button>
+      <button onclick="openReportePagos()" class="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg font-semibold">📊 Reporte de pagos</button>
+      <button onclick="openDeuda()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Deuda</button></div>
+    <p class="text-xs text-slate-500 mb-2">Deudas, notas de crédito, pagos y facturas recibidas de proveedores.</p>
     <div class="flex flex-wrap gap-2 mb-3">
       <label class="bg-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelDeudas(event)"></label>
       <button onclick="plantillaDeudas()" class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl">⬇ Plantilla</button>
     </div>
     <p id="deudaMsg" class="text-xs mb-2"></p>
     <div id="deudaResumen" class="mb-3"></div>
+    <div id="facturasRecBox" class="mb-3"></div>
     <div id="pagosProvBox" class="mb-3"></div>
     <div id="listaDeudas" class="space-y-2"></div>
   </section>
@@ -451,11 +455,11 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","prestamos","inc_personal","quiebres","sesiones"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="4.6"; // se incrementa con cada mejora
+const APP_VERSION="4.7"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -724,7 +728,7 @@ const OPCIONES=[
   ["empleados","Personal"],["nomina","Nómina"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],["incpersonal","Incidencias de personal (asistencia)"],
   ["proveedores","Proveedores"],["inventario","Inventario"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],
-  ["caja","Caja (cierres)"],["deudas","Finanzas (deudas)"]
+  ["caja","Caja (cierres y arqueos)"],["tesoreria","Tesorería (totales y tasa)"],["deudas","Finanzas (deudas, pagos y facturas recibidas)"],["conexiones","Conexiones (quién se conecta)"]
 ];
 const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma","quiebre"];
 const OP_PERM=["tareas","asignaciones","asistencia","piso","quiebre"];
@@ -1946,9 +1950,11 @@ function gestionarCierresDia(){ if(!esGerencia()){ toast("Solo gerencia"); retur
 async function delCierreId(id){ if(!esGerencia()){ toast("Solo gerencia"); return; } if(confirm("¿Eliminar este cierre?")){ await db.remove("cierres_caja",id); closeModal(); render(); toast("Cierre eliminado"); } }
 /* -------- Arqueo (cierre parcial: cambio de cajero, almuerzo) -------- */
 const ARQUEO_MOTIVOS=["Cambio de cajero","Salida a almuerzo","Regreso de almuerzo","Corte parcial","Otro"];
-function openArqueo(cajaId){ if(!puede("caja")){ toast("Sin acceso"); return; } const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal(); const c={}; initCierreFacturas(c);
-  openModal(`<h3 class="font-bold text-lg mb-1">Arqueo parcial — Caja ${esc(caja?caja.numero:"")}</h3><p class="text-xs text-amber-600 mb-3">Cierre parcial (cambio de cajero o almuerzo). No afecta el total del día. Fecha: ${fecha} · Tasa: ${tipoCambio} Bs/$</p><div class="space-y-3">
-    ${selectField("motivo","Motivo del arqueo",ARQUEO_MOTIVOS,"Cambio de cajero")}
+function puedeEditarArqueo(){ return !!(currentUser && (currentUser.es_gerencia || currentUser.es_supervisor)); }
+function openArqueo(cajaId, id){ if(!puede("caja")){ toast("Sin acceso"); return; } if(id && !puedeEditarArqueo()){ toast("Solo supervisor o gerencia puede editar arqueos"); return; }
+  const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal(); const c=id?(db.list("cierres_caja").find(x=>x.id===id)||{}):{}; initCierreFacturas(c);
+  openModal(`<h3 class="font-bold text-lg mb-1">${id?"Editar arqueo":"Arqueo parcial"} — Caja ${esc(caja?caja.numero:"")}</h3><p class="text-xs text-amber-600 mb-3">Cierre parcial (cambio de cajero o almuerzo). No afecta el total del día. Fecha: ${fecha} · Tasa: ${(c&&Number(c.tasa)>0)?c.tasa:tipoCambio} Bs/$</p><div class="space-y-3">
+    ${selectField("motivo","Motivo del arqueo",ARQUEO_MOTIVOS,c.motivo||"Cambio de cajero")}
     ${fieldEmp("cajero","Cajero",c.cajero,"dlCajeros")}
     <div class="grid grid-cols-2 gap-3">${fieldEmp("nombre_asistente","Asistente supervisor",c.nombre_asistente)}${fieldEmp("nombre_supervisor","Supervisor",c.nombre_supervisor)}</div>
     <p class="text-xs font-semibold text-slate-600">Desglose de pagos</p>
@@ -1960,15 +1966,18 @@ function openArqueo(cajaId){ if(!puede("caja")){ toast("Sin acceso"); return; } 
     <div id="cierreFacturasList"></div>
     <p class="text-xs font-semibold text-slate-600 mt-1">Fondos <span class="text-slate-400 font-normal">(suman al total)</span></p>
     <div class="grid grid-cols-2 gap-3">${field("fondos_monto","Fondos (Bs)",c.fondos_monto,"number")}${fieldEmp("fondos_por","Solicitado por",c.fondos_por)}</div></div>
-    <div class="flex gap-2 mt-5"><button onclick="saveArqueo('${cajaId}')" class="flex-1 bg-amber-500 text-white font-semibold py-2.5 rounded-xl">Guardar arqueo</button>
+    <div class="flex gap-2 mt-5"><button onclick="saveArqueo('${cajaId}','${id||""}')" class="flex-1 bg-amber-500 text-white font-semibold py-2.5 rounded-xl">${id?"Guardar cambios":"Guardar arqueo"}</button>
+    ${id&&esGerencia()?`<button onclick="delArqueo('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
   renderCierreFacturas(); }
-async function saveArqueo(cajaId){ if(!puede("caja")){ toast("Sin acceso"); return; } const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal();
+async function saveArqueo(cajaId, id){ if(!puede("caja")){ toast("Sin acceso"); return; } if(id && !puedeEditarArqueo()){ toast("Solo supervisor o gerencia puede editar arqueos"); return; }
+  const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal();
   const r=readForm(["motivo","cajero","nombre_asistente","nombre_supervisor","cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","fondos_monto","fondos_por"]);
   ["cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","fondos_monto"].forEach(k=>r[k]=Number(r[k])||0);
   r.facturas=facturasLimpias(); r.autorizado_monto=0; r.autorizado_por=""; r.autorizado_a="";
-  r.caja_id=cajaId; r.numero_caja=caja?caja.numero:""; r.fecha=fecha; r.arqueo=true; r.hora=new Date().toTimeString().slice(0,5); r.tasa=tipoCambio;
-  try{ await db.insert("cierres_caja",r); closeModal(); render(); toast("Arqueo parcial guardado"); }catch(e){ toast("Error: "+e.message); } }
+  r.caja_id=cajaId; r.numero_caja=caja?caja.numero:""; r.fecha=fecha; r.arqueo=true;
+  const ex=id?db.list("cierres_caja").find(x=>x.id===id):null; r.tasa=(ex&&Number(ex.tasa)>0)?Number(ex.tasa):tipoCambio; r.hora=ex?ex.hora:new Date().toTimeString().slice(0,5);
+  try{ if(id) await db.update("cierres_caja",id,r); else await db.insert("cierres_caja",r); closeModal(); render(); toast(id?"Arqueo actualizado":"Arqueo parcial guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delArqueo(id){ if(!esGerencia()){ toast("Solo gerencia puede eliminar"); return; } if(confirm("¿Eliminar este arqueo parcial?")){ await db.remove("cierres_caja",id); render(); toast("Arqueo eliminado"); } }
 /* -------- Cierre total del día (definitivo, solo gerencia) -------- */
 function cierreDiaDe(fecha){ return db.list("cierres_dia").find(c=>c.fecha===fecha); }
@@ -2004,7 +2013,7 @@ function renderCaja(){ const el=document.getElementById("cajaFecha"); if(el&&!el
   c.innerHTML=cajas.map(cj=>{ const ci=cierreDe(cj.id,fecha); const r=ci?calcCierre(ci):null; const arqs=arqueosDe(cj.id,fecha);
     let aFalta=0, aSobra=0;
     const arqHtml=arqs.length?`<div class="mt-2 border-t border-slate-100 pt-2"><p class="text-[11px] font-semibold text-amber-600 mb-1">Arqueos parciales (${arqs.length})</p>${arqs.map(a=>{ const rr=calcCierre(a); if(rr.difBs<0) aFalta+=Math.abs(rr.difBs); else aSobra+=rr.difBs;
-      return `<div class="py-1 border-b border-slate-100 last:border-0"><div class="flex items-center justify-between text-[11px] gap-2"><span class="truncate">🕒 ${esc(a.hora||"")} · ${esc(a.motivo||"Parcial")} · ${esc(a.cajero||"—")}</span>${esGerencia()?`<button onclick="delArqueo('${a.id}')" class="text-red-500 font-bold shrink-0">✕</button>`:""}</div>
+      return `<div class="py-1 border-b border-slate-100 last:border-0"><div class="flex items-center justify-between text-[11px] gap-2"><span class="truncate">🕒 ${esc(a.hora||"")} · ${esc(a.motivo||"Parcial")} · ${esc(a.cajero||"—")}</span><span class="flex gap-2 shrink-0">${puedeEditarArqueo()?`<button onclick="openArqueo('${cj.id}','${a.id}')" class="text-teal-600 font-semibold">✎ Editar</button>`:""}${esGerencia()?`<button onclick="delArqueo('${a.id}')" class="text-red-500 font-bold">✕</button>`:""}</span></div>
         <div class="grid grid-cols-3 gap-1 mt-0.5 text-center text-[10px]"><div><p class="text-slate-400">Contado</p><p class="font-semibold">${fmtBs(rr.contadoBs)}</p></div><div><p class="text-slate-400">Facturado</p><p class="font-semibold">${fmtBs(rr.facturadoBs)}</p></div><div><p class="text-slate-400">${rr.difBs<0?"Faltante":"Sobrante"}</p><p class="font-bold ${rr.difBs<0?"text-red-600":"text-emerald-600"}">${fmtBs(Math.abs(rr.difBs))}<br><span class="text-[9px] font-normal">${fmtUsd(Math.abs(rr.difUsd))}</span></p></div></div></div>`; }).join("")}
       <div class="flex items-center justify-between mt-1 text-[11px] bg-amber-50 rounded-lg px-2 py-1"><span class="text-slate-500">Total arqueos</span><span class="font-semibold">Faltante <span class="text-red-600">${fmtBs(aFalta)}</span> · Sobrante <span class="text-emerald-600">${fmtBs(aSobra)}</span></span></div></div>`:"";
     return `<div class="bg-white rounded-2xl p-3 shadow-sm"><div class="flex items-center justify-between"><div><p class="font-semibold">Caja ${esc(cj.numero)}${cj.nombre?" · "+esc(cj.nombre):""}</p>${ci?`<p class="text-xs text-slate-500">Cajero: ${esc(ci.cajero||"—")}</p>`:`<p class="text-xs text-slate-400">Sin cierre en la fecha</p>`}</div>${esGerencia()?`<button onclick="delCaja('${cj.id}')" class="text-slate-300">🗑</button>`:""}</div>
@@ -2127,7 +2136,7 @@ function renderDeudas(){ const l=db.list("deudas").sort((a,b)=>(b.fecha||"").loc
   const pend=l.filter(d=>d.tipo!=="Nota de crédito"&&d.status!=="Pagado total").reduce((s,d)=>s+((Number(d.monto)||0)-(Number(d.abonado)||0)),0);
   const notas=l.filter(d=>d.tipo==="Nota de crédito").reduce((s,d)=>s+(Number(d.monto)||0),0);
   if(res) res.innerHTML=`<div class="grid grid-cols-2 gap-2"><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Deuda pendiente</p><p class="text-lg font-bold text-red-600">${money(pend)}</p></div><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Notas de crédito</p><p class="text-lg font-bold text-emerald-600">${money(notas)}</p></div></div>`;
-  renderPagosProv();
+  renderFacturasRecBox(); renderPagosProv();
   if(!l.length){ c.innerHTML=empty("Sin deudas. Agrega o carga por Excel."); return; }
   const sc={ "Pendiente":"bg-red-100 text-red-700","Pagado parcial":"bg-amber-100 text-amber-700","Pagado total":"bg-emerald-100 text-emerald-700" };
   c.innerHTML=l.map(d=>{ const saldo=(Number(d.monto)||0)-(Number(d.abonado)||0);
@@ -2196,6 +2205,46 @@ function renderPagosProv(){ const c=document.getElementById("pagosProvBox"); if(
   c.innerHTML=`<p class="text-xs font-semibold text-slate-600 mb-1">💵 Pagos a proveedores</p><div class="space-y-2">${l.map(pg=>{ const tasa=Number(pg.tasa)||tipoCambio; const tp=Number(pg.total_pagado)||0; const bs=pg.moneda==="USD"?tp*tasa:tp; const usd=pg.moneda==="USD"?tp:(tasa>0?tp/tasa:0);
     return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center justify-between gap-2"><div class="min-w-0" onclick="openPagoProv('${pg.id}')"><p class="font-semibold truncate">${esc(pg.proveedor||"—")}</p><p class="text-[11px] text-slate-500 truncate">${esc(pg.fecha_pago||"")} · ${fmt2(bs)} Bs / $${fmt2(usd)}${pg.banco?" · "+esc(pg.banco):""}</p></div><button onclick="enviarPagoWhatsApp('${pg.id}')" class="text-[11px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-semibold shrink-0">💬 WhatsApp</button></div>`; }).join("")}</div>`;
 }
+/* -------- Facturas / notas de entrega recibidas (cuadro diario) -------- */
+let _frFecha=null;
+function renderFacturasRecBox(){ const c=document.getElementById("facturasRecBox"); if(!c) return; const hoyF=hoy(); const l=db.list("facturas_rec").filter(f=>f.fecha===hoyF); if(!l.length){ c.innerHTML=""; return; } const T=totalesFacturasRec(l);
+  c.innerHTML=`<div onclick="openFacturasRec()" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50 flex items-center justify-between"><div><p class="text-[11px] text-slate-500">📥 Facturas recibidas hoy</p><p class="font-bold">${l.length} documento(s)</p></div><p class="text-sm font-semibold text-slate-700">${fmt2(T.bs)} Bs${T.usd?" · $"+fmt2(T.usd):""}</p></div>`; }
+function openFacturasRec(){ if(!puede("deudas")){ toast("Sin acceso"); return; } _frFecha=_frFecha||hoy(); renderFacturasRecModal(); }
+function totalesFacturasRec(l){ let bs=0,usd=0; l.forEach(f=>{ const m=Number(f.monto)||0; if(f.moneda==="USD") usd+=m; else bs+=m; }); return {bs,usd}; }
+function renderFacturasRecModal(){ const fecha=_frFecha; const l=db.list("facturas_rec").filter(f=>f.fecha===fecha).sort((a,b)=>String(b.creado||"").localeCompare(String(a.creado||""))); const T=totalesFacturasRec(l);
+  openModal(`<h3 class="font-bold text-lg mb-1">📥 Facturas / notas recibidas</h3><p class="text-xs text-slate-500 mb-2">Registra los documentos que llegan cada día con sus proveedores.</p>
+    <input type="date" id="frFechaSel" value="${fecha}" onchange="_frFecha=this.value;renderFacturasRecModal()" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 text-sm">
+    <div class="bg-slate-50 rounded-xl p-2 space-y-2 mb-2">
+      <div><input id="fr_prov_txt" list="dlProveedores" oninput="resolverFrProv()" placeholder="🔎 Proveedor" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"><input type="hidden" id="fr_prov_id"></div>
+      <div class="grid grid-cols-2 gap-2"><input id="fr_rif" placeholder="RIF" class="px-2 py-2 rounded-lg border border-slate-200 text-sm">${selectField("fr_tipo","",["Factura fiscal","Nota de entrega"],"Factura fiscal").replace('id="f_fr_tipo"','id="fr_tipo"')}</div>
+      <div class="grid grid-cols-3 gap-2"><input id="fr_numero" placeholder="N° doc" class="px-2 py-2 rounded-lg border border-slate-200 text-sm"><input id="fr_monto" type="number" placeholder="Monto" class="px-2 py-2 rounded-lg border border-slate-200 text-sm">${selectField("fr_moneda","",["Bs","USD"],"Bs").replace('id="f_fr_moneda"','id="fr_moneda"')}</div>
+      <input id="fr_notas" placeholder="Notas (opcional)" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm">
+      <button onclick="addFacturaRec()" class="w-full bg-teal-700 text-white font-semibold py-2 rounded-lg text-sm">+ Agregar documento</button></div>
+    <div class="bg-slate-800 text-white rounded-xl px-3 py-2 mb-2 text-sm flex items-center justify-between"><span>${l.length} documento(s) el ${fecha}</span><span class="font-bold">${fmt2(T.bs)} Bs${T.usd?" · $"+fmt2(T.usd):""}</span></div>
+    <div class="space-y-1 max-h-64 overflow-y-auto">${l.length?l.map(f=>`<div class="bg-white border border-slate-100 rounded-lg px-2 py-1.5 flex items-center justify-between gap-2 text-sm"><div class="min-w-0"><p class="font-medium truncate">${esc(f.proveedor||"—")} <span class="text-[10px] text-slate-400">${esc(f.tipo||"")}</span></p><p class="text-[11px] text-slate-500 truncate">${f.numero?"N° "+esc(f.numero)+" · ":""}${fmt2(f.monto)} ${esc(f.moneda||"Bs")}${f.notas?" · "+esc(f.notas):""}</p></div><button onclick="delFacturaRec('${f.id}')" class="text-red-500 font-bold shrink-0">✕</button></div>`).join(""):`<p class="text-xs text-slate-400 text-center py-4">Sin documentos en la fecha.</p>`}</div>
+    <button onclick="closeModal()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`); }
+function resolverFrProv(){ const t=document.getElementById("fr_prov_txt"), h=document.getElementById("fr_prov_id"); if(!t||!h) return; const nq=(t.value||"").trim().toLowerCase(); const p=nq?db.list("proveedores").find(x=>(x.nombre||"").trim().toLowerCase()===nq):null; h.value=p?p.id:""; const rif=document.getElementById("fr_rif"); if(p&&rif&&!rif.value) rif.value=p.rif||""; }
+async function addFacturaRec(){ if(!puede("deudas")){ toast("Sin acceso"); return; } const provTxt=(document.getElementById("fr_prov_txt").value||"").trim(); const provId=document.getElementById("fr_prov_id").value; const prov=provId?provById(provId):null;
+  const numero=(document.getElementById("fr_numero").value||"").trim(); const monto=Number(document.getElementById("fr_monto").value)||0;
+  if(!provTxt){ toast("Elige el proveedor"); return; } if(!numero && !monto){ toast("Pon el N° o el monto"); return; }
+  const r={ proveedor_id:provId||"", proveedor:prov?prov.nombre:provTxt, rif:(document.getElementById("fr_rif").value||"")||(prov?prov.rif:""), fecha:_frFecha, tipo:document.getElementById("fr_tipo").value, numero, monto, moneda:document.getElementById("fr_moneda").value, notas:(document.getElementById("fr_notas").value||"") };
+  try{ await db.insert("facturas_rec", r); renderFacturasRecModal(); render(); toast("Documento registrado"); }catch(e){ toast("Error: "+e.message); } }
+async function delFacturaRec(id){ if(!puede("deudas")){ return; } if(confirm("¿Eliminar este documento?")){ await db.remove("facturas_rec",id); renderFacturasRecModal(); render(); } }
+/* -------- Reporte de pagos a proveedores (diario / mensual) -------- */
+let _rpModo="dia", _rpFecha=null;
+function openReportePagos(){ if(!puede("deudas")){ toast("Sin acceso"); return; } _rpFecha=_rpFecha||hoy(); renderReportePagos(); }
+function renderReportePagos(){ const fecha=_rpFecha; let l=db.list("pagos_prov");
+  if(_rpModo==="dia") l=l.filter(p=>p.fecha_pago===fecha); else { const mes=fecha.slice(0,7); l=l.filter(p=>(p.fecha_pago||"").startsWith(mes)); }
+  l=l.sort((a,b)=>String(b.fecha_pago||"").localeCompare(String(a.fecha_pago||"")));
+  let bs=0,usd=0; l.forEach(pg=>{ const tasa=Number(pg.tasa)||tipoCambio; const tp=Number(pg.total_pagado)||0; if(pg.moneda==="USD"){ usd+=tp; bs+=tp*tasa; } else { bs+=tp; usd+=tasa>0?tp/tasa:0; } });
+  const btn=(m,txt)=>`<button onclick="_rpModo='${m}';renderReportePagos()" class="flex-1 text-sm font-semibold py-2 rounded-xl ${_rpModo===m?"bg-teal-600 text-white":"bg-slate-200"}">${txt}</button>`;
+  openModal(`<h3 class="font-bold text-lg mb-2">📊 Reporte de pagos a proveedores</h3>
+    <div class="flex gap-2 mb-2">${btn("dia","Diario")}${btn("mes","Mensual")}</div>
+    <input type="${_rpModo==="mes"?"month":"date"}" id="rpFechaSel" value="${_rpModo==="mes"?fecha.slice(0,7):fecha}" onchange="_rpFecha=this.value.length===7?this.value+'-01':this.value;renderReportePagos()" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 text-sm">
+    <div class="bg-slate-800 text-white rounded-2xl p-4 mb-2"><p class="text-xs text-slate-300">${_rpModo==="dia"?"Pagado el "+fecha:"Pagado en "+fecha.slice(0,7)} (${l.length} pagos)</p><p class="text-2xl font-bold mt-1">${fmt2(bs)} Bs</p><p class="text-sm text-slate-300">$${fmt2(usd)}</p></div>
+    <div class="space-y-1 max-h-72 overflow-y-auto">${l.length?l.map(pg=>{ const tasa=Number(pg.tasa)||tipoCambio; const tp=Number(pg.total_pagado)||0; const pbs=pg.moneda==="USD"?tp*tasa:tp; const pusd=pg.moneda==="USD"?tp:(tasa>0?tp/tasa:0);
+      return `<div class="bg-white border border-slate-100 rounded-lg px-2 py-1.5 flex items-center justify-between gap-2 text-sm"><div class="min-w-0" onclick="closeModal();openPagoProv('${pg.id}')"><p class="font-medium truncate">${esc(pg.proveedor||"—")}</p><p class="text-[11px] text-slate-500 truncate">${esc(pg.fecha_pago||"")}${pg.banco?" · "+esc(pg.banco):""}</p></div><span class="text-right shrink-0"><p class="font-semibold">${fmt2(pbs)} Bs</p><p class="text-[10px] text-slate-400">$${fmt2(pusd)}</p></span></div>`; }).join(""):`<p class="text-xs text-slate-400 text-center py-4">Sin pagos en el periodo.</p>`}</div>
+    <button onclick="closeModal()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`); }
 function importarExcelDeudas(ev){ const f=ev.target.files[0]; if(!f) return; if(!puede("deudas")){ toast("Sin acceso"); return; }
   importarGenerico(f, "deudas", raw=>{ const proveedor=String(pick(raw,["proveedor","nombre","empresa"])).trim(); if(!proveedor) return null;
     return { proveedor, rif:String(pick(raw,["rif","id fiscal","identificacion fiscal","identificación fiscal"])).trim(), tipo:String(pick(raw,["tipo"])).trim()||"Deuda", monto:numExcel(pick(raw,["monto","total","deuda"])), abonado:numExcel(pick(raw,["abonado","pagado","abono"])), fecha:normFecha(pick(raw,["fecha"])), status:String(pick(raw,["status","estado"])).trim()||"Pendiente", notas:String(pick(raw,["notas","observaciones","nota"])).trim() };
