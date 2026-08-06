@@ -459,7 +459,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="4.7"; // se incrementa con cada mejora
+const APP_VERSION="4.8"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -647,6 +647,8 @@ function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&l
 /* Bloqueo de edición: solo gerencia modifica/borra lo ya guardado */
 function esGerencia(){ return !!(currentUser && currentUser.es_gerencia); }
 function bloqueoEdicion(id){ if(id && !esGerencia()){ toast("Solo gerencia puede modificar un registro ya guardado"); return true; } return false; }
+function puedeEditarEmpleado(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("empleados_editar"))); }
+function bloqueoEdicionEmpleado(id){ if(id && !puedeEditarEmpleado()){ toast("Solo gerencia o un supervisor con permiso puede modificar el personal"); return true; } return false; }
 function bloqueoBorrado(){ if(!esGerencia()){ toast("Solo gerencia puede eliminar registros"); return true; } return false; }
 /* Alerta sonora fuerte (para tareas de prioridad alta) */
 function sonarAlerta(){
@@ -725,7 +727,7 @@ const FIN_VIEWS=["caja","tesoreria","deudas","conexiones"];
 // Todas las opciones que gerencia puede otorgar/quitar por usuario (tesoreria es solo gerencia, por eso no está aquí)
 const OPCIONES=[
   ["resumen","Resumen / indicadores del inicio"],
-  ["empleados","Personal"],["nomina","Nómina"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],
+  ["empleados","Personal"],["empleados_editar","Modificar personal (editar datos de empleados)"],["nomina","Nómina"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],["incpersonal","Incidencias de personal (asistencia)"],
   ["proveedores","Proveedores"],["inventario","Inventario"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],
   ["caja","Caja (cierres y arqueos)"],["tesoreria","Tesorería (totales y tasa)"],["deudas","Finanzas (deudas, pagos y facturas recibidas)"],["conexiones","Conexiones (quién se conecta)"]
@@ -846,7 +848,7 @@ function openEmpleado(id){ const e=id?empById(id):{};
     ${id?`<button onclick="delEmpleado('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
 }
-async function saveEmpleado(id){ if(bloqueoEdicion(id)) return; const r=readForm(["nombre","cedula","cargo","area","salario_base","fecha_ingreso","telefono","estado","h_entrada","h_salida","h_almuerzo_ini","h_almuerzo_fin","banco","numero_cuenta"]);
+async function saveEmpleado(id){ if(bloqueoEdicionEmpleado(id)) return; const r=readForm(["nombre","cedula","cargo","area","salario_base","fecha_ingreso","telefono","estado","h_entrada","h_salida","h_almuerzo_ini","h_almuerzo_fin","banco","numero_cuenta"]);
   if(!r.nombre){ toast("El nombre es obligatorio"); return; } r.salario_base=Number(r.salario_base)||0;
   try{ id?await db.update("empleados",id,r):await db.insert("empleados",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delEmpleado(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar empleado?")){ await db.remove("empleados",id); closeModal(); render(); } }
@@ -1481,7 +1483,7 @@ function openPerfil(id){ const e=empById(id); if(!e) return; const mes=hoy().sli
     <p class="text-xs font-semibold text-slate-600 mb-1">Últimas asistencias</p>
     <div class="space-y-1 mb-4">${asis.length?asis.map(a=>`<div class="flex justify-between text-xs bg-white border border-slate-100 rounded-lg px-2 py-1"><span>${esc(a.fecha||"")}</span><span class="text-slate-500">${esc(a.entrada||"—")}-${esc(a.salida||"—")} · ${a.horas!=null?a.horas+"h":"—"}${a.tardanza>0?` · tarde ${a.tardanza}m`:""}</span></div>`).join(""):`<p class="text-xs text-slate-400">Sin registros.</p>`}</div>
     <button onclick="openRecibo('${id}')" class="w-full mb-2 bg-teal-600 text-white font-semibold py-2.5 rounded-xl">📄 Recibo de pago</button>
-    <div class="flex gap-2"><button onclick="openEmpleado('${id}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Editar datos</button>
+    <div class="flex gap-2">${puedeEditarEmpleado()?`<button onclick="openEmpleado('${id}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Editar datos</button>`:``}
     <button onclick="openAsignacionPara('${id}')" class="px-3 bg-slate-200 font-semibold py-2.5 rounded-xl">+ Asignación</button>
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
 }
