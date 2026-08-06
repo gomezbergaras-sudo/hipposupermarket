@@ -344,7 +344,8 @@
   <!-- ======== FINANZAS (DEUDAS) ======== -->
   <section data-view="deudas" hidden>
     <div class="flex items-center justify-between mb-1"><h2 class="text-lg font-bold">Finanzas</h2>
-      <button onclick="openDeuda()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Deuda</button></div>
+      <div class="flex gap-2"><button onclick="openPagoProv()" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold">💵 Pago a proveedor</button>
+      <button onclick="openDeuda()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Deuda</button></div></div>
     <p class="text-xs text-slate-500 mb-2">Deudas y notas de crédito con proveedores.</p>
     <div class="flex flex-wrap gap-2 mb-3">
       <label class="bg-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelDeudas(event)"></label>
@@ -352,6 +353,7 @@
     </div>
     <p id="deudaMsg" class="text-xs mb-2"></p>
     <div id="deudaResumen" class="mb-3"></div>
+    <div id="pagosProvBox" class="mb-3"></div>
     <div id="listaDeudas" class="space-y-2"></div>
   </section>
 
@@ -449,11 +451,11 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","prestamos","inc_personal","quiebres","sesiones"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","prestamos","inc_personal","quiebres","sesiones"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="4.5"; // se incrementa con cada mejora
+const APP_VERSION="4.6"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -2125,11 +2127,74 @@ function renderDeudas(){ const l=db.list("deudas").sort((a,b)=>(b.fecha||"").loc
   const pend=l.filter(d=>d.tipo!=="Nota de crédito"&&d.status!=="Pagado total").reduce((s,d)=>s+((Number(d.monto)||0)-(Number(d.abonado)||0)),0);
   const notas=l.filter(d=>d.tipo==="Nota de crédito").reduce((s,d)=>s+(Number(d.monto)||0),0);
   if(res) res.innerHTML=`<div class="grid grid-cols-2 gap-2"><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Deuda pendiente</p><p class="text-lg font-bold text-red-600">${money(pend)}</p></div><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Notas de crédito</p><p class="text-lg font-bold text-emerald-600">${money(notas)}</p></div></div>`;
-  if(!l.length){ c.innerHTML=empty("Sin registros. Agrega o carga por Excel."); return; }
+  renderPagosProv();
+  if(!l.length){ c.innerHTML=empty("Sin deudas. Agrega o carga por Excel."); return; }
   const sc={ "Pendiente":"bg-red-100 text-red-700","Pagado parcial":"bg-amber-100 text-amber-700","Pagado total":"bg-emerald-100 text-emerald-700" };
   c.innerHTML=l.map(d=>{ const saldo=(Number(d.monto)||0)-(Number(d.abonado)||0);
     return `<div onclick="openDeuda('${d.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50"><div class="flex items-center justify-between"><p class="font-semibold truncate">${esc(d.proveedor)} ${d.tipo==="Nota de crédito"?'<span class="text-[10px] text-emerald-600">NC</span>':''}</p><button onclick="ciclarStatus('${d.id}',event)" class="text-[10px] px-2 py-1 rounded-full ${sc[d.status]||sc.Pendiente} font-semibold shrink-0">${esc(d.status||"Pendiente")} ▸</button></div>
       <p class="text-xs text-slate-500 mt-0.5">${d.rif?esc(d.rif)+" · ":""}${esc(d.fecha||"")} · Monto ${money(d.monto)}${d.abonado?" · Abonado "+money(d.abonado):""}${saldo>0&&d.tipo!=="Nota de crédito"?" · Saldo "+money(saldo):""}</p></div>`; }).join("");
+}
+
+/* ===================== PAGO A PROVEEDORES (con WhatsApp) ===================== */
+function fmt2(n){ return (Number(n)||0).toLocaleString("es-VE",{maximumFractionDigits:2}); }
+let pagoFacturas=[];
+function renderPagoFacturas(){ const c=document.getElementById("pf_list"); if(!c) return;
+  c.innerHTML = pagoFacturas.length? pagoFacturas.map((f,i)=>`<div class="flex items-center justify-between gap-2 bg-white rounded-lg px-2 py-1 text-sm border border-slate-100"><span class="truncate">N° ${esc(f.numero||"—")} · ${fmt2(f.monto)}</span><button type="button" onclick="pagoFacturas.splice(${i},1);renderPagoFacturas();calcPago()" class="text-red-500 font-bold">✕</button></div>`).join("") : `<p class="text-xs text-slate-400">Sin facturas. Agrega número y monto.</p>`; }
+function addPagoFactura(){ const num=(document.getElementById("pf_num").value||"").trim(); const monto=Number(document.getElementById("pf_monto").value)||0; if(!num && !monto){ toast("Pon número y/o monto"); return; } pagoFacturas.push({numero:num, monto:monto}); document.getElementById("pf_num").value=""; document.getElementById("pf_monto").value=""; renderPagoFacturas(); calcPago(); }
+function calcPago(){ const el=document.getElementById("pp_total"); if(!el) return; const moneda=document.getElementById("f_moneda")?.value||"Bs"; const tasa=Number(document.getElementById("f_tasa")?.value)||tipoCambio; const nc=Number(document.getElementById("f_nota_credito")?.value)||0;
+  const totF=pagoFacturas.reduce((s,f)=>s+(Number(f.monto)||0),0); const tot=Math.max(0,totF-nc); let bs,usd; if(moneda==="USD"){ usd=tot; bs=tot*tasa; } else { bs=tot; usd=tasa>0?tot/tasa:0; }
+  el.innerHTML=`<p class="text-[11px] text-slate-300">Facturas: ${fmt2(totF)} ${moneda} · Nota crédito: -${fmt2(nc)} ${moneda}</p><p class="text-lg font-bold mt-0.5">TOTAL: ${fmt2(bs)} Bs / $${fmt2(usd)}</p>`; }
+function resolverPagoProv(){ const t=document.getElementById("f_pp_prov_txt"), h=document.getElementById("f_proveedor_id"); if(!t||!h) return; const nq=(t.value||"").trim().toLowerCase(); const p=nq?db.list("proveedores").find(x=>(x.nombre||"").trim().toLowerCase()===nq):null; h.value=p?p.id:""; if(p){ const rif=document.getElementById("f_rif"); if(rif && !rif.value) rif.value=p.rif||""; } }
+function openPagoProv(id){ if(!puede("deudas")){ toast("Sin acceso"); return; } const pg=id?db.list("pagos_prov").find(x=>x.id===id):{}; pagoFacturas = (id&&Array.isArray(pg.facturas))?pg.facturas.map(f=>({...f})):[];
+  const prov = pg.proveedor_id?provById(pg.proveedor_id):null;
+  openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} pago a proveedor</h3><div class="space-y-3">
+    <div><label class="text-xs text-slate-500">Proveedor</label><input id="f_pp_prov_txt" list="dlProveedores" value="${esc(prov?prov.nombre:(pg.proveedor||""))}" oninput="resolverPagoProv()" placeholder="🔎 Buscar proveedor…" class="w-full px-3 py-2 rounded-xl border border-slate-200"><input type="hidden" id="f_proveedor_id" value="${esc(pg.proveedor_id||"")}"></div>
+    <div class="grid grid-cols-2 gap-3">${field("rif","RIF",pg.rif)}${field("fecha_pago","Fecha de pago",pg.fecha_pago||hoy(),"date")}</div>
+    <div><label class="text-xs text-slate-500">Facturas (número y monto)</label>
+      <div class="grid grid-cols-12 gap-1 items-end"><input id="pf_num" placeholder="N° factura" class="col-span-5 px-2 py-2 rounded-lg border border-slate-200 text-sm"><input id="pf_monto" type="number" placeholder="Monto" class="col-span-4 px-2 py-2 rounded-lg border border-slate-200 text-sm"><button type="button" onclick="addPagoFactura()" class="col-span-3 bg-teal-700 text-white rounded-lg py-2 text-sm font-semibold">+</button></div>
+      <div id="pf_list" class="space-y-1 mt-1"></div></div>
+    <div><label class="text-xs text-slate-500">Información de factura</label><input id="f_info_factura" value="${esc(pg.info_factura||"")}" placeholder="Ej: mercancía de agosto" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
+    <div class="grid grid-cols-2 gap-3">${field("nota_credito","Nota de crédito (deducible)",pg.nota_credito,"number")}${selectField("moneda","Moneda de facturas",["Bs","USD"],pg.moneda||"Bs")}</div>
+    <div class="grid grid-cols-2 gap-3">${selectField("banco","Banco desde donde se pagó",["",...BANCOS],pg.banco||"")}${field("tasa","Tasa del día (Bs/$)",pg.tasa||tipoCambio,"number")}</div>
+    <div id="pp_total" class="bg-slate-800 text-white rounded-xl p-3"></div>
+    <div><label class="text-xs text-slate-500">Notas / detalles</label><textarea id="f_notas" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(pg.notas||"")}</textarea></div></div>
+    <div class="flex flex-wrap gap-2 mt-4"><button onclick="savePagoProv('${id||""}',true)" class="flex-1 bg-emerald-600 text-white font-semibold py-2.5 rounded-xl">💬 Guardar y enviar WhatsApp</button>
+    <button onclick="savePagoProv('${id||""}',false)" class="px-4 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
+    ${id?`<button onclick="delPagoProv('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+  ["f_nota_credito","f_tasa"].forEach(idf=>{ const el=document.getElementById(idf); if(el) el.addEventListener("input",calcPago); });
+  ["f_moneda"].forEach(idf=>{ const el=document.getElementById(idf); if(el) el.addEventListener("change",calcPago); });
+  renderPagoFacturas(); calcPago(); }
+async function savePagoProv(id, enviar){ if(!puede("deudas")){ toast("Sin acceso"); return; }
+  const provId=document.getElementById("f_proveedor_id").value; const provTxt=(document.getElementById("f_pp_prov_txt").value||"").trim(); if(!provTxt){ toast("Elige el proveedor"); return; } if(!pagoFacturas.length){ toast("Agrega al menos una factura"); return; }
+  const prov=provId?provById(provId):null;
+  const r=readForm(["rif","fecha_pago","info_factura","nota_credito","moneda","banco","tasa","notas"]);
+  r.nota_credito=Number(r.nota_credito)||0; r.tasa=Number(r.tasa)||tipoCambio;
+  r.proveedor_id=provId||""; r.proveedor=prov?prov.nombre:provTxt; if(!r.rif) r.rif=prov?(prov.rif||""):""; r.telefono=prov?(prov.telefono||""):"";
+  r.facturas=pagoFacturas.map(f=>({numero:String(f.numero||""), monto:Number(f.monto)||0}));
+  r.total_facturas=r.facturas.reduce((s,f)=>s+f.monto,0); r.total_pagado=Math.max(0,r.total_facturas-r.nota_credito);
+  try{ let newId=id; if(id){ await db.update("pagos_prov",id,r); } else { const row=await db.insert("pagos_prov",r); newId=row.id; } closeModal(); render(); toast("Pago guardado"); if(enviar) enviarPagoWhatsApp(newId); }catch(e){ toast("Error: "+e.message); } }
+async function delPagoProv(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar este pago?")){ await db.remove("pagos_prov",id); closeModal(); render(); toast("Pago eliminado"); } }
+function mensajePago(pg){ const tasa=Number(pg.tasa)||tipoCambio; const tp=Number(pg.total_pagado)||0; let bs,usd; if(pg.moneda==="USD"){ usd=tp; bs=tp*tasa; } else { bs=tp; usd=tasa>0?tp/tasa:0; }
+  const nums=(pg.facturas||[]).map(f=>f.numero).filter(Boolean).join(", ");
+  let m=`*PAGO A PROVEEDOR — ${ajustes.nombre||"Hipposupermarket"}*\n`;
+  m+=`Fecha de pago: ${pg.fecha_pago||""}\n`;
+  m+=`Proveedor: ${pg.proveedor||""}\n`;
+  if(pg.rif) m+=`RIF: ${pg.rif}\n`;
+  m+=`\nFacturas N°: ${nums||"—"}\n`;
+  if(pg.info_factura) m+=`Info factura: ${pg.info_factura}\n`;
+  m+=`Total facturas: ${fmt2(pg.total_facturas)} ${pg.moneda||"Bs"}\n`;
+  if(Number(pg.nota_credito)>0) m+=`Nota de crédito: -${fmt2(pg.nota_credito)} ${pg.moneda||"Bs"}\n`;
+  m+=`*TOTAL CANCELADO: ${fmt2(bs)} Bs / $${fmt2(usd)}*\n`;
+  if(pg.banco) m+=`\nBanco: ${pg.banco}\n`;
+  m+=`Tasa del día: ${tasa} Bs/$\n`;
+  if(pg.notas) m+=`\nNotas: ${pg.notas}\n`;
+  return m; }
+function enviarPagoWhatsApp(id){ const pg=db.list("pagos_prov").find(x=>x.id===id); if(!pg){ toast("No encontrado"); return; } const tel=String(pg.telefono||"").replace(/\D/g,""); const txt=encodeURIComponent(mensajePago(pg)); const url=tel?`https://wa.me/${tel}?text=${txt}`:`https://wa.me/?text=${txt}`; window.open(url,"_blank"); }
+function renderPagosProv(){ const c=document.getElementById("pagosProvBox"); if(!c) return; const l=db.list("pagos_prov").sort((a,b)=>String(b.creado||b.fecha_pago||"").localeCompare(String(a.creado||a.fecha_pago||""))).slice(0,40);
+  if(!l.length){ c.innerHTML=""; return; }
+  c.innerHTML=`<p class="text-xs font-semibold text-slate-600 mb-1">💵 Pagos a proveedores</p><div class="space-y-2">${l.map(pg=>{ const tasa=Number(pg.tasa)||tipoCambio; const tp=Number(pg.total_pagado)||0; const bs=pg.moneda==="USD"?tp*tasa:tp; const usd=pg.moneda==="USD"?tp:(tasa>0?tp/tasa:0);
+    return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center justify-between gap-2"><div class="min-w-0" onclick="openPagoProv('${pg.id}')"><p class="font-semibold truncate">${esc(pg.proveedor||"—")}</p><p class="text-[11px] text-slate-500 truncate">${esc(pg.fecha_pago||"")} · ${fmt2(bs)} Bs / $${fmt2(usd)}${pg.banco?" · "+esc(pg.banco):""}</p></div><button onclick="enviarPagoWhatsApp('${pg.id}')" class="text-[11px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-semibold shrink-0">💬 WhatsApp</button></div>`; }).join("")}</div>`;
 }
 function importarExcelDeudas(ev){ const f=ev.target.files[0]; if(!f) return; if(!puede("deudas")){ toast("Sin acceso"); return; }
   importarGenerico(f, "deudas", raw=>{ const proveedor=String(pick(raw,["proveedor","nombre","empresa"])).trim(); if(!proveedor) return null;
