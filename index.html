@@ -441,7 +441,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="3.5"; // se incrementa con cada mejora
+const APP_VERSION="3.6"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -455,6 +455,12 @@ const LS_KEY="supergestion_v2";
 function lsLoad(){ try{ return JSON.parse(localStorage.getItem(LS_KEY))||{}; }catch(e){ return {}; } }
 function lsSave(){ localStorage.setItem(LS_KEY, JSON.stringify(store)); }
 
+// Trae TODAS las filas de una tabla en páginas de 1000 (Supabase limita a 1000 por consulta).
+// Sin esto, tablas grandes como productos (miles de filas) se cargaban incompletas y "desaparecían" datos.
+async function fetchAllRows(t, sinceISO){ const page=1000; let from=0, all=[];
+  while(true){ let q=sb.from(t).select("*"); if(sinceISO) q=q.gt("actualizado", sinceISO); q=q.order("id",{ascending:true}).range(from, from+page-1);
+    const { data, error }=await q; if(error) throw error; const rows=data||[]; all=all.concat(rows); if(rows.length<page) break; from+=page; }
+  return all; }
 const db = {
   async init(){
     if (CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY && window.supabase){
@@ -464,7 +470,7 @@ const db = {
         if (error) throw error; USE_CLOUD = true;
       }catch(e){ USE_CLOUD=false; console.warn("Supabase no disponible, modo local:", e.message); }
     }
-    if (USE_CLOUD){ for (const t of TABLES){ const { data } = await sb.from(t).select("*"); store[t]=data||[]; } suscribirRealtime(); }
+    if (USE_CLOUD){ for (const t of TABLES){ try{ store[t]=await fetchAllRows(t); }catch(e){ const {data}=await sb.from(t).select("*"); store[t]=data||[]; } } suscribirRealtime(); }
     else { const s=lsLoad(); TABLES.forEach(t=> store[t]=s[t]||[]); }
     cargarConfigCompartida(); marcarSync();
   },
@@ -472,11 +478,11 @@ const db = {
     if(USE_CLOUD){
       let inc = !!lastSyncISO;
       if(inc){
-        try{ for (const t of TABLES){ const { data, error } = await sb.from(t).select("*").gt("actualizado", lastSyncISO); if(error) throw error;
+        try{ for (const t of TABLES){ const data = await fetchAllRows(t, lastSyncISO);
             (data||[]).forEach(row=>{ const i=store[t].findIndex(r=>r.id===row.id); if(i>=0) store[t][i]=row; else store[t].push(row); }); }
         }catch(e){ inc=false; } // si falta la columna "actualizado", carga completa
       }
-      if(!inc){ for (const t of TABLES){ const { data } = await sb.from(t).select("*"); store[t]=data||[]; } }
+      if(!inc){ for (const t of TABLES){ try{ store[t]=await fetchAllRows(t); }catch(e){ const {data}=await sb.from(t).select("*"); store[t]=data||[]; } } }
     }
     else { const s=lsLoad(); TABLES.forEach(t=> store[t]=s[t]||[]); }
     cargarConfigCompartida(); marcarSync();
