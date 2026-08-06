@@ -216,6 +216,7 @@
     <div class="flex flex-wrap gap-2 mb-2">
       <label class="bg-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelProveedores(event)"></label>
       <button onclick="plantillaProveedores()" class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl">⬇ Plantilla</button>
+      <button onclick="plantillaProveedorWhatsApp()" class="bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-xl">📩 Plantilla WhatsApp</button>
     </div>
     <p id="impProvMsg" class="text-xs mb-2"></p>
     <input id="buscarProv" oninput="renderProveedores()" placeholder="Buscar…" class="w-full mb-3 px-3 py-2 rounded-xl border border-slate-200 bg-white" />
@@ -452,7 +453,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="4.4"; // se incrementa con cada mejora
+const APP_VERSION="4.5"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1120,7 +1121,14 @@ async function delIncPersonal(id,empId){ const e=empById(empId); if(e && !puedeG
 /* ===================== PROVEEDORES ===================== */
 function provById(id){ return db.list("proveedores").find(p=>p.id===id); }
 function openProveedor(id){ const p=id?provById(id):{};
-  openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} proveedor</h3><div class="space-y-3">
+  openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} proveedor</h3>
+    <div class="bg-teal-50 rounded-xl p-2 mb-3 flex flex-wrap gap-2 items-center"><button type="button" onclick="pegarProveedor()" class="text-xs bg-teal-700 text-white px-3 py-2 rounded-lg font-semibold">📋 Pegar datos</button>
+      <button type="button" onclick="plantillaProveedorWhatsApp()" class="text-xs bg-white text-teal-700 border border-teal-200 px-3 py-2 rounded-lg font-semibold">📩 Copiar plantilla WhatsApp</button>
+      <span class="text-[10px] text-slate-500">Pega el mensaje del proveedor y se llena solo.</span></div>
+    <details class="mb-3"><summary class="text-xs text-slate-500 cursor-pointer">…o pega el texto aquí manualmente</summary>
+      <textarea id="pegaProv" rows="4" class="w-full px-3 py-2 mt-1 rounded-xl border border-slate-200 text-sm" placeholder="Nombre/Empresa: …&#10;RIF: …&#10;WhatsApp: …"></textarea>
+      <button type="button" onclick="procesarPegaProvInline()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold mt-1">Procesar texto</button></details>
+    <div class="space-y-3">
     ${field("nombre","Nombre / Empresa",p.nombre)}${field("rif","Identificación fiscal (RIF)",p.rif)}
     ${field("contacto","Persona de contacto",p.contacto)}${field("telefono","WhatsApp (ej: 584121112233)",p.telefono)}
     ${field("productos","Qué surte",p.productos)}
@@ -1129,6 +1137,15 @@ function openProveedor(id){ const p=id?provById(id):{};
     ${id?`<button onclick="delProveedor('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
 }
+const PLANTILLA_PROV="Hola 👋 Para registrarte como proveedor de Hipposupermarket, por favor responde este mensaje llenando estos datos:\n\nNombre/Empresa: \nRIF: \nContacto: \nWhatsApp: \nQué surte: \nCondiciones/Notas: \n\n¡Gracias!";
+function plantillaProveedorWhatsApp(){ copiarTexto(PLANTILLA_PROV); }
+function parsearProveedor(txt){ const map={}; (txt||"").split(/\r?\n/).forEach(line=>{ const i=line.indexOf(":"); if(i<0) return; const k=line.slice(0,i).trim().toLowerCase().replace(/\s+/g," "); const v=line.slice(i+1).trim(); if(v) map[k]=v; });
+  const get=(keys)=>{ for(const k of keys){ if(map[k]) return map[k]; } return ""; };
+  return { nombre:get(["nombre","empresa","nombre/empresa","nombre / empresa","razon social","razón social","proveedor"]), rif:get(["rif","identificacion fiscal","identificación fiscal","id fiscal","rif/cedula","cedula","cédula"]), contacto:get(["contacto","persona de contacto","persona","encargado"]), telefono:get(["whatsapp","telefono","teléfono","celular","tel","numero","número"]), productos:get(["que surte","qué surte","productos","surte","rubro"]), notas:get(["condiciones","notas","condiciones/notas","condiciones / notas","observaciones"]) }; }
+function aplicarProveedor(d){ let n=0; const set=(id,v)=>{ if(v){ const el=document.getElementById("f_"+id); if(el){ el.value=v; n++; } } };
+  set("nombre",d.nombre); set("rif",d.rif); set("contacto",d.contacto); set("telefono",d.telefono); set("productos",d.productos); set("notas",d.notas); return n; }
+function pegarProveedor(){ if(navigator.clipboard && navigator.clipboard.readText){ navigator.clipboard.readText().then(txt=>{ const n=aplicarProveedor(parsearProveedor(txt)); toast(n?("✅ "+n+" campos pegados. Revisa y guarda."):"No reconocí datos. Usa «pega el texto aquí manualmente»."); }).catch(()=>toast("Tu navegador no permite pegar directo. Usa «pega el texto aquí manualmente».")); } else toast("Usa «pega el texto aquí manualmente»."); }
+function procesarPegaProvInline(){ const t=document.getElementById("pegaProv"); if(!t) return; const n=aplicarProveedor(parsearProveedor(t.value)); toast(n?("✅ "+n+" campos pegados. Revisa y guarda."):"No reconocí datos. Revisa el formato de la plantilla."); }
 async function saveProveedor(id){ if(bloqueoEdicion(id)) return; const r=readForm(["nombre","rif","contacto","telefono","productos","notas"]); if(!r.nombre){ toast("Falta el nombre"); return; }
   try{ id?await db.update("proveedores",id,r):await db.insert("proveedores",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delProveedor(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar?")){ await db.remove("proveedores",id); closeModal(); render(); } }
