@@ -7,6 +7,12 @@
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
 <meta name="theme-color" content="#0d9488" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Hippo" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='180'%20height='180'%3E%3Crect%20width='180'%20height='180'%20rx='40'%20fill='%230d9488'/%3E%3Ctext%20x='90'%20y='128'%20font-size='110'%20text-anchor='middle'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E" />
+<link rel="manifest" href='data:application/manifest+json,{"name":"Hipposupermarket","short_name":"Hippo","start_url":".","scope":".","display":"standalone","background_color":"%230d9488","theme_color":"%230d9488","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27192%27 height=%27192%27%3E%3Crect width=%27192%27 height=%27192%27 rx=%2742%27 fill=%27%230d9488%27/%3E%3Ctext x=%2796%27 y=%27138%27 font-size=%27118%27 text-anchor=%27middle%27%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E","sizes":"192x192","type":"image/svg+xml"},{"src":"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27512%27 height=%27512%27%3E%3Crect width=%27512%27 height=%27512%27 rx=%27110%27 fill=%27%230d9488%27/%3E%3Ctext x=%27256%27 y=%27368%27 font-size=%27315%27 text-anchor=%27middle%27%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E","sizes":"512x512","type":"image/svg+xml"}]}' />
 <title>Hipposupermarket</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
@@ -48,6 +54,7 @@
       </div>
     </div>
     <div class="flex items-center gap-2">
+      <button id="btnCampana" onclick="abrirNotificaciones()" class="relative w-8 h-8 rounded-lg bg-white/15 grid place-items-center text-base hidden">🔔<span id="campanaBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 grid place-items-center hidden">0</span></button>
       <button id="rolBadge" onclick="logout()" class="text-[10px] font-semibold px-2 py-1 rounded-full bg-white/15">—</button>
       <span id="modeBadge" class="text-[10px] font-semibold px-2 py-1 rounded-full bg-white/15">local</span>
     </div>
@@ -455,11 +462,11 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="4.8"; // se incrementa con cada mejora
+const APP_VERSION="4.9"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -525,7 +532,8 @@ function aplicarCambioRealtime(t, payload){
   const nuevo=payload.new, viejo=payload.old;
   if(payload.eventType==="INSERT"){ if(nuevo && !arr.some(r=>r.id===nuevo.id)){ arr.push(nuevo);
       // alerta en los demás dispositivos al crearse una tarea o asignación
-      if(currentUser){ if(t==="tareas") (nuevo.prioridad==="Alta"?sonarAlerta:sonarNuevo)(); else if(t==="asignaciones") sonarNuevo();
+      if(currentUser){ if(t==="notificaciones"){ if(nuevo.usuario_id===currentUser.id){ sonarNuevo(); toast("🔔 "+(nuevo.titulo||"Nueva notificación")); mostrarNotifSistema(nuevo.titulo, nuevo.mensaje); pintarCampana(); } }
+        else if(t==="tareas") (nuevo.prioridad==="Alta"?sonarAlerta:sonarNuevo)(); else if(t==="asignaciones") sonarNuevo();
         else if(t==="quiebres" && esGerencia()){ sonarAlerta(); toast("🚨 Nuevo quiebre de inventario reportado"); } }
     } }
   else if(payload.eventType==="UPDATE"){ if(nuevo){ const i=arr.findIndex(r=>r.id===nuevo.id); if(i>=0) arr[i]=nuevo; else arr.push(nuevo); } }
@@ -578,6 +586,8 @@ function openUsuario(id){ const u=id?db.list("usuarios").find(x=>x.id===id):{per
     ${field("nombre","Nombre del usuario",u.nombre)}
     <div><label class="text-xs text-slate-500">Clave (6 dígitos)</label><input id="f_clave" inputmode="numeric" maxlength="6" value="${esc(u.clave||"")}" class="w-full px-3 py-2 rounded-xl border border-slate-200 tracking-widest"></div>
     <div><label class="text-xs text-slate-500">Área que supervisa (para asignar días libres)</label><select id="f_area" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="">(todas / no aplica)</option>${AREAS.map(a=>`<option ${u.area===a?"selected":""}>${esc(a)}</option>`).join("")}</select></div>
+    ${buscador("empleado_id","Perfil de personal (empleado vinculado)","emp",u.empleado_id)}
+    <p class="text-[11px] text-slate-400 -mt-2">Vincula este usuario con su ficha de empleado para que reciba avisos de tareas y asignaciones. Solo gerencia puede cambiarlo.</p>
     <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_es_gerencia" ${u.es_gerencia?"checked":""} onchange="togglePermisosBox()"> <b>Gerencia</b> (acceso total y administra usuarios)</label>
     <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_es_supervisor" ${u.es_supervisor?"checked":""}> <b>Supervisor</b> (puede crear/editar tareas y asignaciones)</label>
     <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_es_asistente" ${u.es_asistente?"checked":""}> <b>Asistente supervisor</b> (como supervisor, pero sin ver el total del día/mes)</label>
@@ -604,12 +614,13 @@ async function saveUsuario(id){
   const es_sup=document.getElementById("f_es_supervisor").checked;
   const es_asis=document.getElementById("f_es_asistente").checked;
   const activo=document.getElementById("f_activo").checked;
+  const empleado_id=(document.getElementById("f_empleado_id")?.value||"")||null;
   if(!nombre){ toast("Falta el nombre"); return; }
   if(!/^\d{6}$/.test(clave)){ toast("La clave debe ser de 6 dígitos"); return; }
   const permisos=es_g?[]:OPCIONES.filter(([o])=>document.getElementById("perm_"+o)?.checked).map(([o])=>o);
   // no dejar el sistema sin ninguna gerencia
   if(id){ const otros=db.list("usuarios").filter(u=>u.id!==id && u.es_gerencia); if(!es_g && otros.length===0){ toast("Debe quedar al menos un usuario de gerencia"); return; } }
-  const row={nombre,clave,area,es_gerencia:es_g,es_supervisor:es_sup,es_asistente:es_asis,permisos,activo};
+  const row={nombre,clave,area,empleado_id,es_gerencia:es_g,es_supervisor:es_sup,es_asistente:es_asis,permisos,activo};
   try{ if(id){ await db.update("usuarios",id,row); if(currentUser&&currentUser.id===id){ currentUser={...currentUser,...row}; aplicarPermisos(); } } else await db.insert("usuarios",row);
     closeModal(); render(); toast("Usuario guardado"); }catch(e){ toast("Error: "+e.message); }
 }
@@ -756,7 +767,7 @@ function loginManual(){ const nom=(document.getElementById("userInput").value||"
   setUser(u); }
 function setUser(u){ currentUser=u; localStorage.setItem("supergestion_user",u.id);
   document.getElementById("login").style.display="none";
-  aplicarPermisos(); iniciarSesion(); show("inicio"); }
+  aplicarPermisos(); iniciarSesion(); pedirPermisoNotif(); show("inicio"); }
 function mostrarLogin(){ renderLoginRoles(); pintarMarca(); document.getElementById("login").style.display="flex"; }
 async function logout(){ if(confirm("¿Cerrar sesión?")){ await finalizarSesion(); currentUser=null; localStorage.removeItem("supergestion_user"); mostrarLogin(); } }
 /* ---------- REGISTRO DE CONEXIONES (sesiones) ---------- */
@@ -784,7 +795,53 @@ function aplicarPermisos(){
   const showTab=(name,vis)=>{ const b=document.querySelector('.tab[data-tab="'+name+'"]'); if(b) b.style.display=vis?"":"none"; };
   showTab("inicio",true); showTab("rrhh",any(RRHH_VIEWS)); showTab("productos",any(PROD_VIEWS)); showTab("supervisores",any(SUP_VIEWS)); showTab("finanzas",any(FIN_VIEWS)); showTab("ajustes",puede("ajustes")||(currentUser&&currentUser.es_gerencia));
   const rb=document.getElementById("rolBadge"); if(rb) rb.textContent=(currentUser?currentUser.nombre:"")+" ⎋";
+  pintarCampana();
 }
+
+/* ===================== NOTIFICACIONES ===================== */
+/* Usuario vinculado a una ficha de empleado */
+function usuarioDeEmpleado(empId){ if(!empId) return null; return db.list("usuarios").find(u=>u.empleado_id===empId && u.activo!==false); }
+function misNotificaciones(){ if(!currentUser) return []; return db.list("notificaciones").filter(n=>n.usuario_id===currentUser.id).sort((a,b)=>String(b.creado||"").localeCompare(String(a.creado||""))); }
+function noLeidasCount(){ return misNotificaciones().filter(n=>!n.leida).length; }
+function pintarCampana(){ const btn=document.getElementById("btnCampana"), bdg=document.getElementById("campanaBadge"); if(!btn||!bdg) return;
+  if(!currentUser){ btn.classList.add("hidden"); return; }
+  btn.classList.remove("hidden"); const n=noLeidasCount();
+  if(n>0){ bdg.textContent=n>99?"99+":n; bdg.classList.remove("hidden"); } else bdg.classList.add("hidden"); }
+/* Pide permiso al navegador para mostrar avisos del teléfono */
+function pedirPermisoNotif(){ try{ if("Notification" in window && Notification.permission==="default"){ Notification.requestPermission().catch(()=>{}); } }catch(e){} }
+/* Muestra un aviso del sistema (funciona con la app abierta o en segundo plano) */
+function mostrarNotifSistema(titulo, cuerpo){
+  try{ if("Notification" in window && Notification.permission==="granted"){
+    const ic="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='96'%20height='96'%3E%3Crect%20width='96'%20height='96'%20rx='20'%20fill='%230d9488'/%3E%3Ctext%20x='48'%20y='68'%20font-size='58'%20text-anchor='middle'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E";
+    const nt=new Notification(titulo||"Hipposupermarket",{body:cuerpo||"",icon:ic,badge:ic,tag:"hippo-notif",renotify:true});
+    nt.onclick=()=>{ try{ window.focus(); }catch(e){} try{ nt.close(); }catch(e){} };
+  } }catch(e){}
+}
+/* Crea el aviso para el usuario vinculado al empleado asignado */
+async function notificarAsignado(empId, tipo, titulo, mensaje, refId){
+  const u=usuarioDeEmpleado(empId); if(!u) return;                 // el empleado no tiene usuario vinculado
+  if(currentUser && u.id===currentUser.id) return;                 // no avisarse a uno mismo
+  try{ await db.insert("notificaciones",{usuario_id:u.id, empleado_id:empId||null, tipo:tipo||"", titulo:titulo||"", mensaje:mensaje||"", ref_id:refId||null, leida:false, creado_por:(currentUser?currentUser.nombre:""), fecha:hoy()}); }catch(e){}
+}
+function iconoNotif(t){ return t==="tarea"?"📝":t==="asignacion"?"🧹":"🔔"; }
+async function abrirNotificaciones(){
+  const l=misNotificaciones();
+  openModal(`<div class="flex items-center justify-between mb-3"><h3 class="font-bold text-lg">Notificaciones</h3>${l.some(n=>!n.leida)?`<button onclick="marcarTodasLeidas()" class="text-xs text-teal-700 font-semibold">Marcar todo leído</button>`:""}</div>
+    <div class="space-y-2 max-h-[60vh] overflow-y-auto">${l.length?l.map(n=>`
+      <div onclick="abrirNotif('${n.id}','${n.tipo}')" class="rounded-xl p-3 border ${n.leida?"bg-slate-50 border-slate-100":"bg-teal-50 border-teal-200"} active:opacity-70">
+        <p class="font-semibold text-sm flex items-center gap-2">${iconoNotif(n.tipo)} ${esc(n.titulo||"")} ${n.leida?"":'<span class="w-2 h-2 rounded-full bg-teal-600 inline-block"></span>'}</p>
+        <p class="text-xs text-slate-600 mt-0.5">${esc(n.mensaje||"")}</p>
+        <p class="text-[10px] text-slate-400 mt-1">${esc((n.fecha||"")+(n.creado_por?(" · "+n.creado_por):""))}</p>
+      </div>`).join(""):empty("No tienes notificaciones.")}</div>
+    <button onclick="closeModal()" class="w-full mt-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`);
+  // marcar como leídas las que se están viendo
+  const noleidas=l.filter(n=>!n.leida);
+  for(const n of noleidas){ try{ await db.update("notificaciones",n.id,{leida:true}); }catch(e){} }
+  pintarCampana();
+}
+async function marcarTodasLeidas(){ const noleidas=misNotificaciones().filter(n=>!n.leida); for(const n of noleidas){ try{ await db.update("notificaciones",n.id,{leida:true}); }catch(e){} } pintarCampana(); abrirNotificaciones(); }
+async function abrirNotif(id,tipo){ const n=db.list("notificaciones").find(x=>x.id===id); if(n&&!n.leida){ try{ await db.update("notificaciones",id,{leida:true}); }catch(e){} }
+  closeModal(); pintarCampana(); if(tipo==="tarea") show("tareas"); else if(tipo==="asignacion") show("asignaciones"); }
 
 function show(view){
   // "rrhh" y "productos" no son secciones propias: muestran el inicio (lanzador)
@@ -1004,7 +1061,11 @@ function openTarea(id){ const t=id?db.list("tareas").find(x=>x.id===id):{};
 async function saveTarea(id){ const prev=id?db.list("tareas").find(x=>x.id===id):null; if(!puedeEditarTA(prev)){ toast("Solo supervisores o gerencia pueden modificar tareas"); return; }
   const r=readForm(["titulo","empleado_id","descripcion","prioridad","tiempo_estimado","fecha_limite","estado"]); if(!r.titulo){ toast("Falta el título"); return; }
   r.tiempo_estimado=Number(r.tiempo_estimado)||0; const esNueva=!id; r.creado_por_gerencia = prev? prev.creado_por_gerencia : esGerencia();
-  try{ id?await db.update("tareas",id,r):await db.insert("tareas",r); closeModal(); render(); toast("Guardado"); if(esNueva){ if(r.prioridad==="Alta") sonarAlerta(); else sonarNuevo(); } }catch(e){ toast("Error: "+e.message); } }
+  const antesEmp=prev?prev.empleado_id:null;
+  try{ let saved; if(id){ await db.update("tareas",id,r); saved={...r,id}; } else { saved=await db.insert("tareas",r); }
+    closeModal(); render(); toast("Guardado"); if(esNueva){ if(r.prioridad==="Alta") sonarAlerta(); else sonarNuevo(); }
+    if(r.empleado_id && r.empleado_id!==antesEmp){ notificarAsignado(r.empleado_id,"tarea",r.titulo,"Se te asignó una tarea: "+r.titulo,saved.id); }
+  }catch(e){ toast("Error: "+e.message); } }
 async function delTarea(id){ const t=db.list("tareas").find(x=>x.id===id); if(!puedeEditarTA(t)){ toast("No tienes permiso para eliminar esta tarea"); return; } if(confirm("¿Eliminar?")){ await db.remove("tareas",id); closeModal(); render(); } }
 async function avanzarTarea(id,ev){ ev.stopPropagation(); const t=db.list("tareas").find(x=>x.id===id); if(!puedeEditarTA(t)){ toast("Solo supervisores o gerencia pueden cambiar tareas"); return; } const next={Pendiente:"En progreso","En progreso":"Hecha",Hecha:"Pendiente"}[t.estado||"Pendiente"]; await db.update("tareas",id,{estado:next}); render(); }
 function renderTareas(){ let l=db.list("tareas"); if(tareaFiltro!=="Todas") l=l.filter(t=>(t.estado||"Pendiente")===tareaFiltro);
@@ -1408,7 +1469,11 @@ function openAsignacionPara(id){ openAsignacion(); const sel=document.getElement
 async function saveAsignacion(id){ const prev=id?db.list("asignaciones").find(x=>x.id===id):null; if(!puedeEditarTA(prev)){ toast("Solo supervisores o gerencia pueden modificar asignaciones"); return; }
   const r=readForm(["titulo","empleado_id","descripcion","objetivo_min","fecha"]); if(!r.titulo){ toast("Falta el trabajo"); return; } if(!r.empleado_id){ toast("Elige un empleado"); return; }
   r.objetivo_min=Number(r.objetivo_min)||0; if(!id) r.estado="Asignada"; r.creado_por_gerencia = prev? prev.creado_por_gerencia : esGerencia(); const esNueva=!id;
-  try{ id?await db.update("asignaciones",id,r):await db.insert("asignaciones",r); closeModal(); render(); toast("Guardado"); if(esNueva) sonarNuevo(); }catch(e){ toast("Error: "+e.message); } }
+  const antesEmp=prev?prev.empleado_id:null;
+  try{ let saved; if(id){ await db.update("asignaciones",id,r); saved={...r,id}; } else { saved=await db.insert("asignaciones",r); }
+    closeModal(); render(); toast("Guardado"); if(esNueva) sonarNuevo();
+    if(r.empleado_id && r.empleado_id!==antesEmp){ notificarAsignado(r.empleado_id,"asignacion",r.titulo,"Se te asignó un trabajo: "+r.titulo,saved.id); }
+  }catch(e){ toast("Error: "+e.message); } }
 async function delAsignacion(id){ const a=db.list("asignaciones").find(x=>x.id===id); if(!puedeEditarTA(a)){ toast("No tienes permiso para eliminar esta asignación"); return; } if(confirm("¿Eliminar?")){ await db.remove("asignaciones",id); closeModal(); render(); } }
 async function iniciarAsig(id,ev){ ev.stopPropagation(); const a=db.list("asignaciones").find(x=>x.id===id); if(!puedeEditarTA(a)){ toast("Solo supervisores o gerencia"); return; } alarmadas.delete(id); await db.update("asignaciones",id,{inicio:new Date().toISOString(),estado:"En curso"}); render(); }
 async function finalizarAsig(id,ev){ ev.stopPropagation(); const a=db.list("asignaciones").find(x=>x.id===id); if(!puedeEditarTA(a)){ toast("Solo supervisores o gerencia"); return; } const min=a.inicio?+(((Date.now()-new Date(a.inicio).getTime())/60000).toFixed(1)):0; await db.update("asignaciones",id,{estado:"Completada",tiempo_real_min:min}); render(); toast("Completada en "+min+" min"); }
@@ -2320,6 +2385,7 @@ const RENDER_VISTA={
 function render(){
   pintarUltSync(); pintarMarca(); actualizarDatalists();
   const badge=document.getElementById("modeBadge"); if(badge){ badge.textContent=USE_CLOUD?"compartido ☁":"local"; badge.className="text-[10px] font-semibold px-2 py-1 rounded-full "+(USE_CLOUD?"bg-emerald-400/30":"bg-white/15"); }
+  pintarCampana();
   const fn=RENDER_VISTA[currentView]; if(fn) fn();
 }
 
@@ -2360,7 +2426,7 @@ async function cargarDemo(){
   purgarFotosVencidas(); setInterval(purgarFotosVencidas, 3600000);
   const savedId=localStorage.getItem("supergestion_user");
   const u=savedId && db.list("usuarios").find(x=>x.id===savedId && x.activo!==false);
-  if(u){ currentUser=u; aplicarPermisos(); iniciarSesion(); show("inicio"); }
+  if(u){ currentUser=u; aplicarPermisos(); iniciarSesion(); pedirPermisoNotif(); show("inicio"); }
   else { mostrarLogin(); }
 })();
 </script>
