@@ -441,7 +441,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="3.4"; // se incrementa con cada mejora
+const APP_VERSION="3.5"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1071,7 +1071,7 @@ async function saveIncPersonal(empId,id){ const e=empById(empId); if(!e) return;
   if(!puedeGestionarAreaCI(e.area)){ toast("No autorizado para el área "+(e.area||"")); return; }
   const r=readForm(["tipo","fecha","hora","motivo"]); if(!r.fecha){ toast("Elige la fecha"); return; }
   r.justificado=!!document.getElementById("f_justificado")?.checked;
-  r.foto=fotoTmp["incp"]||""; r.foto_ts=r.foto?(fotoTmpTs["incp"]||new Date().toISOString()):"";
+  r.foto=fotoTmp["incp"]||""; r.foto_ts=r.foto?(fotoTmpTs["incp"]||new Date().toISOString()):null;
   r.empleado_id=empId; r.nombre=e.nombre||""; r.area=e.area||""; r.supervisor=currentUser?currentUser.nombre:"";
   try{ if(id) await db.update("inc_personal",id,r); else await db.insert("inc_personal",r); closeModal(); render(); toast("Incidencia guardada"); }catch(err){ toast("Error: "+err.message); } }
 async function delIncPersonal(id,empId){ const e=empById(empId); if(e && !puedeGestionarAreaCI(e.area)){ toast("No autorizado"); return; }
@@ -1491,8 +1491,8 @@ function openSeccion(id){ const s=id?db.list("piso_secciones").find(x=>x.id===id
   pintarFotoPreview("sant","prevSecAntes"); pintarFotoPreview("sdes","prevSecDespues");
 }
 async function saveSeccion(id){ if(bloqueoEdicion(id)) return; const r=readForm(["nombre","responsable_id","estado","notas"]); if(!r.nombre){ toast("Falta el nombre"); return; } r.actualizado=hoy();
-  r.foto_antes=fotoTmp["sant"]||""; r.foto_antes_ts=r.foto_antes?(fotoTmpTs["sant"]||new Date().toISOString()):"";
-  r.foto_despues=fotoTmp["sdes"]||""; r.foto_despues_ts=r.foto_despues?(fotoTmpTs["sdes"]||new Date().toISOString()):"";
+  r.foto_antes=fotoTmp["sant"]||""; r.foto_antes_ts=r.foto_antes?(fotoTmpTs["sant"]||new Date().toISOString()):null;
+  r.foto_despues=fotoTmp["sdes"]||""; r.foto_despues_ts=r.foto_despues?(fotoTmpTs["sdes"]||new Date().toISOString()):null;
   try{ id?await db.update("piso_secciones",id,r):await db.insert("piso_secciones",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delSeccion(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar sección?")){ await db.remove("piso_secciones",id); closeModal(); render(); } }
 async function cicloEstadoSeccion(id,ev){ ev.stopPropagation(); const s=db.list("piso_secciones").find(x=>x.id===id); const i=SEC_ESTADOS.indexOf(s.estado||"Surtida"); const next=SEC_ESTADOS[(i+1)%SEC_ESTADOS.length]; await db.update("piso_secciones",id,{estado:next,actualizado:hoy()}); render(); }
@@ -1562,7 +1562,7 @@ function openIncidencia(id){ const x=id?db.list("piso_incidencias").find(i=>i.id
   pintarFotoPreview("inc","prevIncFoto");
 }
 async function saveIncidencia(id){ if(bloqueoEdicion(id)) return; const r=readForm(["tipo","ubicacion","prioridad","fecha","descripcion","estado"]);
-  r.foto=fotoTmp["inc"]||""; r.foto_ts=r.foto?(fotoTmpTs["inc"]||new Date().toISOString()):"";
+  r.foto=fotoTmp["inc"]||""; r.foto_ts=r.foto?(fotoTmpTs["inc"]||new Date().toISOString()):null;
   try{ id?await db.update("piso_incidencias",id,r):await db.insert("piso_incidencias",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delIncidencia(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar?")){ await db.remove("piso_incidencias",id); closeModal(); render(); } }
 async function resolverIncidencia(id,ev){ ev.stopPropagation(); const x=db.list("piso_incidencias").find(i=>i.id===id); await db.update("piso_incidencias",id,{estado:x.estado==="Resuelta"?"Abierta":"Resuelta"}); render(); }
@@ -1601,8 +1601,8 @@ function horasRestantes(ts){ if(!ts) return null; const ms=FOTO_TTL_MS-(Date.now
 function miniFoto(src, ts, label){ if(!src) return ""; const r=horasRestantes(ts);
   return `<div class="mt-2">${label?`<p class="text-[10px] font-semibold text-slate-500">${label}</p>`:""}<img src="${src}" class="w-full max-h-40 object-cover rounded-xl border border-slate-200">${r?`<p class="text-[10px] text-slate-400 mt-0.5">🕒 ${r}</p>`:""}</div>`; }
 async function purgarFotosVencidas(){ const now=Date.now(); const venc=(ts)=> ts && (now-Date.parse(ts) > FOTO_TTL_MS);
-  for(const x of db.list("piso_incidencias")){ if(x.foto && venc(x.foto_ts)){ try{ await db.update("piso_incidencias",x.id,{foto:"",foto_ts:""}); }catch(e){} } }
-  for(const s of db.list("piso_secciones")){ const p={}; if(s.foto_antes&&venc(s.foto_antes_ts)){ p.foto_antes=""; p.foto_antes_ts=""; } if(s.foto_despues&&venc(s.foto_despues_ts)){ p.foto_despues=""; p.foto_despues_ts=""; } if(Object.keys(p).length){ try{ await db.update("piso_secciones",s.id,p); }catch(e){} } } }
+  for(const x of db.list("piso_incidencias")){ if(x.foto && venc(x.foto_ts)){ try{ await db.update("piso_incidencias",x.id,{foto:"",foto_ts:null}); }catch(e){} } }
+  for(const s of db.list("piso_secciones")){ const p={}; if(s.foto_antes&&venc(s.foto_antes_ts)){ p.foto_antes=""; p.foto_antes_ts=null; } if(s.foto_despues&&venc(s.foto_despues_ts)){ p.foto_despues=""; p.foto_despues_ts=null; } if(Object.keys(p).length){ try{ await db.update("piso_secciones",s.id,p); }catch(e){} } } }
 
 /* ===================== ESCÁNER DE CÓDIGO DE BARRAS ===================== */
 let scanReader=null, scannerOnResult=null;
