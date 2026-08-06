@@ -90,6 +90,7 @@
       <div id="card_ordenes" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Órdenes pendientes</p><p id="mOrdenes" class="text-2xl font-bold text-teal-700">0</p></div>
       <div id="card_incid" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Incidencias abiertas</p><p id="mIncid" class="text-2xl font-bold text-amber-600">0</p></div>
       <div id="card_repo" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Secciones por reponer</p><p id="mRepo" class="text-2xl font-bold text-amber-600">0</p></div>
+      <div id="card_quiebre" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">🚨 Quiebres pendientes</p><p id="mQuiebre" class="text-2xl font-bold text-red-600">0</p></div>
     </div>
     <div id="desgloseAreas" class="mt-3"></div>
 
@@ -280,6 +281,14 @@
     <div id="listaMerma" class="space-y-2"></div>
   </section>
 
+  <!-- ======== QUIEBRE DE INVENTARIO ======== -->
+  <section data-view="quiebre" hidden>
+    <div class="flex items-center justify-between mb-3"><h2 class="text-lg font-bold">Quiebre de inventario</h2>
+      <button onclick="openQuiebre()" class="bg-teal-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">+ Quiebre</button></div>
+    <p class="text-xs text-slate-500 mb-3">El supervisor de piso informa los productos sin stock. Se avisa a gerencia con el proveedor que lo distribuye para hacer el pedido.</p>
+    <div id="listaQuiebre" class="space-y-2"></div>
+  </section>
+
   <!-- ======== PISO DE VENTA ======== -->
   <section data-view="piso" hidden>
     <h2 class="text-lg font-bold mb-1">Piso de venta</h2>
@@ -439,11 +448,11 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","prestamos","inc_personal","sesiones"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","prestamos","inc_personal","quiebres","sesiones"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="4.1"; // se incrementa con cada mejora
+const APP_VERSION="4.2"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -506,7 +515,8 @@ function aplicarCambioRealtime(t, payload){
   const nuevo=payload.new, viejo=payload.old;
   if(payload.eventType==="INSERT"){ if(nuevo && !arr.some(r=>r.id===nuevo.id)){ arr.push(nuevo);
       // alerta en los demás dispositivos al crearse una tarea o asignación
-      if(currentUser){ if(t==="tareas") (nuevo.prioridad==="Alta"?sonarAlerta:sonarNuevo)(); else if(t==="asignaciones") sonarNuevo(); }
+      if(currentUser){ if(t==="tareas") (nuevo.prioridad==="Alta"?sonarAlerta:sonarNuevo)(); else if(t==="asignaciones") sonarNuevo();
+        else if(t==="quiebres" && esGerencia()){ sonarAlerta(); toast("🚨 Nuevo quiebre de inventario reportado"); } }
     } }
   else if(payload.eventType==="UPDATE"){ if(nuevo){ const i=arr.findIndex(r=>r.id===nuevo.id); if(i>=0) arr[i]=nuevo; else arr.push(nuevo); } }
   else if(payload.eventType==="DELETE"){ if(viejo) store[t]=arr.filter(r=>r.id!==viejo.id); }
@@ -685,20 +695,21 @@ const MODULES = {
   ordenes:{parent:"productos",title:"Órdenes de compra",sub:"Productos y Compras"},
   recepcion:{parent:"productos",title:"Recepción",sub:"Productos y Compras"},
   merma:{parent:"productos",title:"Merma",sub:"Productos y Compras"},
+  quiebre:{parent:"productos",title:"Quiebre de inventario",sub:"Productos y Compras"},
   caja:{parent:"finanzas",title:"Caja",sub:"Caja y Finanzas"},
   tesoreria:{parent:"finanzas",title:"Tesorería",sub:"Caja y Finanzas"},
   deudas:{parent:"finanzas",title:"Finanzas",sub:"Caja y Finanzas"},
   conexiones:{parent:"finanzas",title:"Conexiones",sub:"Caja y Finanzas"},
 };
 const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"]];
-const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"]];
+const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"],["quiebre","🚨","Quiebre"]];
 const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"],["incpersonal","⏰","Asistencia personal"]];
 const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
 let currentView="inicio";
 
 /* ---------- USUARIOS Y PERMISOS ---------- */
 const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia"];
-const PROD_VIEWS=["proveedores","inventario","ordenes","recepcion","merma"];
+const PROD_VIEWS=["proveedores","inventario","ordenes","recepcion","merma","quiebre"];
 const SUP_VIEWS=["piso","tareas","asignaciones","diaslibres","incpersonal"];
 const FIN_VIEWS=["caja","tesoreria","deudas","conexiones"];
 // Todas las opciones que gerencia puede otorgar/quitar por usuario (tesoreria es solo gerencia, por eso no está aquí)
@@ -706,11 +717,11 @@ const OPCIONES=[
   ["resumen","Resumen / indicadores del inicio"],
   ["empleados","Personal"],["nomina","Nómina"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],["incpersonal","Incidencias de personal (asistencia)"],
-  ["proveedores","Proveedores"],["inventario","Inventario"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],
+  ["proveedores","Proveedores"],["inventario","Inventario"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],
   ["caja","Caja (cierres)"],["deudas","Finanzas (deudas)"]
 ];
-const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma"];
-const OP_PERM=["tareas","asignaciones","asistencia","piso"];
+const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma","quiebre"];
+const OP_PERM=["tareas","asignaciones","asistencia","piso","quiebre"];
 let currentUser=null;
 function puede(view){ if(!currentUser) return false; if(view==="inicio") return true; if(currentUser.es_gerencia) return true; if(view==="ajustes") return false; return (currentUser.permisos||[]).includes(view); }
 async function seedUsuarios(){
@@ -1182,8 +1193,9 @@ function renderInventario(){ const q=(document.getElementById("buscarProd")?.val
 }
 
 /* ===================== ÓRDENES DE COMPRA ===================== */
-let tempItems=[];
-function openOrden(id){ const o=id?db.list("ordenes").find(x=>x.id===id):null; tempItems=o?JSON.parse(JSON.stringify(o.items||[])):[]; const provSel=o&&o.proveedor_id?provById(o.proveedor_id):null;
+let tempItems=[], ordenPrefill=null;
+function openOrden(id){ const o=id?db.list("ordenes").find(x=>x.id===id):null; tempItems=o?JSON.parse(JSON.stringify(o.items||[])):[]; let provSel=o&&o.proveedor_id?provById(o.proveedor_id):null;
+  if(!id && ordenPrefill){ tempItems=(ordenPrefill.items||[]).map(it=>({...it})); if(ordenPrefill.proveedor_id) provSel=provById(ordenPrefill.proveedor_id); ordenPrefill=null; }
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Orden":"Nueva orden"} de compra</h3><div class="space-y-3">
     <div><label class="text-xs text-slate-500">Proveedor</label><input id="f_proveedor" list="dlProveedores" value="${provSel?esc(provSel.nombre):""}" oninput="filtrarProdOrden()" placeholder="🔎 Escribe para buscar…" class="w-full px-3 py-2 rounded-xl border border-slate-200"><p class="text-[10px] text-slate-400 mt-0.5">Al elegir proveedor, abajo solo aparecen sus productos.</p></div>
     <div class="grid grid-cols-2 gap-3">${field("fecha","Fecha",o?.fecha||hoy(),"date")}${selectField("estado","Estado",["Pendiente","Enviada","Recibida","Cancelada"],o?.estado||"Pendiente")}</div>
@@ -1299,6 +1311,59 @@ function exportarMermaExcel(){ if(!window.XLSX){ toast("Abre la app publicada pa
   const data=[headers,...rows,[],["","","","","TOTAL",totCant,"",+totCosto.toFixed(2)]];
   const ws=XLSX.utils.aoa_to_sheet(data); ws["!cols"]=[{wch:12},{wch:36},{wch:24},{wch:10},{wch:14},{wch:10},{wch:12},{wch:12}];
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Merma"); XLSX.writeFile(wb,`merma_${hoy()}.xlsx`); toast("Excel descargado"); }
+
+/* ===================== QUIEBRE DE INVENTARIO (productos sin stock) ===================== */
+let quiebreItems=[];
+function renderQuiebreItems(){ const c=document.getElementById("qbItems"); if(!c) return;
+  c.innerHTML = quiebreItems.length ? quiebreItems.map((it,i)=>{ const prov=provById(it.proveedor_id);
+    return `<div class="flex items-center justify-between gap-2 bg-white rounded-lg px-2 py-1.5 text-sm"><div class="min-w-0"><p class="font-medium truncate">${esc(it.nombre)}</p><p class="text-[10px] text-slate-500 truncate">${prov?"🚚 "+esc(prov.nombre):"(sin proveedor asignado)"}</p></div><button type="button" onclick="quiebreItems.splice(${i},1);renderQuiebreItems()" class="text-red-500 font-bold shrink-0">✕</button></div>`; }).join("")
+    : `<p class="text-xs text-slate-400">Aún sin productos. Búscalos arriba y toca «+».</p>`; }
+function addQuiebreItem(){ const pid=document.getElementById("qb_prod")?.value; if(!pid){ toast("Elige un producto"); return; } const p=prodById(pid); if(!p) return;
+  if(quiebreItems.some(x=>x.producto_id===pid)){ toast("Ese producto ya está en la lista"); return; }
+  quiebreItems.push({producto_id:pid, nombre:p.nombre||"", proveedor_id:p.proveedor_id||""});
+  const t=document.getElementById("qb_prod_txt"); if(t) t.value=""; const h=document.getElementById("qb_prod"); if(h) h.value=""; renderQuiebreItems(); }
+function escanearQuiebre(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c);
+  if(p){ const h=document.getElementById("qb_prod"), t=document.getElementById("qb_prod_txt"); if(h) h.value=p.id; if(t) t.value=p.nombre; addQuiebreItem(); }
+  else toast("Código "+c+" no está en productos."); }); }
+function openQuiebre(id){ if(!puede("quiebre")){ toast("Sin acceso"); return; } const q=id?db.list("quiebres").find(x=>x.id===id):null;
+  quiebreItems = q? (q.items||[]).map(it=>({...it})) : [];
+  openModal(`<h3 class="font-bold text-lg mb-1">${id?"Editar":"Nuevo"} quiebre de inventario</h3><p class="text-xs text-slate-500 mb-3">Agrega los productos sin stock. Se avisa a gerencia con su proveedor para el pedido.</p><div class="space-y-3">
+    <div><label class="text-xs text-slate-500">Buscar producto sin stock</label>
+      <div class="flex gap-2"><input id="qb_prod_txt" list="dlProductos" oninput="resolverQb()" placeholder="🔎 Escribe para buscar…" class="flex-1 px-3 py-2 rounded-xl border border-slate-200"><input type="hidden" id="qb_prod">
+      <button type="button" onclick="escanearQuiebre()" class="bg-teal-600 text-white px-3 rounded-xl font-semibold shrink-0">📷</button>
+      <button type="button" onclick="addQuiebreItem()" class="bg-teal-700 text-white px-4 rounded-xl font-semibold shrink-0">+</button></div></div>
+    <div><p class="text-xs font-semibold text-slate-600 mb-1">Productos en quiebre</p><div id="qbItems" class="space-y-1"></div></div>
+    <div><label class="text-xs text-slate-500">Nota (opcional)</label><input id="f_nota" value="${esc(q?.nota||"")}" placeholder="Ej: urgente, se agotó en góndola" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div></div>
+    <div class="flex gap-2 mt-5"><button onclick="saveQuiebre('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar quiebre</button>
+    ${id?`<button onclick="delQuiebre('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+  renderQuiebreItems(); }
+function resolverQb(){ const t=document.getElementById("qb_prod_txt"), h=document.getElementById("qb_prod"); if(!t||!h) return; const nq=(t.value||"").trim().toLowerCase(); const p=nq?db.list("productos").find(x=>(x.nombre||"").trim().toLowerCase()===nq):null; h.value=p?p.id:""; }
+async function saveQuiebre(id){ if(!puede("quiebre")){ toast("Sin acceso"); return; } if(!quiebreItems.length){ toast("Agrega al menos un producto"); return; }
+  const nota=document.getElementById("f_nota")?.value||"";
+  const r={ items:quiebreItems.map(it=>({producto_id:it.producto_id, nombre:it.nombre, proveedor_id:it.proveedor_id||""})), nota, fecha:hoy() };
+  try{ if(id){ await db.update("quiebres",id,r); } else { r.status="Pendiente"; r.reportado_por=currentUser?currentUser.nombre:""; await db.insert("quiebres",r); } closeModal(); render(); toast("Quiebre registrado"); }catch(e){ toast("Error: "+e.message); } }
+async function delQuiebre(id){ if(!esGerencia() && !puede("quiebre")){ toast("Sin acceso"); return; } if(confirm("¿Eliminar este quiebre?")){ await db.remove("quiebres",id); closeModal(); render(); toast("Quiebre eliminado"); } }
+async function ciclarQuiebre(id,ev){ ev.stopPropagation(); if(!esGerencia()){ toast("Solo gerencia cambia el estado"); return; } const q=db.list("quiebres").find(x=>x.id===id); const next={ "Pendiente":"Pedido","Pedido":"Resuelto","Resuelto":"Pendiente" }[q.status||"Pendiente"]; await db.update("quiebres",id,{status:next}); render(); }
+function crearOrdenDesdeQuiebre(id,ev){ ev.stopPropagation(); if(!esGerencia()){ toast("Solo gerencia"); return; } const q=db.list("quiebres").find(x=>x.id===id); if(!q) return;
+  const provs=[...new Set((q.items||[]).map(it=>it.proveedor_id).filter(Boolean))];
+  const prov = provs.length===1 ? provs[0] : "";
+  ordenPrefill={ proveedor_id:prov, items:(q.items||[]).filter(it=>!prov||it.proveedor_id===prov).map(it=>{ const p=prodById(it.producto_id); return {producto_id:it.producto_id, nombre:it.nombre, cantidad:1, precio:p?Number(p.precio_compra)||0:0, unidad:p?p.unidad:""}; }) };
+  show("ordenes"); openOrden(); }
+function renderQuiebre(){ const c=document.getElementById("listaQuiebre"); if(!c) return;
+  const l=db.list("quiebres").sort((a,b)=>{ const o=(x)=>x.status==="Resuelto"?1:0; return o(a)-o(b) || String(b.creado||b.fecha||"").localeCompare(String(a.creado||a.fecha||"")); });
+  if(!l.length){ c.innerHTML=empty("Sin quiebres registrados."); return; }
+  const sc={Pendiente:"bg-red-100 text-red-700",Pedido:"bg-amber-100 text-amber-700",Resuelto:"bg-emerald-100 text-emerald-700"};
+  c.innerHTML=l.map(q=>{ const res=q.status==="Resuelto";
+    const items=(q.items||[]).map(it=>{ const prov=provById(it.proveedor_id); const tel=prov?String(prov.telefono||"").replace(/\D/g,""):"";
+      return `<div class="flex items-center justify-between gap-2 border-t border-slate-100 pt-1 mt-1 text-[11px]"><span class="truncate">📦 ${esc(it.nombre)}${prov?` · 🚚 ${esc(prov.nombre)}`:` · <span class="text-amber-600">sin proveedor</span>`}</span>${tel?`<a href="https://wa.me/${tel}" target="_blank" onclick="event.stopPropagation()" class="shrink-0 bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold">💬 llamar</a>`:""}</div>`; }).join("");
+    return `<div onclick="${(esGerencia()||puede('quiebre'))?`openQuiebre('${q.id}')`:''}" class="bg-white rounded-2xl p-3 shadow-sm ${res?'opacity-70':''} active:bg-slate-50">
+      <div class="flex items-center justify-between gap-2"><p class="font-semibold">${(q.items||[]).length} producto${(q.items||[]).length===1?"":"s"} sin stock</p>
+      <button onclick="ciclarQuiebre('${q.id}',event)" class="text-[10px] px-2 py-1 rounded-full ${sc[q.status]||sc.Pendiente} font-semibold shrink-0">${esc(q.status||"Pendiente")} ▸</button></div>
+      <p class="text-[11px] text-slate-500">${esc(q.fecha||"")}${q.reportado_por?" · por "+esc(q.reportado_por):""}${q.nota?" · "+esc(q.nota):""}</p>
+      ${items}
+      ${esGerencia()&&!res?`<button onclick="crearOrdenDesdeQuiebre('${q.id}',event)" class="w-full mt-2 bg-teal-700 text-white text-xs font-semibold py-1.5 rounded-lg">📝 Crear orden de compra</button>`:""}</div>`; }).join("");
+}
 
 /* ===================== ASIGNACIONES DE TRABAJO (con temporizador) ===================== */
 function openAsignacion(id){ const a=id?db.list("asignaciones").find(x=>x.id===id):{};
@@ -2066,18 +2131,19 @@ function render(){
   document.getElementById("mOrdenes").textContent=db.list("ordenes").filter(o=>o.estado==="Pendiente"||o.estado==="Enviada").length;
   document.getElementById("mIncid").textContent=db.list("piso_incidencias").filter(x=>x.estado!=="Resuelta").length;
   document.getElementById("mRepo").textContent=db.list("piso_secciones").filter(s=>s.estado!=="Surtida").length;
+  { const mq=document.getElementById("mQuiebre"); if(mq) mq.textContent=db.list("quiebres").filter(q=>(q.status||"Pendiente")!=="Resuelto").length; }
   // Resumen/indicadores según permisos
   const verResumen=puede("resumen");
   const rbx=document.getElementById("resumenBox"), hR=document.getElementById("hResumen");
   if(rbx) rbx.style.display=verResumen?"":"none"; if(hR) hR.style.display=verResumen?"":"none";
   if(verResumen){ const showCard=(cid,view)=>{ const el=document.getElementById(cid); if(el) el.style.display=puede(view)?"":"none"; };
     showCard("card_empleados","empleados"); showCard("card_nomina","nomina"); showCard("card_tareas","tareas"); showCard("card_eval","eval");
-    showCard("card_inv","inventario"); showCard("card_ordenes","ordenes"); showCard("card_incid","piso"); showCard("card_repo","piso"); }
+    showCard("card_inv","inventario"); showCard("card_ordenes","ordenes"); showCard("card_incid","piso"); showCard("card_repo","piso"); showCard("card_quiebre","quiebre"); }
   { const da=document.getElementById("desgloseAreas");
     if(da){ if(verResumen && (puede("empleados")||puede("nomina"))){ da.style.display=""; renderDesgloseAreas(empsAll,areaR); } else da.style.display="none"; } }
 
   renderEmpleados(); renderBonos(); renderEval(); renderEvalSup(); renderAsistencia(); renderTareas(); renderAsignaciones(); renderNomina(); renderDiasLibres();
-  renderProveedores(); renderInventario(); renderOrdenes(); renderRecepcion(); renderRecepHistory(); renderMerma(); renderIncPersonal();
+  renderProveedores(); renderInventario(); renderOrdenes(); renderRecepcion(); renderRecepHistory(); renderMerma(); renderIncPersonal(); renderQuiebre();
   renderSecciones(); renderAsignGondolas(); renderIncidencias(); renderCaja(); renderTesoreria(); renderDeudas(); renderConexiones();
 
   document.getElementById("cfgNombre").value=ajustes.nombre; document.getElementById("cfgHoraEntrada").value=ajustes.horaEntrada; document.getElementById("cfgMoneda").value=ajustes.moneda;
