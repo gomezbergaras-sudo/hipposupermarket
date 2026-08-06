@@ -441,7 +441,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="3.3"; // se incrementa con cada mejora
+const APP_VERSION="3.4"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1743,7 +1743,8 @@ function descargarRecibo(empId){ const e=empById(empId); const { jsPDF }=window.
 function cajaFechaVal(){ return document.getElementById("cajaFecha")?.value || hoy(); }
 function cierreDe(cajaId,fecha){ return db.list("cierres_caja").find(c=>c.caja_id===cajaId && c.fecha===fecha && !c.arqueo); }
 function arqueosDe(cajaId,fecha){ return db.list("cierres_caja").filter(c=>c.caja_id===cajaId && c.fecha===fecha && c.arqueo).sort((a,b)=>String(a.hora||"").localeCompare(String(b.hora||""))); }
-function calcCierre(c){ const bs=(Number(c.cashea)||0)+(Number(c.biopago)||0)+(Number(c.punto_venta)||0)+(Number(c.efectivo)||0)+usdToBs(c.divisa_usd); const fact=Number(c.facturado_bs)||0; const difBs=bs-fact; return {contadoBs:bs,facturadoBs:fact,difBs,difUsd:bsToUsd(difBs)}; }
+function sumFacturas(c){ if(Array.isArray(c.facturas)) return c.facturas.reduce((s,f)=>s+(Number(f.monto)||0),0); return Number(c.autorizado_monto)||0; }
+function calcCierre(c){ const auto=sumFacturas(c); const fondos=Number(c.fondos_monto)||0; const bs=(Number(c.cashea)||0)+(Number(c.biopago)||0)+(Number(c.punto_venta)||0)+(Number(c.efectivo)||0)+usdToBs(c.divisa_usd)+auto+fondos; const fact=Number(c.facturado_bs)||0; const difBs=bs-fact; return {contadoBs:bs,facturadoBs:fact,difBs,difUsd:bsToUsd(difBs),autoriz:auto,fondos}; }
 function openCaja(id){ const c=id?db.list("cajas").find(x=>x.id===id):{};
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nueva"} caja</h3><div class="space-y-3">${field("numero","Número de caja",c.numero)}${field("nombre","Nombre (opcional)",c.nombre)}</div>
     <div class="flex gap-2 mt-5"><button onclick="saveCaja('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
@@ -1753,7 +1754,18 @@ async function saveCaja(id){ if(!puede("caja")){ toast("Sin acceso"); return; } 
   try{ id?await db.update("cajas",id,r):await db.insert("cajas",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delCaja(id){ if(!esGerencia()){ toast("Solo gerencia puede eliminar cajas"); return; } if(confirm("¿Eliminar esta caja?")){ await db.remove("cajas",id); closeModal(); render(); } }
 function fieldEmp(id,label,val,listId){ return `<div><label class="text-xs text-slate-500">${label}</label><input id="f_${id}" list="${listId||"dlEmpleados"}" value="${esc(val??"")}" placeholder="Selecciona o escribe" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>`; }
-function openCierre(cajaId){ const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal(); const c=cierreDe(cajaId,fecha)||{};
+/* -------- Facturas autorizadas múltiples (suman al total del cierre) -------- */
+let cierreFacturas=[];
+function initCierreFacturas(c){ cierreFacturas = (Array.isArray(c.facturas)&&c.facturas.length) ? c.facturas.map(f=>({monto:f.monto??"",por:f.por||"",a:f.a||""})) : ((Number(c.autorizado_monto)||0)>0 ? [{monto:c.autorizado_monto,por:c.autorizado_por||"",a:c.autorizado_a||""}] : []); }
+function renderCierreFacturas(){ const cont=document.getElementById("cierreFacturasList"); if(!cont) return;
+  const filas=cierreFacturas.map((f,i)=>`<div class="grid grid-cols-12 gap-1 mb-1 items-center">
+    <input value="${esc(f.monto??"")}" type="number" onchange="cierreFacturas[${i}].monto=this.value" placeholder="Monto Bs" class="col-span-4 px-2 py-1.5 rounded-lg border border-slate-200 text-sm">
+    <input value="${esc(f.por||"")}" list="dlEmpleados" onchange="cierreFacturas[${i}].por=this.value" placeholder="Autorizado por" class="col-span-4 px-2 py-1.5 rounded-lg border border-slate-200 text-sm">
+    <input value="${esc(f.a||"")}" onchange="cierreFacturas[${i}].a=this.value" placeholder="Autorizado a" class="col-span-3 px-2 py-1.5 rounded-lg border border-slate-200 text-sm">
+    <button type="button" onclick="cierreFacturas.splice(${i},1);renderCierreFacturas()" class="col-span-1 text-red-500 font-bold">✕</button></div>`).join("");
+  const tot=cierreFacturas.reduce((s,f)=>s+(Number(f.monto)||0),0);
+  cont.innerHTML=filas+`<div class="flex items-center justify-between mt-1"><button type="button" onclick="cierreFacturas.push({monto:'',por:'',a:''});renderCierreFacturas()" class="text-xs bg-teal-100 text-teal-700 font-semibold px-3 py-1.5 rounded-lg">＋ Agregar factura</button>${tot>0?`<span class="text-xs text-slate-500">Subtotal: <b>${fmtBs(tot)}</b></span>`:""}</div>`; }
+function openCierre(cajaId){ const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal(); const c=cierreDe(cajaId,fecha)||{}; initCierreFacturas(c);
   openModal(`<h3 class="font-bold text-lg mb-3">Cierre — Caja ${esc(caja?caja.numero:"")}</h3><p class="text-xs text-slate-500 mb-3">Fecha: ${fecha} · Tasa: ${tipoCambio} Bs/$</p><div class="space-y-3">
     ${fieldEmp("cajero","Cajero",c.cajero,"dlCajeros")}
     <div class="grid grid-cols-2 gap-3">${fieldEmp("nombre_asistente","Asistente supervisor",c.nombre_asistente)}${fieldEmp("nombre_supervisor","Supervisor",c.nombre_supervisor)}</div>
@@ -1762,15 +1774,19 @@ function openCierre(cajaId){ const caja=db.list("cajas").find(x=>x.id===cajaId);
     <div class="grid grid-cols-2 gap-3">${field("punto_venta","Punto de venta (Bs)",c.punto_venta,"number")}${field("efectivo","Efectivo (Bs)",c.efectivo,"number")}</div>
     ${field("divisa_usd","Divisa (USD $)",c.divisa_usd,"number")}
     ${field("facturado_bs","Facturado en sistema (Bs)",c.facturado_bs,"number")}
-    <p class="text-xs font-semibold text-slate-600">Facturas autorizadas</p>
-    ${field("autorizado_monto","Monto autorizado (Bs)",c.autorizado_monto,"number")}
-    <div class="grid grid-cols-2 gap-3">${fieldEmp("autorizado_por","Autorizado por",c.autorizado_por)}${field("autorizado_a","Autorizado a",c.autorizado_a)}</div></div>
+    <p class="text-xs font-semibold text-slate-600">Facturas autorizadas <span class="text-slate-400 font-normal">(suman al total)</span></p>
+    <div id="cierreFacturasList"></div>
+    <p class="text-xs font-semibold text-slate-600 mt-1">Fondos <span class="text-slate-400 font-normal">(suman al total)</span></p>
+    <div class="grid grid-cols-2 gap-3">${field("fondos_monto","Fondos (Bs)",c.fondos_monto,"number")}${fieldEmp("fondos_por","Solicitado por",c.fondos_por)}</div></div>
     <div class="flex gap-2 mt-5"><button onclick="saveCierre('${cajaId}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar cierre</button>
     ${cierreDe(cajaId,fecha)&&esGerencia()?`<button onclick="delCierre('${cajaId}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
-    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`); }
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+  renderCierreFacturas(); }
+function facturasLimpias(){ return cierreFacturas.map(f=>({monto:Number(f.monto)||0, por:(f.por||"").trim(), a:(f.a||"").trim()})).filter(f=>f.monto>0 || f.por || f.a); }
 async function saveCierre(cajaId){ if(!puede("caja")){ toast("Sin acceso"); return; } const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal();
-  const r=readForm(["cajero","nombre_asistente","nombre_supervisor","cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","autorizado_monto","autorizado_por","autorizado_a"]);
-  ["cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","autorizado_monto"].forEach(k=>r[k]=Number(r[k])||0);
+  const r=readForm(["cajero","nombre_asistente","nombre_supervisor","cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","fondos_monto","fondos_por"]);
+  ["cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","fondos_monto"].forEach(k=>r[k]=Number(r[k])||0);
+  r.facturas=facturasLimpias(); r.autorizado_monto=0; r.autorizado_por=""; r.autorizado_a="";
   r.caja_id=cajaId; r.numero_caja=caja?caja.numero:""; r.fecha=fecha; const ex=cierreDe(cajaId,fecha);
   try{ if(ex) await db.update("cierres_caja",ex.id,r); else await db.insert("cierres_caja",r); closeModal(); render(); toast("Cierre guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delCierre(cajaId){ if(!esGerencia()){ toast("Solo gerencia puede eliminar cierres"); return; } const fecha=cajaFechaVal(); const ex=cierreDe(cajaId,fecha); if(!ex) return;
@@ -1785,7 +1801,7 @@ function gestionarCierresDia(){ if(!esGerencia()){ toast("Solo gerencia"); retur
 async function delCierreId(id){ if(!esGerencia()){ toast("Solo gerencia"); return; } if(confirm("¿Eliminar este cierre?")){ await db.remove("cierres_caja",id); closeModal(); render(); toast("Cierre eliminado"); } }
 /* -------- Arqueo (cierre parcial: cambio de cajero, almuerzo) -------- */
 const ARQUEO_MOTIVOS=["Cambio de cajero","Salida a almuerzo","Regreso de almuerzo","Corte parcial","Otro"];
-function openArqueo(cajaId){ if(!puede("caja")){ toast("Sin acceso"); return; } const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal(); const c={};
+function openArqueo(cajaId){ if(!puede("caja")){ toast("Sin acceso"); return; } const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal(); const c={}; initCierreFacturas(c);
   openModal(`<h3 class="font-bold text-lg mb-1">Arqueo parcial — Caja ${esc(caja?caja.numero:"")}</h3><p class="text-xs text-amber-600 mb-3">Cierre parcial (cambio de cajero o almuerzo). No afecta el total del día. Fecha: ${fecha} · Tasa: ${tipoCambio} Bs/$</p><div class="space-y-3">
     ${selectField("motivo","Motivo del arqueo",ARQUEO_MOTIVOS,"Cambio de cajero")}
     ${fieldEmp("cajero","Cajero",c.cajero,"dlCajeros")}
@@ -1795,14 +1811,17 @@ function openArqueo(cajaId){ if(!puede("caja")){ toast("Sin acceso"); return; } 
     <div class="grid grid-cols-2 gap-3">${field("punto_venta","Punto de venta (Bs)",c.punto_venta,"number")}${field("efectivo","Efectivo (Bs)",c.efectivo,"number")}</div>
     ${field("divisa_usd","Divisa (USD $)",c.divisa_usd,"number")}
     ${field("facturado_bs","Facturado en sistema (Bs)",c.facturado_bs,"number")}
-    <p class="text-xs font-semibold text-slate-600">Facturas autorizadas</p>
-    ${field("autorizado_monto","Monto autorizado (Bs)",c.autorizado_monto,"number")}
-    <div class="grid grid-cols-2 gap-3">${fieldEmp("autorizado_por","Autorizado por",c.autorizado_por)}${field("autorizado_a","Autorizado a",c.autorizado_a)}</div></div>
+    <p class="text-xs font-semibold text-slate-600">Facturas autorizadas <span class="text-slate-400 font-normal">(suman al total)</span></p>
+    <div id="cierreFacturasList"></div>
+    <p class="text-xs font-semibold text-slate-600 mt-1">Fondos <span class="text-slate-400 font-normal">(suman al total)</span></p>
+    <div class="grid grid-cols-2 gap-3">${field("fondos_monto","Fondos (Bs)",c.fondos_monto,"number")}${fieldEmp("fondos_por","Solicitado por",c.fondos_por)}</div></div>
     <div class="flex gap-2 mt-5"><button onclick="saveArqueo('${cajaId}')" class="flex-1 bg-amber-500 text-white font-semibold py-2.5 rounded-xl">Guardar arqueo</button>
-    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`); }
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+  renderCierreFacturas(); }
 async function saveArqueo(cajaId){ if(!puede("caja")){ toast("Sin acceso"); return; } const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal();
-  const r=readForm(["motivo","cajero","nombre_asistente","nombre_supervisor","cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","autorizado_monto","autorizado_por","autorizado_a"]);
-  ["cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","autorizado_monto"].forEach(k=>r[k]=Number(r[k])||0);
+  const r=readForm(["motivo","cajero","nombre_asistente","nombre_supervisor","cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","fondos_monto","fondos_por"]);
+  ["cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","fondos_monto"].forEach(k=>r[k]=Number(r[k])||0);
+  r.facturas=facturasLimpias(); r.autorizado_monto=0; r.autorizado_por=""; r.autorizado_a="";
   r.caja_id=cajaId; r.numero_caja=caja?caja.numero:""; r.fecha=fecha; r.arqueo=true; r.hora=new Date().toTimeString().slice(0,5);
   try{ await db.insert("cierres_caja",r); closeModal(); render(); toast("Arqueo parcial guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delArqueo(id){ if(!esGerencia()){ toast("Solo gerencia puede eliminar"); return; } if(confirm("¿Eliminar este arqueo parcial?")){ await db.remove("cierres_caja",id); render(); toast("Arqueo eliminado"); } }
