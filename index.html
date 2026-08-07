@@ -54,6 +54,7 @@
       </div>
     </div>
     <div class="flex items-center gap-2">
+      <button id="btnMoneda" onclick="toggleMoneda()" title="Cambiar entre $ y Bs (todos los dispositivos)" class="w-8 h-8 rounded-lg bg-white/15 grid place-items-center text-sm font-bold">$</button>
       <button id="btnCampana" onclick="abrirNotificaciones()" class="relative w-8 h-8 rounded-lg bg-white/15 grid place-items-center text-base hidden">🔔<span id="campanaBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 grid place-items-center hidden">0</span></button>
       <button id="rolBadge" onclick="logout()" class="text-[10px] font-semibold px-2 py-1 rounded-full bg-white/15">—</button>
       <span id="modeBadge" class="text-[10px] font-semibold px-2 py-1 rounded-full bg-white/15">local</span>
@@ -478,7 +479,8 @@ let verCostoCfg=true; // ¿mostrar precio costo al personal? (lo controla gerenc
 let verSueldosCfg=true; // ¿mostrar sueldos al personal? (lo controla gerencia)
 let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
-const APP_VERSION="4.19"; // se incrementa con cada mejora
+let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
+const APP_VERSION="4.20"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -587,6 +589,7 @@ function cargarConfigCompartida(){ const rows=store.config||[];
   const vs=rows.find(r=>r.id==="ver_sueldos"); if(vs!==undefined && vs){ const v=vs.valor; verSueldosCfg = (v===true||v==="true"||v===1||v==="1"); }
   const rt=rows.find(r=>r.id==="retardo_tol"); if(rt) retardoTol=Number(rt.valor)||0;
   const rm=rows.find(r=>r.id==="retardo_bsmin"); if(rm) retardoBsMin=Number(rm.valor)||0;
+  const vm=rows.find(r=>r.id==="ver_moneda"); if(vm && (vm.valor==="Bs"||vm.valor==="$")) verMonedaCfg=vm.valor;
 }
 /* ¿Puede el usuario actual ver el precio costo? Gerencia siempre; el resto según el ajuste de gerencia. */
 function verCosto(){ return !!(esGerencia() || verCostoCfg); }
@@ -677,7 +680,9 @@ function pintarMarca(){
   const li=document.getElementById("loginIcon"); if(li) li.innerHTML = `<img src="${logo}" class="w-24 h-24 object-contain mx-auto rounded-2xl bg-white p-1">`;
   const ln=document.getElementById("loginNombre"); if(ln) ln.textContent=ajustes.nombre||"Hipposupermarket";
 }
-function money(n){ return (Number(n)||0).toLocaleString("es-VE",{maximumFractionDigits:2})+" "+ajustes.moneda; }
+function money(n){ n=Number(n)||0; if(verMonedaCfg==="Bs"){ return (n*(tipoCambio||0)).toLocaleString("es-VE",{maximumFractionDigits:2})+" Bs"; } return n.toLocaleString("es-VE",{maximumFractionDigits:2})+" $"; }
+async function toggleMoneda(){ verMonedaCfg = (verMonedaCfg==="Bs"?"$":"Bs"); await setConfig("ver_moneda", verMonedaCfg); render(); pintarMoneda(); toast("Mostrando montos en "+(verMonedaCfg==="Bs"?"bolívares":"dólares")); }
+function pintarMoneda(){ const b=document.getElementById("btnMoneda"); if(b) b.textContent=(verMonedaCfg==="Bs"?"Bs":"$"); }
 
 /* ===================== UI HELPERS ===================== */
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.style.opacity=1; setTimeout(()=>t.style.opacity=0,1800); }
@@ -1367,7 +1372,7 @@ let tempItems=[], ordenPrefill=null;
 function openOrden(id){ const o=id?db.list("ordenes").find(x=>x.id===id):null; tempItems=o?JSON.parse(JSON.stringify(o.items||[])):[]; let provSel=o&&o.proveedor_id?provById(o.proveedor_id):null;
   if(!id && ordenPrefill){ tempItems=(ordenPrefill.items||[]).map(it=>({...it})); if(ordenPrefill.proveedor_id) provSel=provById(ordenPrefill.proveedor_id); ordenPrefill=null; }
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Orden":"Nueva orden"} de compra</h3><div class="space-y-3">
-    <div><label class="text-xs text-slate-500">Proveedor</label><input id="f_proveedor" list="dlProveedores" value="${provSel?esc(provSel.nombre):""}" oninput="filtrarProdOrden()" placeholder="🔎 Escribe para buscar…" class="w-full px-3 py-2 rounded-xl border border-slate-200"><p class="text-[10px] text-slate-400 mt-0.5">Al elegir proveedor, abajo solo aparecen sus productos.</p></div>
+    <div><label class="text-xs text-slate-500">Proveedor</label><input id="f_proveedor" list="dlProveedores" value="${provSel?esc(provSel.nombre):""}" oninput="filtrarProdOrden()" placeholder="🔎 Escribe para buscar…" class="w-full px-3 py-2 rounded-xl border border-slate-200"><p class="text-[10px] text-slate-400 mt-0.5">Al elegir proveedor, abajo solo aparecen sus productos.</p><div id="ordenDeudaProv" class="text-xs"></div></div>
     <div class="grid grid-cols-2 gap-3">${field("fecha","Fecha",o?.fecha||hoy(),"date")}${selectField("estado","Estado",["Pendiente","Enviada","Recibida","Cancelada"],o?.estado||"Pendiente")}</div>
     <div class="bg-slate-50 rounded-xl p-3"><p class="text-xs font-semibold text-slate-600 mb-2">Productos</p>
       <div class="grid grid-cols-12 gap-1 items-end">
@@ -1382,13 +1387,18 @@ function openOrden(id){ const o=id?db.list("ordenes").find(x=>x.id===id):null; t
     <div class="flex flex-wrap gap-2 mt-5"><button onclick="saveOrden('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
     ${id?`<button onclick="delOrden('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
-  poblarProdOrden(); renderItems();
+  poblarProdOrden(); renderItems(); pintarDeudaOrden();
 }
 function provIdFromInput(){ const nom=(document.getElementById("f_proveedor")?.value||"").trim().toLowerCase(); const prov=nom?db.list("proveedores").find(p=>(p.nombre||"").trim().toLowerCase()===nom):null; return prov?prov.id:""; }
 function prodOrdenLista(){ const pid=provIdFromInput(); let l=db.list("productos"); if(pid) l=l.filter(p=>p.proveedor_id===pid); return l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")); }
 function poblarProdOrden(){ const dl=document.getElementById("dlProdOrden"); if(dl) dl.innerHTML=prodOrdenLista().map(p=>`<option value="${esc(p.nombre)}">`).join(""); }
 function resolverOrdProd(){ const t=document.getElementById("oi_prod_txt"), h=document.getElementById("oi_prod"); if(!t||!h) return; const q=(t.value||"").trim().toLowerCase(); const p=q?prodOrdenLista().find(x=>(x.nombre||"").trim().toLowerCase()===q):null; h.value=p?p.id:""; }
-function filtrarProdOrden(){ poblarProdOrden(); const t=document.getElementById("oi_prod_txt"), h=document.getElementById("oi_prod"); if(t) t.value=""; if(h) h.value=""; }
+function filtrarProdOrden(){ poblarProdOrden(); const t=document.getElementById("oi_prod_txt"), h=document.getElementById("oi_prod"); if(t) t.value=""; if(h) h.value=""; pintarDeudaOrden(); }
+function pintarDeudaOrden(){ const el=document.getElementById("ordenDeudaProv"); if(!el) return; const nom=(document.getElementById("f_proveedor")?.value||"").trim(); if(!nom){ el.innerHTML=""; return; }
+  const prov=db.list("proveedores").find(p=>(p.nombre||"").trim().toLowerCase()===nom.toLowerCase()); const d=deudaProveedorUsd(nom, prov?prov.rif:"");
+  el.innerHTML = d>0.5
+    ? `<div class="bg-red-50 text-red-700 rounded-xl px-3 py-2 mt-1 font-semibold">⚠️ Le debemos a este proveedor: ${money(d)}</div>`
+    : `<div class="bg-emerald-50 text-emerald-700 rounded-xl px-3 py-2 mt-1">✓ Sin deuda pendiente con este proveedor.</div>`; }
 function addItem(){ const pid=document.getElementById("oi_prod").value; const cant=Number(document.getElementById("oi_cant").value)||0;
   if(!pid||cant<=0){ toast("Elige producto y cantidad"); return; } const p=prodById(pid);
   tempItems.push({ producto_id:pid, nombre:p?p.nombre:"?", cantidad:cant, precio:p?Number(p.precio_compra)||0:0, unidad:p?p.unidad:"" });
@@ -2413,11 +2423,22 @@ async function saveDeuda(id){ if(!puede("deudas")){ toast("Sin acceso"); return;
   try{ id?await db.update("deudas",id,r):await db.insert("deudas",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delDeuda(id){ if(!esGerencia()){ toast("Solo gerencia elimina"); return; } if(confirm("¿Eliminar?")){ await db.remove("deudas",id); closeModal(); render(); } }
 async function ciclarStatus(id,ev){ ev.stopPropagation(); if(!puede("deudas")){ return; } const d=db.list("deudas").find(x=>x.id===id); const next={ "Pendiente":"Pagado parcial","Pagado parcial":"Pagado total","Pagado total":"Pendiente" }[d.status||"Pendiente"]; await db.update("deudas",id,{status:next}); render(); }
+/* ---- Deuda en $ (base): deudas + facturas recibidas − pagos a proveedores ---- */
+function esUSDmon(m){ m=String(m||"").toUpperCase(); return m.includes("US")||m.includes("$")||m.includes("DOL"); }
+function frUsd(f){ const m=Number(f.monto)||0; return esUSDmon(f.moneda)?m:(tipoCambio>0?m/tipoCambio:0); }
+function pagoUsd(pg){ const tp=Number(pg.total_pagado)||0; const t=Number(pg.tasa)||tipoCambio; return (pg.moneda==="USD")?tp:(t>0?tp/t:0); }
+function coincideProv(x, nombre, rif){ const rn=(rif||"").trim().toLowerCase(), nn=(nombre||"").trim().toLowerCase(); const xr=(x.rif||"").trim().toLowerCase(), xn=(x.proveedor||"").trim().toLowerCase(); if(rn && xr) return xr===rn; return xn===nn && nn!==""; }
+function deudaBaseUsd(fn){ return db.list("deudas").filter(d=>d.tipo!=="Nota de crédito" && d.status!=="Pagado total" && (!fn||fn(d))).reduce((s,d)=>s+((Number(d.monto)||0)-(Number(d.abonado)||0)),0); }
+function facturasRecUsdTot(fn){ return db.list("facturas_rec").filter(f=>!fn||fn(f)).reduce((s,f)=>s+frUsd(f),0); }
+function pagosProvUsdTot(fn){ return db.list("pagos_prov").filter(p=>!fn||fn(p)).reduce((s,p)=>s+pagoUsd(p),0); }
+function deudaPendienteUsd(){ return deudaBaseUsd()+facturasRecUsdTot()-pagosProvUsdTot(); }
+function deudaProveedorUsd(nombre,rif){ const f=(x)=>coincideProv(x,nombre,rif); return deudaBaseUsd(f)+facturasRecUsdTot(f)-pagosProvUsdTot(f); }
 function limpiarFiltroDeuda(){ const b=document.getElementById("deudaBuscar"); if(b) b.value=""; const f=document.getElementById("deudaFecha"); if(f) f.value=""; renderDeudas(); }
 function renderDeudas(){ const l=db.list("deudas").sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||"")); const c=document.getElementById("listaDeudas"); if(!c) return; const res=document.getElementById("deudaResumen");
-  const pend=l.filter(d=>d.tipo!=="Nota de crédito"&&d.status!=="Pagado total").reduce((s,d)=>s+((Number(d.monto)||0)-(Number(d.abonado)||0)),0);
+  const base=deudaBaseUsd(), frt=facturasRecUsdTot(), pgt=pagosProvUsdTot(); const pend=base+frt-pgt;
   const notas=l.filter(d=>d.tipo==="Nota de crédito").reduce((s,d)=>s+(Number(d.monto)||0),0);
-  if(res) res.innerHTML=`<div class="grid grid-cols-2 gap-2"><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Deuda pendiente</p><p class="text-lg font-bold text-red-600">${money(pend)}</p></div><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Notas de crédito</p><p class="text-lg font-bold text-emerald-600">${money(notas)}</p></div></div>`;
+  if(res) res.innerHTML=`<div class="bg-white rounded-2xl p-3 shadow-sm mb-2"><div class="flex items-center justify-between"><p class="text-[11px] text-slate-500">Deuda pendiente</p><p class="text-lg font-bold text-red-600">${money(pend)}</p></div><p class="text-[10px] text-slate-400">Base ${money(base)} + Facturas recibidas ${money(frt)} − Pagos ${money(pgt)}</p></div>
+    <div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Notas de crédito</p><p class="text-lg font-bold text-emerald-600">${money(notas)}</p></div>`;
   renderFacturasRecBox(); renderPagosProv();
   if(!l.length){ c.innerHTML=empty("Sin deudas. Agrega o carga por Excel."); return; }
   // Filtro: no mostrar todas al inicio; solo al buscar proveedor o elegir fecha
@@ -2609,7 +2630,7 @@ const RENDER_VISTA={
 function render(){
   pintarUltSync(); pintarMarca(); actualizarDatalists();
   const badge=document.getElementById("modeBadge"); if(badge){ badge.textContent=USE_CLOUD?"compartido ☁":"local"; badge.className="text-[10px] font-semibold px-2 py-1 rounded-full "+(USE_CLOUD?"bg-emerald-400/30":"bg-white/15"); }
-  pintarCampana();
+  pintarCampana(); pintarMoneda();
   const fn=RENDER_VISTA[currentView]; if(fn) fn();
 }
 
