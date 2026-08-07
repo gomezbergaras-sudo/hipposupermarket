@@ -275,6 +275,7 @@
       <button onclick="exportarNominaPDF()" class="bg-slate-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">📄 PDF</button>
     </div>
     <p id="contadorNom" class="text-xs text-slate-400 mb-1"></p>
+    <div id="nomGerencia"></div>
     <p class="text-xs text-slate-500 mb-3">Descuentos y bonos se toman de «Salarios y bonos» del mes elegido. Edita los días feriados y observaciones por empleado; se guardan solos.</p>
     <div id="listaNomina" class="space-y-2"></div>
   </section>
@@ -462,11 +463,15 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="4.14"; // se incrementa con cada mejora
+let verCostoCfg=true; // ¿mostrar precio costo al personal? (lo controla gerencia; compartido vía config)
+let verSueldosCfg=true; // ¿mostrar sueldos al personal? (lo controla gerencia)
+let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
+let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
+const APP_VERSION="4.17"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -571,7 +576,22 @@ function cargarConfigCompartida(){ const rows=store.config||[];
   const tc=rows.find(r=>r.id==="tipo_cambio"); if(tc && Number(tc.valor)>0) tipoCambio=Number(tc.valor);
   const ar=rows.find(r=>r.id==="areas"); let av=ar&&ar.valor; if(typeof av==="string"){ try{av=JSON.parse(av);}catch(e){} } if(Array.isArray(av)&&av.length) AREAS=av;
   const bk=rows.find(r=>r.id==="bancos"); let bv=bk&&bk.valor; if(typeof bv==="string"){ try{bv=JSON.parse(bv);}catch(e){} } if(Array.isArray(bv)) BANCOS=bv;
+  const vc=rows.find(r=>r.id==="ver_costo"); if(vc!==undefined && vc){ const v=vc.valor; verCostoCfg = (v===true||v==="true"||v===1||v==="1"); }
+  const vs=rows.find(r=>r.id==="ver_sueldos"); if(vs!==undefined && vs){ const v=vs.valor; verSueldosCfg = (v===true||v==="true"||v===1||v==="1"); }
+  const rt=rows.find(r=>r.id==="retardo_tol"); if(rt) retardoTol=Number(rt.valor)||0;
+  const rm=rows.find(r=>r.id==="retardo_bsmin"); if(rm) retardoBsMin=Number(rm.valor)||0;
 }
+/* ¿Puede el usuario actual ver el precio costo? Gerencia siempre; el resto según el ajuste de gerencia. */
+function verCosto(){ return !!(esGerencia() || verCostoCfg); }
+async function toggleVerCosto(el){ if(!esGerencia()){ toast("Solo gerencia"); return; } await setConfig("ver_costo", el.checked); render(); toast(el.checked?"Precio costo visible para el personal":"Precio costo oculto para el personal"); }
+/* ¿Puede el usuario actual ver los sueldos? Gerencia siempre; el resto según el ajuste de gerencia. */
+function verSueldos(){ return !!(esGerencia() || verSueldosCfg); }
+function moneyS(v){ return verSueldos()?money(v):"•••"; }
+async function toggleVerSueldos(el){ if(!esGerencia()){ toast("Solo gerencia"); return; } await setConfig("ver_sueldos", el.checked); render(); toast(el.checked?"Sueldos visibles para el personal":"Sueldos ocultos para el personal"); }
+async function setRetardoCfg(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const tol=Number(document.getElementById("cfgRetTol")?.value)||0; const bsm=Number(document.getElementById("cfgRetBs")?.value)||0; await setConfig("retardo_tol",tol); await setConfig("retardo_bsmin",bsm); render(); toast("Descuento por retardo actualizado"); }
+/* Minutos tarde del periodo (pasada la tolerancia) y su descuento en Bs */
+function minutosTardePeriodo(empId, per){ const e=empById(empId); const nombre=e?e.nombre:""; return db.list("asistencia").filter(a=>(a.fecha||"").startsWith(per) && (a.empleado_id===empId || a.empleado===nombre)).reduce((s,a)=>s+Math.max(0,(Number(a.tardanza)||0)-retardoTol),0); }
+function descuentoRetardoEmp(empId, per){ return +(minutosTardePeriodo(empId,per)*retardoBsMin).toFixed(2); }
 async function setConfig(id,valor){ const rows=store.config||[]; const ex=rows.find(r=>r.id===id);
   try{ if(ex) await db.update("config",id,{valor}); else await db.insert("config",{id,valor}); }catch(e){ toast("Error: "+e.message); } cargarConfigCompartida(); }
 /* Conversión de moneda */
@@ -661,7 +681,13 @@ function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&l
 function esGerencia(){ return !!(currentUser && currentUser.es_gerencia); }
 function bloqueoEdicion(id){ if(id && !esGerencia()){ toast("Solo gerencia puede modificar un registro ya guardado"); return true; } return false; }
 function puedeEditarEmpleado(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("empleados_editar"))); }
-function bloqueoEdicionEmpleado(id){ if(id && !puedeEditarEmpleado()){ toast("Solo gerencia o un supervisor con permiso puede modificar el personal"); return true; } return false; }
+/* Editar un empleado concreto: gerencia siempre; o quien tenga permiso "empleados_editar"
+   y sea de la MISMA área del empleado (si el usuario tiene áreas asignadas). */
+function puedeEditarEmpleadoDe(emp){ if(!currentUser) return false; if(currentUser.es_gerencia) return true;
+  if(!(currentUser.permisos||[]).includes("empleados_editar")) return false;
+  const mias=usuarioAreas(); if(!mias.length) return true;              // con permiso pero sin área: sin restricción de área
+  return emp? enAreaUsuario(emp.area) : true; }
+function bloqueoEdicionEmpleado(id){ if(id){ const emp=empById(id); if(!puedeEditarEmpleadoDe(emp)){ toast("Solo gerencia, o un supervisor con permiso y de la misma área, puede modificar este empleado"); return true; } } return false; }
 function bloqueoBorrado(){ if(!esGerencia()){ toast("Solo gerencia puede eliminar registros"); return true; } return false; }
 /* Alerta sonora fuerte (para tareas de prioridad alta) */
 function sonarAlerta(){
@@ -921,7 +947,7 @@ function openEmpleado(id){ const e=id?empById(id):{};
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} empleado</h3><div class="space-y-3">
     ${field("nombre","Nombre completo",e.nombre)}${field("cedula","Cédula / ID",e.cedula)}
     <div class="grid grid-cols-2 gap-3">${field("cargo","Cargo",e.cargo)}${selectField("area","Área",AREAS,e.area)}</div>
-    <div class="grid grid-cols-2 gap-3">${field("salario_base","Salario base",e.salario_base,"number")}${field("fecha_ingreso","Fecha ingreso",e.fecha_ingreso,"date")}</div>
+    <div class="grid grid-cols-2 gap-3">${verSueldos()?field("salario_base","Salario base",e.salario_base,"number"):`<input type="hidden" id="f_salario_base" value="${esc(e.salario_base??"")}">`}${field("fecha_ingreso","Fecha ingreso",e.fecha_ingreso,"date")}</div>
     <div class="grid grid-cols-2 gap-3">${field("telefono","Teléfono",e.telefono)}${selectField("estado","Estado",["Activo","Inactivo"],e.estado||"Activo")}</div>
     <p class="text-xs font-semibold text-slate-600 pt-1">Horario</p>
     <div class="grid grid-cols-2 gap-3">${field("h_entrada","Entrada",e.h_entrada,"time")}${field("h_salida","Salida",e.h_salida,"time")}</div>
@@ -947,18 +973,21 @@ function renderDesgloseAreas(empsAll, areaSel){ const c=document.getElementById(
   const fil=filas.map(f=>{ const activo=selS && f.area.trim().toLowerCase()===selS;
     return `<div class="flex items-center justify-between px-3 py-2 ${activo?"bg-teal-50":""} border-b border-slate-100 last:border-0">
       <span class="text-sm ${activo?"font-semibold text-teal-800":"text-slate-700"} truncate">${esc(f.area)}</span>
-      <span class="text-xs shrink-0"><b>${f.n}</b> emp · <b class="text-teal-700">${money(f.nom)}</b></span></div>`; }).join("");
+      <span class="text-xs shrink-0"><b>${f.n}</b> emp · <b class="text-teal-700">${moneyS(f.nom)}</b></span></div>`; }).join("");
   c.innerHTML=`<div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-    <div class="flex items-center justify-between px-3 py-2 bg-slate-800 text-white"><span class="text-xs font-semibold">Total general</span><span class="text-xs"><b>${totN}</b> empleados · <b>${money(totNom)}</b></span></div>
+    <div class="flex items-center justify-between px-3 py-2 bg-slate-800 text-white"><span class="text-xs font-semibold">Total general</span><span class="text-xs"><b>${totN}</b> empleados · <b>${moneyS(totNom)}</b></span></div>
     <p class="text-[10px] text-slate-400 px-3 pt-2">Desglose por área (empleados activos · nómina base mensual)</p>
     ${fil||`<p class="text-xs text-slate-400 text-center py-4">Sin datos.</p>`}</div>`;
 }
 function renderEmpleados(){ const q=(document.getElementById("buscarEmp")?.value||"").toLowerCase();
-  // Poblar el filtro solo con las áreas designadas por la app (config)
+  // Los supervisores (no gerencia) con áreas asignadas solo ven al personal de SUS áreas
+  const esGer=esGerencia(); const mias=usuarioAreas(); const restringir = !esGer && mias.length>0;
+  const areasOpt = restringir ? mias : AREAS;
   const fa=document.getElementById("filtroAreaEmp");
-  if(fa){ const actual=fa.value; fa.innerHTML=`<option value="">Todas las áreas</option>`+AREAS.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join(""); if(AREAS.includes(actual)) fa.value=actual; }
+  if(fa){ const actual=fa.value; fa.innerHTML=`<option value="">${restringir?"Todas mis áreas":"Todas las áreas"}</option>`+areasOpt.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join(""); fa.value=areasOpt.includes(actual)?actual:""; }
   const areaSel=fa?fa.value:"";
   let l=db.list("empleados").filter(e=>[e.nombre,e.cargo,e.area].join(" ").toLowerCase().includes(q));
+  if(restringir) l=l.filter(e=>enAreaUsuario(e.area));
   if(areaSel){ const s=areaSel.trim().toLowerCase(); l=l.filter(e=>(e.area||"").trim().toLowerCase()===s); }
   l=l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
   const cont=document.getElementById("contadorEmp"); if(cont) cont.textContent=l.length+" empleado"+(l.length===1?"":"s")+(areaSel?" · "+areaSel:"");
@@ -966,7 +995,7 @@ function renderEmpleados(){ const q=(document.getElementById("buscarEmp")?.value
   c.innerHTML=l.map(e=>`<div onclick="openPerfil('${e.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50">
     <div class="w-11 h-11 rounded-full bg-teal-100 text-teal-700 grid place-items-center font-bold">${esc((e.nombre||"?").slice(0,1).toUpperCase())}</div>
     <div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(e.nombre)}</p><p class="text-xs text-slate-500 truncate">${esc(e.cargo||"—")} · ${esc(e.area||"—")}</p></div>
-    <div class="text-right"><p class="text-sm font-semibold">${money(e.salario_base)}</p><span class="text-[10px] px-2 py-0.5 rounded-full ${e.estado==="Inactivo"?"bg-slate-200 text-slate-500":"bg-emerald-100 text-emerald-700"}">${esc(e.estado||"Activo")}</span></div></div>`).join("");
+    <div class="text-right"><p class="text-sm font-semibold">${moneyS(e.salario_base)}</p><span class="text-[10px] px-2 py-0.5 rounded-full ${e.estado==="Inactivo"?"bg-slate-200 text-slate-500":"bg-emerald-100 text-emerald-700"}">${esc(e.estado||"Activo")}</span></div></div>`).join("");
 }
 
 /* ===================== BONOS ===================== */
@@ -1302,7 +1331,7 @@ function openProducto(id){ const p=id?prodById(id):{};
     <div class="grid grid-cols-2 gap-3">${selectField("empaque","Empaque de compra",["Bulto","Caja","Saco","Paca","Fardo","Display","Bandeja","Kg","Unidad"],p.empaque||"Bulto")}${field("unidades_empaque","Unidades por empaque",p.unidades_empaque,"number")}</div>
     <p class="text-[10px] text-slate-400 -mt-1">Ej: 1 caja trae 12 unidades → Empaque: Caja · Unidades por empaque: 12</p>
     <div class="grid grid-cols-2 gap-3">${field("stock","Stock actual",p.stock,"number")}${field("stock_min","Stock mínimo",p.stock_min,"number")}</div>
-    ${field("precio_compra","Precio de compra",p.precio_compra,"number")}
+    ${verCosto()?field("precio_compra","Precio de compra",p.precio_compra,"number"):`<input type="hidden" id="f_precio_compra" value="${esc(p.precio_compra??"")}">`}
     ${buscador("proveedor_id","Proveedor","prov",p.proveedor_id)}</div>
     <div class="flex gap-2 mt-5"><button onclick="saveProducto('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
     ${id?`<button onclick="delProducto('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
@@ -1316,10 +1345,13 @@ function renderInventario(){ const q=(document.getElementById("buscarProd")?.val
   let l=todos.filter(p=>[p.nombre,p.categoria,p.codigo].join(" ").toLowerCase().includes(q)); if(soloBajo) l=l.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0));
   l=l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
   const cnt=document.getElementById("contadorProd");
-  if(cnt){ const filtrando=q||soloBajo; cnt.innerHTML=`<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-xs flex items-center justify-between"><span>📦 <b>${todos.length.toLocaleString("es-VE")}</b> productos en total${bajoMin?` · <span class="text-red-600">${bajoMin} bajo mínimo</span>`:""}</span>${filtrando?`<span class="text-slate-500">${l.length.toLocaleString("es-VE")} mostrados</span>`:""}</div>`; }
+  if(cnt){ const filtrando=q||soloBajo;
+    const toggle=esGerencia()?`<label class="flex items-center justify-between gap-2 bg-white rounded-xl px-3 py-2 text-xs shadow-sm mb-2"><span class="text-slate-600 font-semibold">👁 Mostrar precio costo al personal</span><input type="checkbox" ${verCostoCfg?"checked":""} onchange="toggleVerCosto(this)" class="w-4 h-4"></label>`:"";
+    cnt.innerHTML=toggle+`<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-xs flex items-center justify-between"><span>📦 <b>${todos.length.toLocaleString("es-VE")}</b> productos en total${bajoMin?` · <span class="text-red-600">${bajoMin} bajo mínimo</span>`:""}</span>${filtrando?`<span class="text-slate-500">${l.length.toLocaleString("es-VE")} mostrados</span>`:""}</div>`; }
   const c=document.getElementById("listaInventario"); if(!l.length){ c.innerHTML=empty(q||soloBajo?"Sin resultados.":"Sin productos."); return; }
+  const vco=verCosto();
   c.innerHTML=l.map(p=>{ const bajo=(Number(p.stock)||0)<=(Number(p.stock_min)||0);
-    return `<div onclick="openProducto('${p.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(p.nombre)}</p><p class="text-xs text-slate-500 truncate">${p.codigo?"🏷 "+esc(p.codigo)+" · ":""}${esc(p.categoria||"—")} · ${money(p.precio_compra)}${(Number(p.unidades_empaque)||0)>0?" · 📦 "+esc(p.empaque||"Bulto")+" x"+(Number(p.unidades_empaque)||0):""}</p></div>
+    return `<div onclick="openProducto('${p.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(p.nombre)}</p><p class="text-xs text-slate-500 truncate">${p.codigo?"🏷 "+esc(p.codigo)+" · ":""}${esc(p.categoria||"—")}${vco?" · "+money(p.precio_compra):""}${(Number(p.unidades_empaque)||0)>0?" · 📦 "+esc(p.empaque||"Bulto")+" x"+(Number(p.unidades_empaque)||0):""}</p></div>
     <div class="text-right"><p class="text-sm font-bold ${bajo?"text-red-600":"text-slate-700"}">${Number(p.stock)||0} ${esc(p.unidad||"")}</p>${bajo?`<span class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700">Bajo mínimo</span>`:`<span class="text-[10px] text-slate-400">mín: ${Number(p.stock_min)||0}</span>`}</div></div>`; }).join("");
 }
 
@@ -1356,8 +1388,15 @@ function addItem(){ const pid=document.getElementById("oi_prod").value; const ca
   document.getElementById("oi_cant").value=""; const ot=document.getElementById("oi_prod_txt"); if(ot) ot.value=""; const oh=document.getElementById("oi_prod"); if(oh) oh.value=""; renderItems(); }
 function removeItem(i){ tempItems.splice(i,1); renderItems(); }
 function ordenTotal(items){ return (items||[]).reduce((s,it)=>s+(Number(it.cantidad)||0)*(Number(it.precio)||0),0); }
+function setItemCant(i,val){ let n=Number(val); if(isNaN(n)||n<0) n=0; if(!tempItems[i]) return; tempItems[i].cantidad=n;
+  const sub=document.getElementById("oi_sub_"+i); if(sub) sub.textContent=money(n*(Number(tempItems[i].precio)||0));
+  const tot=document.getElementById("oi_total"); if(tot) tot.textContent="Total: "+money(ordenTotal(tempItems)); }
 function renderItems(){ const c=document.getElementById("oi_lista"); if(!c) return;
-  c.innerHTML=tempItems.length?tempItems.map((it,i)=>`<div class="flex items-center justify-between text-sm bg-white rounded-lg px-2 py-1"><span class="truncate">${esc(it.nombre)} × ${it.cantidad}</span><span class="flex items-center gap-2"><b>${money(it.cantidad*it.precio)}</b><button onclick="removeItem(${i})" class="text-red-500">✕</button></span></div>`).join(""):`<p class="text-xs text-slate-400">Aún sin productos.</p>`;
+  c.innerHTML=tempItems.length?tempItems.map((it,i)=>`<div class="flex items-center gap-2 text-sm bg-white rounded-lg px-2 py-1">
+    <span class="truncate flex-1">${esc(it.nombre)}</span>
+    <input type="number" min="0" inputmode="numeric" value="${Number(it.cantidad)||0}" oninput="setItemCant(${i},this.value)" title="Cantidad a pedir" class="w-16 px-1 py-1 rounded border border-slate-200 text-sm text-center">
+    <b id="oi_sub_${i}" class="shrink-0">${money((Number(it.cantidad)||0)*(Number(it.precio)||0))}</b>
+    <button onclick="removeItem(${i})" class="text-red-500 shrink-0">✕</button></div>`).join(""):`<p class="text-xs text-slate-400">Aún sin productos.</p>`;
   const tot=document.getElementById("oi_total"); if(tot) tot.textContent="Total: "+money(ordenTotal(tempItems)); }
 async function saveOrden(id){ if(bloqueoEdicion(id)) return; const r=readForm(["fecha","estado","notas"]);
   const nom=(document.getElementById("f_proveedor").value||"").trim().toLowerCase();
@@ -1565,10 +1604,10 @@ function openPerfil(id){ const e=empById(id); if(!e) return; const mes=hoy().sli
       <span class="text-[10px] px-2 py-0.5 rounded-full ${e.estado==="Inactivo"?"bg-slate-200 text-slate-500":"bg-emerald-100 text-emerald-700"}">${esc(e.estado||"Activo")}</span></div>
     </div>
     <div class="grid grid-cols-2 gap-2 mb-3">
-      <div class="bg-slate-50 rounded-xl p-3"><p class="text-[11px] text-slate-500">Salario base</p><p class="font-bold">${money(e.salario_base)}</p></div>
-      <div class="bg-slate-50 rounded-xl p-3"><p class="text-[11px] text-slate-500">Salario total (mes)</p><p class="font-bold text-teal-700">${money(total)}</p></div>
-      <div class="bg-slate-50 rounded-xl p-3"><p class="text-[11px] text-slate-500">Bonos del mes</p><p class="font-bold text-emerald-600">+${money(bono)}</p></div>
-      <div class="bg-slate-50 rounded-xl p-3"><p class="text-[11px] text-slate-500">Descuentos del mes</p><p class="font-bold text-red-600">−${money(desc)}</p></div>
+      <div class="bg-slate-50 rounded-xl p-3"><p class="text-[11px] text-slate-500">Salario base</p><p class="font-bold">${moneyS(e.salario_base)}</p></div>
+      <div class="bg-slate-50 rounded-xl p-3"><p class="text-[11px] text-slate-500">Salario total (mes)</p><p class="font-bold text-teal-700">${moneyS(total)}</p></div>
+      <div class="bg-slate-50 rounded-xl p-3"><p class="text-[11px] text-slate-500">Bonos del mes</p><p class="font-bold text-emerald-600">+${moneyS(bono)}</p></div>
+      <div class="bg-slate-50 rounded-xl p-3"><p class="text-[11px] text-slate-500">Descuentos del mes</p><p class="font-bold text-red-600">−${moneyS(desc)}</p></div>
     </div>
     <div class="bg-slate-50 rounded-xl p-3 mb-3 text-sm space-y-1">
       <div class="flex justify-between"><span class="text-slate-500">Cédula</span><span>${esc(e.cedula||"—")}</span></div>
@@ -1589,8 +1628,8 @@ function openPerfil(id){ const e=empById(id); if(!e) return; const mes=hoy().sli
     </div>
     <p class="text-xs font-semibold text-slate-600 mb-1">Últimas asistencias</p>
     <div class="space-y-1 mb-4">${asis.length?asis.map(a=>`<div class="flex justify-between text-xs bg-white border border-slate-100 rounded-lg px-2 py-1"><span>${esc(a.fecha||"")}</span><span class="text-slate-500">${esc(a.entrada||"—")}-${esc(a.salida||"—")} · ${a.horas!=null?a.horas+"h":"—"}${a.tardanza>0?` · tarde ${a.tardanza}m`:""}</span></div>`).join(""):`<p class="text-xs text-slate-400">Sin registros.</p>`}</div>
-    <button onclick="openRecibo('${id}')" class="w-full mb-2 bg-teal-600 text-white font-semibold py-2.5 rounded-xl">📄 Recibo de pago</button>
-    <div class="flex gap-2">${puedeEditarEmpleado()?`<button onclick="openEmpleado('${id}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Editar datos</button>`:``}
+    ${verSueldos()?`<button onclick="openRecibo('${id}')" class="w-full mb-2 bg-teal-600 text-white font-semibold py-2.5 rounded-xl">📄 Recibo de pago</button>`:``}
+    <div class="flex gap-2">${puedeEditarEmpleadoDe(e)?`<button onclick="openEmpleado('${id}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Editar datos</button>`:``}
     <button onclick="openAsignacionPara('${id}')" class="px-3 bg-slate-200 font-semibold py-2.5 rounded-xl">+ Asignación</button>
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
 }
@@ -1681,22 +1720,35 @@ function buildNomina(per, area){ let emps=db.list("empleados").filter(e=>e.estad
     const desc=bmes.filter(b=>b.tipo==="Deducción").reduce((s,b)=>s+(Number(b.monto)||0),0);
     const bono=bmes.filter(b=>b.tipo!=="Deducción").reduce((s,b)=>s+(Number(b.monto)||0),0);
     const rec=nominaRec(e.id,per); const mensual=Number(e.salario_base)||0;
-    return { id:e.id, nombre:e.nombre||"", cedula:e.cedula||"", ingreso:e.fecha_ingreso||"", mensual, quincenal:+(mensual/2).toFixed(2), descuentos:desc, feriados:rec?.dias_feriados||0, bono, observaciones:rec?.observaciones||"" };
+    const retardo=descuentoRetardoEmp(e.id,per);
+    return { id:e.id, nombre:e.nombre||"", cedula:e.cedula||"", ingreso:e.fecha_ingreso||"", mensual, quincenal:+(mensual/2).toFixed(2), descuentos:+(desc+retardo).toFixed(2), retardo, feriados:rec?.dias_feriados||0, bono, observaciones:rec?.observaciones||"" };
   }); }
 function renderNomina(){ const el=document.getElementById("nomPeriodo"); if(el&&!el.value) el.value=hoy().slice(0,7);
   const fa=document.getElementById("filtroAreaNom");
   if(fa){ const actual=fa.value; fa.innerHTML=`<option value="">Todas las áreas</option>`+AREAS.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join(""); if(AREAS.includes(actual)) fa.value=actual; }
   const per=periodoNomina(); const area=areaNomina(); const rows=buildNomina(per,area); const c=document.getElementById("listaNomina");
   const cont=document.getElementById("contadorNom"); if(cont) cont.textContent=rows.length+" empleado"+(rows.length===1?"":"s")+(area?" · "+area:"");
+  // Panel de gerencia: mostrar/ocultar sueldos, descuento por retardo, conceptos
+  const gp=document.getElementById("nomGerencia");
+  if(gp){ gp.innerHTML = esGerencia()? `<div class="bg-white rounded-2xl shadow-sm p-3 mb-2 space-y-2">
+    <label class="flex items-center justify-between gap-2 text-xs"><span class="text-slate-600 font-semibold">👁 Mostrar sueldos al personal</span><input type="checkbox" ${verSueldosCfg?"checked":""} onchange="toggleVerSueldos(this)" class="w-4 h-4"></label>
+    <div class="border-t border-slate-100 pt-2"><p class="text-[11px] font-semibold text-slate-600 mb-1">⏱ Descuento por retardo</p>
+      <div class="grid grid-cols-12 gap-1 items-end">
+        <div class="col-span-4"><label class="text-[10px] text-slate-400">Tolerancia (min)</label><input id="cfgRetTol" type="number" value="${retardoTol}" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div>
+        <div class="col-span-5"><label class="text-[10px] text-slate-400">Bs por minuto tarde</label><input id="cfgRetBs" type="number" value="${retardoBsMin}" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div>
+        <div class="col-span-3"><button onclick="setRetardoCfg()" class="w-full bg-teal-700 text-white rounded-lg py-1.5 text-sm font-semibold">Guardar</button></div>
+      </div><p class="text-[10px] text-slate-400 mt-1">Se descuenta cada minuto tarde que pase la tolerancia. Se aplica solo en la nómina y el recibo.</p></div>
+    <button onclick="openConceptos()" class="w-full bg-slate-700 text-white text-xs font-semibold py-2 rounded-xl">🧾 Conceptos de pago (para el recibo)</button>
+    </div>` : ""; }
   if(!rows.length){ c.innerHTML=empty(area?"Sin empleados en «"+area+"».":"Sin empleados activos."); return; }
   c.innerHTML=rows.map(r=>`<div class="bg-white rounded-2xl p-3 shadow-sm">
-    <div class="flex items-center justify-between"><p class="font-semibold truncate">${esc(r.nombre)}</p><p class="text-sm font-bold text-teal-700">${money(r.mensual+r.bono-r.descuentos)}</p></div>
+    <div class="flex items-center justify-between"><p class="font-semibold truncate">${esc(r.nombre)}</p><p class="text-sm font-bold text-teal-700">${moneyS(r.mensual+r.bono-r.descuentos)}</p></div>
     <p class="text-[11px] text-slate-500 mb-2">${esc(r.cedula||"—")} · ingreso ${esc(r.ingreso||"—")}</p>
     <div class="grid grid-cols-4 gap-2 text-center text-[11px] mb-2">
-      <div><p class="text-slate-400">Mensual</p><p class="font-semibold">${money(r.mensual)}</p></div>
-      <div><p class="text-slate-400">Quincenal</p><p class="font-semibold">${money(r.quincenal)}</p></div>
-      <div><p class="text-slate-400">Bono</p><p class="font-semibold text-emerald-600">+${money(r.bono)}</p></div>
-      <div><p class="text-slate-400">Descuentos</p><p class="font-semibold text-red-600">−${money(r.descuentos)}</p></div>
+      <div><p class="text-slate-400">Mensual</p><p class="font-semibold">${moneyS(r.mensual)}</p></div>
+      <div><p class="text-slate-400">Quincenal</p><p class="font-semibold">${moneyS(r.quincenal)}</p></div>
+      <div><p class="text-slate-400">Bono</p><p class="font-semibold text-emerald-600">+${moneyS(r.bono)}</p></div>
+      <div><p class="text-slate-400">Descuentos${r.retardo>0?" ⏱":""}</p><p class="font-semibold text-red-600">−${moneyS(r.descuentos)}</p></div>
     </div>
     <div class="grid grid-cols-3 gap-2 items-center">
       <div><label class="text-[10px] text-slate-400">Días feriados</label><input type="number" value="${r.feriados}" onchange="setNominaCampo('${r.id}','dias_feriados',Number(this.value)||0).then(render)" class="w-full px-2 py-1 rounded-lg border border-slate-200 text-sm"></div>
@@ -1706,11 +1758,11 @@ function renderNomina(){ const el=document.getElementById("nomPeriodo"); if(el&&
 const NOM_HEADERS=["Nombre completo","Cédula","Fecha de ingreso","Salario mensual","Salario quincenal","Descuentos","Días feriados","Bono","Observaciones"];
 function nominaMatriz(per, area){ return buildNomina(per, area).map(r=>[r.nombre,r.cedula,r.ingreso,r.mensual,r.quincenal,r.descuentos,r.feriados,r.bono,r.observaciones]); }
 function slugArea(a){ return a?("_"+a.trim().replace(/\s+/g,"-").replace(/[^\wáéíóúñÁÉÍÓÚÑ-]/g,"")):""; }
-function exportarNominaExcel(){ const per=periodoNomina(); const area=areaNomina(); const data=[NOM_HEADERS,...nominaMatriz(per,area)];
+function exportarNominaExcel(){ if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; } const per=periodoNomina(); const area=areaNomina(); const data=[NOM_HEADERS,...nominaMatriz(per,area)];
   if(data.length<=1){ toast("No hay empleados para exportar"); return; }
   const ws=XLSX.utils.aoa_to_sheet(data); ws["!cols"]=[{wch:24},{wch:16},{wch:14},{wch:14},{wch:14},{wch:12},{wch:12},{wch:10},{wch:28}];
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Nómina"); XLSX.writeFile(wb,`nomina_${per}${slugArea(area)}.xlsx`); toast("Excel descargado"+(area?" · "+area:"")); }
-function exportarNominaPDF(){ const per=periodoNomina(); const area=areaNomina(); const mat=nominaMatriz(per,area); if(!mat.length){ toast("No hay empleados para exportar"); return; }
+function exportarNominaPDF(){ if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; } const per=periodoNomina(); const area=areaNomina(); const mat=nominaMatriz(per,area); if(!mat.length){ toast("No hay empleados para exportar"); return; }
   const { jsPDF }=window.jspdf; const doc=new jsPDF({orientation:"landscape"}); let y=15;
   doc.setFontSize(14); doc.text(`Nómina — ${ajustes.nombre} — ${per}${area?" — "+area:""}`,14,y); y+=8; doc.setFontSize(7.5);
   const xs=[14,60,88,112,134,156,176,196,212]; doc.setFont(undefined,"bold");
@@ -1968,21 +2020,49 @@ function importarExcelProductos(ev){ const f=ev.target.files[0]; if(!f) return;
   }, "impProdMsg", p=> (String(p.codigo||"").trim()? "C:"+String(p.codigo).trim() : "N:"+String(p.nombre||"").trim().toLowerCase())); ev.target.value=""; }
 function plantillaProductos(){ bajarPlantilla("plantilla_productos.xlsx",["Nombre","Codigo","Categoria","Unidad","Empaque","Unidades por empaque","Precio costo","Stock","Stock minimo"],["Arroz 1kg","7591234567890","Abarrotes","Unidad","Bulto",24,1.2,50,20]); }
 
+/* ===================== CONCEPTOS DE PAGO (para el recibo) ===================== */
+function conceptosActivos(){ return db.list("conceptos_pago").filter(c=>c.activo!==false).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")); }
+function openConceptos(){ if(!esGerencia()){ toast("Solo gerencia gestiona los conceptos"); return; }
+  openModal(`<h3 class="font-bold text-lg mb-1">Conceptos de pago</h3><p class="text-xs text-slate-500 mb-3">Créalos una vez y márcalos con un check en el recibo de cada empleado. Las deducciones se restan del total.</p>
+    <div class="grid grid-cols-12 gap-1 items-end mb-2">
+      <div class="col-span-5"><label class="text-[10px] text-slate-400">Nombre</label><input id="cpn_nombre" placeholder="Ej: Bono transporte" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div>
+      <div class="col-span-4"><label class="text-[10px] text-slate-400">Tipo</label><select id="cpn_tipo" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm bg-white"><option>Asignación</option><option>Deducción</option></select></div>
+      <div class="col-span-2"><label class="text-[10px] text-slate-400">Monto</label><input id="cpn_monto" type="number" placeholder="0" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div>
+      <div class="col-span-1"><button onclick="addConcepto()" class="w-full bg-teal-700 text-white rounded-lg py-1.5 text-sm font-semibold">+</button></div>
+    </div>
+    <div id="listaConceptos" class="space-y-1"></div>
+    <button onclick="closeModal()" class="w-full mt-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`);
+  renderConceptosList(); }
+async function addConcepto(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const nombre=(document.getElementById("cpn_nombre").value||"").trim(); if(!nombre){ toast("Falta el nombre"); return; }
+  const tipo=document.getElementById("cpn_tipo").value; const monto=Number(document.getElementById("cpn_monto").value)||0;
+  try{ await db.insert("conceptos_pago",{nombre,tipo,monto,activo:true}); document.getElementById("cpn_nombre").value=""; document.getElementById("cpn_monto").value=""; renderConceptosList(); toast("Concepto agregado"); }catch(e){ toast("Error: "+e.message); } }
+async function delConceptoPago(id){ if(!esGerencia()){ toast("Solo gerencia"); return; } if(confirm("¿Eliminar este concepto?")){ await db.remove("conceptos_pago",id); renderConceptosList(); toast("Concepto eliminado"); } }
+function renderConceptosList(){ const c=document.getElementById("listaConceptos"); if(!c) return; const l=conceptosActivos();
+  c.innerHTML=l.length? l.map(cp=>`<div class="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-3 py-1.5 text-sm"><span class="truncate">${esc(cp.nombre)} <span class="${cp.tipo==='Deducción'?'text-red-600':'text-emerald-600'} text-[11px] font-semibold">${cp.tipo==='Deducción'?'− resta':'+ suma'} ${money(cp.monto)}</span></span><button onclick="delConceptoPago('${cp.id}')" class="text-red-500 font-bold shrink-0">✕</button></div>`).join("") : `<p class="text-xs text-slate-400 text-center py-3">Aún no hay conceptos. Crea el primero arriba.</p>`; }
+
 /* ===================== RECIBO DE PAGO ===================== */
 function parseLineas(txt){ return String(txt||"").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{ const i=l.lastIndexOf("="); if(i<0) return {c:l,m:0}; return {c:l.slice(0,i).trim(), m:numExcel(l.slice(i+1))}; }); }
 function openRecibo(empId){ const e=empById(empId); if(!e) return; const mes=hoy().slice(0,7);
   const bmes=db.list("bonos").filter(b=>b.empleado_id===empId && (b.fecha||"").startsWith(mes));
   const asig=bmes.filter(b=>b.tipo!=="Deducción"); const ded=bmes.filter(b=>b.tipo==="Deducción");
-  openModal(`<h3 class="font-bold text-lg mb-3">Recibo de pago — ${esc(e.nombre)}</h3><p class="text-xs text-slate-500 mb-2">Puedes editar el contenido antes de descargar.</p><div class="space-y-3">
+  const conceptos=conceptosActivos();
+  const minTarde=minutosTardePeriodo(empId,mes); const retDesc=descuentoRetardoEmp(empId,mes);
+  openModal(`<h3 class="font-bold text-lg mb-3">Recibo de pago — ${esc(e.nombre)}</h3><p class="text-xs text-slate-500 mb-2">Marca los conceptos que aplican. Puedes editar los montos antes de descargar.</p><div class="space-y-3">
     ${field("periodo","Periodo",mes)}${field("sueldo","Salario base",e.salario_base,"number")}
-    <div><label class="text-xs text-slate-500">Asignaciones (una por línea: concepto=monto)</label><textarea id="f_asig" rows="3" class="w-full px-3 py-2 rounded-xl border border-slate-200">${asig.map(b=>`${b.concepto||b.tipo}=${b.monto}`).join("\n")}</textarea></div>
-    <div><label class="text-xs text-slate-500">Deducciones (una por línea: concepto=monto)</label><textarea id="f_ded" rows="3" class="w-full px-3 py-2 rounded-xl border border-slate-200">${ded.map(b=>`${b.concepto||"Deducción"}=${b.monto}`).join("\n")}</textarea></div>
+    ${conceptos.length?`<div><p class="text-xs font-semibold text-slate-600 mb-1">Conceptos (marca los que aplican)</p><div class="space-y-1 bg-slate-50 rounded-xl p-2">${conceptos.map(cp=>`<div class="flex items-center gap-2"><input type="checkbox" id="cp_${cp.id}" class="cpchk" data-tipo="${cp.tipo==='Deducción'?'ded':'asig'}"><label for="cp_${cp.id}" class="flex-1 text-sm truncate">${esc(cp.nombre)} <span class="text-[10px] ${cp.tipo==='Deducción'?'text-red-600':'text-emerald-600'}">${cp.tipo==='Deducción'?'(resta)':'(suma)'}</span></label><input type="number" id="cpm_${cp.id}" value="${Number(cp.monto)||0}" class="w-20 px-1 py-1 rounded border border-slate-200 text-sm text-right"></div>`).join("")}</div><p class="text-[10px] text-slate-400 mt-1">Gerencia crea los conceptos con «🧾 Conceptos de pago» en Nómina.</p></div>`:""}
+    ${retardoBsMin>0?`<div class="bg-amber-50 rounded-xl px-3 py-2 text-xs text-amber-700 flex items-center justify-between gap-2"><span>⏱ Retardos: <b>${minTarde} min</b> × ${money(retardoBsMin)} = <b>−${money(retDesc)}</b></span><label class="flex items-center gap-1 shrink-0"><input type="checkbox" id="cp_retardo" data-min="${minTarde}" data-desc="${retDesc}" ${retDesc>0?"checked":""}> aplicar</label></div>`:""}
+    <div><label class="text-xs text-slate-500">Otras asignaciones (una por línea: concepto=monto)</label><textarea id="f_asig" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${asig.map(b=>`${b.concepto||b.tipo}=${b.monto}`).join("\n")}</textarea></div>
+    <div><label class="text-xs text-slate-500">Otras deducciones (una por línea: concepto=monto)</label><textarea id="f_ded" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${ded.map(b=>`${b.concepto||"Deducción"}=${b.monto}`).join("\n")}</textarea></div>
     <div><label class="text-xs text-slate-500">Observaciones</label><input id="f_obs" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div></div>
     <div class="flex gap-2 mt-5"><button onclick="descargarRecibo('${empId}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">📄 Descargar PDF</button>
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`); }
 function descargarRecibo(empId){ const e=empById(empId); const { jsPDF }=window.jspdf; const doc=new jsPDF();
   const periodo=document.getElementById("f_periodo").value; const sueldo=Number(document.getElementById("f_sueldo").value)||0;
   const asig=parseLineas(document.getElementById("f_asig").value); const ded=parseLineas(document.getElementById("f_ded").value); const obs=document.getElementById("f_obs").value;
+  // Conceptos marcados con check
+  document.querySelectorAll(".cpchk:checked").forEach(chk=>{ const id=chk.id.slice(3); const cp=db.list("conceptos_pago").find(x=>x.id===id); if(!cp) return; const m=Number(document.getElementById("cpm_"+id)?.value)||0; (chk.dataset.tipo==="ded"?ded:asig).push({c:cp.nombre, m}); });
+  // Descuento por retardos (automático)
+  const chkR=document.getElementById("cp_retardo"); if(chkR&&chkR.checked){ const dsc=Number(chkR.dataset.desc)||0; if(dsc>0) ded.push({c:"Retardos ("+(chkR.dataset.min||0)+" min)", m:dsc}); }
   let y=18; doc.setFontSize(16); doc.text(ajustes.nombre||"Hipposupermarket",14,y); y+=7; doc.setFontSize(12); doc.text("RECIBO DE PAGO",14,y); y+=8; doc.setFontSize(10);
   doc.text("Empleado: "+(e.nombre||""),14,y); y+=6; doc.text("Cédula: "+(e.cedula||"—"),14,y); y+=6; doc.text("Periodo: "+periodo,14,y); y+=8;
   doc.setFont(undefined,"bold"); doc.text("Asignaciones",14,y); y+=6; doc.setFont(undefined,"normal");
@@ -2440,7 +2520,7 @@ function renderInicio(){
   const areaR=faR?faR.value:""; const sR=areaR.trim().toLowerCase();
   const emps=areaR?empsAll.filter(e=>(e.area||"").trim().toLowerCase()===sR):empsAll;
   document.getElementById("mEmpleados").textContent=emps.length;
-  document.getElementById("mNomina").textContent=money(emps.reduce((s,e)=>s+(Number(e.salario_base)||0),0));
+  document.getElementById("mNomina").textContent=moneyS(emps.reduce((s,e)=>s+(Number(e.salario_base)||0),0));
   document.getElementById("mTareas").textContent=db.list("tareas").filter(t=>(t.estado||"Pendiente")!=="Hecha").length;
   const evs=db.list("evaluaciones"); document.getElementById("mEval").textContent=evs.length?(evs.reduce((s,v)=>s+(v.promedio||0),0)/evs.length).toFixed(1):"—";
   document.getElementById("mBajoMin").textContent=db.list("productos").filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0)).length;
