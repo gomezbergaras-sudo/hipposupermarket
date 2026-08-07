@@ -356,7 +356,8 @@
       <button onclick="openFacturasRec()" class="text-xs bg-slate-700 text-white px-3 py-1.5 rounded-lg font-semibold">📥 Facturas recibidas</button>
       <button onclick="openPagoProv()" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold">💵 Pago a proveedor</button>
       <button onclick="openReportePagos()" class="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg font-semibold">📊 Reporte de pagos</button>
-      <button onclick="openDeuda()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Deuda</button></div>
+      <button onclick="openDeuda()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Deuda</button>
+      <button onclick="openImportarFinanzas()" class="text-xs bg-slate-500 text-white px-3 py-1.5 rounded-lg font-semibold">📤 Importar Excel</button></div>
     <p class="text-xs text-slate-500 mb-2">Deudas, notas de crédito, pagos y facturas recibidas de proveedores.</p>
     <div class="flex flex-wrap gap-2 mb-3">
       <label class="bg-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelDeudas(event)"></label>
@@ -471,7 +472,7 @@ let verCostoCfg=true; // ¿mostrar precio costo al personal? (lo controla gerenc
 let verSueldosCfg=true; // ¿mostrar sueldos al personal? (lo controla gerencia)
 let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
-const APP_VERSION="4.17"; // se incrementa con cada mejora
+const APP_VERSION="4.18"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1974,6 +1975,39 @@ function bajarPlantilla(nombre, headers, ejemplo){ const ws=XLSX.utils.aoa_to_sh
 function numExcel(v){ return Number(String(v).replace(/[^\d.\-]/g,""))||0; }
 /* Importador genérico tolerante: cuenta cargados, ignora filas vacías y reporta el error exacto */
 async function insertConReintento(tabla, r){ try{ return await db.insert(tabla, r); }catch(e){ await new Promise(res=>setTimeout(res,200)); return await db.insert(tabla, r); } }
+/* ------- Importar Finanzas desde Excel (facturas recibidas / deudas) ------- */
+function openImportarFinanzas(){ if(!puede("deudas")){ toast("Sin acceso"); return; }
+  openModal(`<h3 class="font-bold text-lg mb-1">Importar desde Excel</h3><p class="text-xs text-slate-500 mb-3">Carga masiva. Descarga la plantilla, respeta los títulos de las columnas y sube el archivo. No duplica lo que ya exista.</p>
+    <div class="space-y-3">
+      <div class="bg-slate-50 rounded-xl p-3">
+        <p class="font-semibold text-sm mb-1">📥 Facturas recibidas</p>
+        <p class="text-[11px] text-slate-500 mb-2">Columnas: <b>Fecha, N Factura, Proveedor, RIF, Total, Tipo, Notas</b>. Va a «Facturas recibidas».</p>
+        <div class="flex gap-2"><button onclick="plantillaFacturasRec()" class="text-xs bg-slate-200 font-semibold px-3 py-2 rounded-lg">Plantilla</button>
+        <label class="text-xs bg-teal-700 text-white font-semibold px-3 py-2 rounded-lg cursor-pointer">Elegir Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="importarFacturasRec(event)" class="hidden"></label></div>
+        <p id="impFacMsg"></p>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-3">
+        <p class="font-semibold text-sm mb-1">💳 Deudas por proveedor</p>
+        <p class="text-[11px] text-slate-500 mb-2">Columnas: <b>Proveedor, RIF, Monto, Abonado, Fecha, Notas</b>. Va a «Deudas».</p>
+        <div class="flex gap-2"><button onclick="plantillaDeudas()" class="text-xs bg-slate-200 font-semibold px-3 py-2 rounded-lg">Plantilla</button>
+        <label class="text-xs bg-teal-700 text-white font-semibold px-3 py-2 rounded-lg cursor-pointer">Elegir Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="importarDeudas(event)" class="hidden"></label></div>
+        <p id="impDeuMsg"></p>
+      </div>
+    </div>
+    <button onclick="closeModal()" class="w-full mt-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`); }
+function mapFacturaRec(raw){ const prov=String(pick(raw,["proveedor","nombre de proveedor","nombre","empresa"])).trim(); if(!prov) return null;
+  const numero=String(pick(raw,["n factura","nro de fac","numero","número","factura","nro","n° factura","nro factura"])).trim();
+  const monto=numExcel(pick(raw,["total","total $","monto","monto aplicado","importe"]));
+  if(!numero && !monto) return null;
+  const pr=db.list("proveedores").find(p=>(p.nombre||"").trim().toLowerCase()===prov.toLowerCase());
+  return { proveedor_id:pr?pr.id:"", proveedor:prov, rif:String(pick(raw,["rif"])).trim()||(pr?pr.rif:""), fecha:normFecha(pick(raw,["fecha"])), tipo:String(pick(raw,["tipo"])).trim()||"Factura", numero, monto, moneda:String(pick(raw,["moneda"])).trim()||"$", notas:String(pick(raw,["nota","notas","observacion","observación"])).trim() }; }
+function mapDeuda(raw){ const prov=String(pick(raw,["proveedor","nombre de proveedor","nombre","empresa"])).trim(); if(!prov) return null;
+  const pr=db.list("proveedores").find(p=>(p.nombre||"").trim().toLowerCase()===prov.toLowerCase());
+  return { proveedor:prov, rif:String(pick(raw,["rif"])).trim()||(pr?pr.rif:""), tipo:String(pick(raw,["tipo"])).trim()||"Factura", monto:numExcel(pick(raw,["monto","total","total facturado","deuda","importe"])), abonado:numExcel(pick(raw,["abonado","abono","pagado"])), fecha:normFecha(pick(raw,["fecha"]))||hoy(), status:String(pick(raw,["status","estado"])).trim()||"Pendiente", notas:String(pick(raw,["nota","notas"])).trim() }; }
+function importarFacturasRec(ev){ const f=ev.target.files[0]; if(!f) return; importarGenerico(f,"facturas_rec", mapFacturaRec, "impFacMsg", r=> (String(r.numero||"").trim()? "N:"+String(r.numero).toLowerCase()+"|"+String(r.proveedor||"").toLowerCase() : null)); ev.target.value=""; }
+function importarDeudas(ev){ const f=ev.target.files[0]; if(!f) return; importarGenerico(f,"deudas", mapDeuda, "impDeuMsg", r=> "P:"+String(r.proveedor||"").toLowerCase()); ev.target.value=""; }
+function plantillaFacturasRec(){ bajarPlantilla("plantilla_facturas_recibidas.xlsx",["Fecha","N Factura","Proveedor","RIF","Total","Tipo","Notas"],["2026-08-07","00012345","DISTRIBUIDORA EJEMPLO C.A","J-12345678-9",461.04,"Factura",""]); }
+function plantillaDeudas(){ bajarPlantilla("plantilla_deudas.xlsx",["Proveedor","RIF","Monto","Abonado","Fecha","Notas"],["DISTRIBUIDORA EJEMPLO C.A","J-12345678-9",1000,0,"2026-08-07",""]); }
 function importarGenerico(file, tabla, mapRow, msgId, dedupeKey){
   const msg=document.getElementById(msgId);
   const setMsg=(txt,cls)=>{ if(msg){ msg.textContent=txt; msg.className="text-xs mt-2 "+cls; } };
