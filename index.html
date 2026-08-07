@@ -367,6 +367,12 @@
     <div id="deudaResumen" class="mb-3"></div>
     <div id="facturasRecBox" class="mb-3"></div>
     <div id="pagosProvBox" class="mb-3"></div>
+    <p class="text-xs font-semibold text-slate-600 mb-1">Deudas por proveedor</p>
+    <div class="flex flex-wrap gap-2 mb-2">
+      <input id="deudaBuscar" oninput="renderDeudas()" placeholder="🔎 Proveedor o RIF" class="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-slate-200 text-sm">
+      <input id="deudaFecha" type="date" onchange="renderDeudas()" class="px-3 py-2 rounded-xl border border-slate-200 text-sm">
+      <button onclick="limpiarFiltroDeuda()" class="text-xs bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-xl">Limpiar</button>
+    </div>
     <div id="listaDeudas" class="space-y-2"></div>
   </section>
 
@@ -472,7 +478,7 @@ let verCostoCfg=true; // ¿mostrar precio costo al personal? (lo controla gerenc
 let verSueldosCfg=true; // ¿mostrar sueldos al personal? (lo controla gerencia)
 let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
-const APP_VERSION="4.18"; // se incrementa con cada mejora
+const APP_VERSION="4.19"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -2007,7 +2013,6 @@ function mapDeuda(raw){ const prov=String(pick(raw,["proveedor","nombre de prove
 function importarFacturasRec(ev){ const f=ev.target.files[0]; if(!f) return; importarGenerico(f,"facturas_rec", mapFacturaRec, "impFacMsg", r=> (String(r.numero||"").trim()? "N:"+String(r.numero).toLowerCase()+"|"+String(r.proveedor||"").toLowerCase() : null)); ev.target.value=""; }
 function importarDeudas(ev){ const f=ev.target.files[0]; if(!f) return; importarGenerico(f,"deudas", mapDeuda, "impDeuMsg", r=> "P:"+String(r.proveedor||"").toLowerCase()); ev.target.value=""; }
 function plantillaFacturasRec(){ bajarPlantilla("plantilla_facturas_recibidas.xlsx",["Fecha","N Factura","Proveedor","RIF","Total","Tipo","Notas"],["2026-08-07","00012345","DISTRIBUIDORA EJEMPLO C.A","J-12345678-9",461.04,"Factura",""]); }
-function plantillaDeudas(){ bajarPlantilla("plantilla_deudas.xlsx",["Proveedor","RIF","Monto","Abonado","Fecha","Notas"],["DISTRIBUIDORA EJEMPLO C.A","J-12345678-9",1000,0,"2026-08-07",""]); }
 function importarGenerico(file, tabla, mapRow, msgId, dedupeKey){
   const msg=document.getElementById(msgId);
   const setMsg=(txt,cls)=>{ if(msg){ msg.textContent=txt; msg.className="text-xs mt-2 "+cls; } };
@@ -2408,14 +2413,24 @@ async function saveDeuda(id){ if(!puede("deudas")){ toast("Sin acceso"); return;
   try{ id?await db.update("deudas",id,r):await db.insert("deudas",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delDeuda(id){ if(!esGerencia()){ toast("Solo gerencia elimina"); return; } if(confirm("¿Eliminar?")){ await db.remove("deudas",id); closeModal(); render(); } }
 async function ciclarStatus(id,ev){ ev.stopPropagation(); if(!puede("deudas")){ return; } const d=db.list("deudas").find(x=>x.id===id); const next={ "Pendiente":"Pagado parcial","Pagado parcial":"Pagado total","Pagado total":"Pendiente" }[d.status||"Pendiente"]; await db.update("deudas",id,{status:next}); render(); }
+function limpiarFiltroDeuda(){ const b=document.getElementById("deudaBuscar"); if(b) b.value=""; const f=document.getElementById("deudaFecha"); if(f) f.value=""; renderDeudas(); }
 function renderDeudas(){ const l=db.list("deudas").sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||"")); const c=document.getElementById("listaDeudas"); if(!c) return; const res=document.getElementById("deudaResumen");
   const pend=l.filter(d=>d.tipo!=="Nota de crédito"&&d.status!=="Pagado total").reduce((s,d)=>s+((Number(d.monto)||0)-(Number(d.abonado)||0)),0);
   const notas=l.filter(d=>d.tipo==="Nota de crédito").reduce((s,d)=>s+(Number(d.monto)||0),0);
   if(res) res.innerHTML=`<div class="grid grid-cols-2 gap-2"><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Deuda pendiente</p><p class="text-lg font-bold text-red-600">${money(pend)}</p></div><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Notas de crédito</p><p class="text-lg font-bold text-emerald-600">${money(notas)}</p></div></div>`;
   renderFacturasRecBox(); renderPagosProv();
   if(!l.length){ c.innerHTML=empty("Sin deudas. Agrega o carga por Excel."); return; }
+  // Filtro: no mostrar todas al inicio; solo al buscar proveedor o elegir fecha
+  const q=(document.getElementById("deudaBuscar")?.value||"").trim().toLowerCase();
+  const fsel=document.getElementById("deudaFecha")?.value||"";
+  const filtrando = !!(q || fsel);
+  let lf=l;
+  if(q) lf=lf.filter(d=>(d.proveedor||"").toLowerCase().includes(q) || (d.rif||"").toLowerCase().includes(q));
+  if(fsel) lf=lf.filter(d=>String(d.fecha||"").slice(0,10)===fsel);
+  if(!filtrando){ c.innerHTML=`<div class="bg-amber-50 text-amber-700 rounded-xl px-3 py-3 text-sm text-center">Escribe un proveedor o elige una fecha para ver las deudas.<br><span class="text-[11px] text-amber-600">Hay ${l.length.toLocaleString("es-VE")} deuda${l.length===1?"":"s"} registrada${l.length===1?"":"s"}.</span></div>`; return; }
+  if(!lf.length){ c.innerHTML=empty("Sin resultados con ese filtro."); return; }
   const sc={ "Pendiente":"bg-red-100 text-red-700","Pagado parcial":"bg-amber-100 text-amber-700","Pagado total":"bg-emerald-100 text-emerald-700" };
-  c.innerHTML=l.map(d=>{ const saldo=(Number(d.monto)||0)-(Number(d.abonado)||0);
+  c.innerHTML=`<p class="text-[11px] text-slate-400 mb-1">${lf.length.toLocaleString("es-VE")} resultado${lf.length===1?"":"s"}</p>`+lf.map(d=>{ const saldo=(Number(d.monto)||0)-(Number(d.abonado)||0);
     return `<div onclick="openDeuda('${d.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50"><div class="flex items-center justify-between"><p class="font-semibold truncate">${esc(d.proveedor)} ${d.tipo==="Nota de crédito"?'<span class="text-[10px] text-emerald-600">NC</span>':''}</p><button onclick="ciclarStatus('${d.id}',event)" class="text-[10px] px-2 py-1 rounded-full ${sc[d.status]||sc.Pendiente} font-semibold shrink-0">${esc(d.status||"Pendiente")} ▸</button></div>
       <p class="text-xs text-slate-500 mt-0.5">${d.rif?esc(d.rif)+" · ":""}${esc(d.fecha||"")} · Monto ${money(d.monto)}${d.abonado?" · Abonado "+money(d.abonado):""}${saldo>0&&d.tipo!=="Nota de crédito"?" · Saldo "+money(saldo):""}</p></div>`; }).join("");
 }
