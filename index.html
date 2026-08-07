@@ -466,7 +466,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="4.13"; // se incrementa con cada mejora
+const APP_VERSION="4.14"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -585,7 +585,8 @@ function openUsuario(id){ const u=id?db.list("usuarios").find(x=>x.id===id):{per
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} usuario</h3><div class="space-y-3">
     ${field("nombre","Nombre del usuario",u.nombre)}
     <div><label class="text-xs text-slate-500">Clave (6 dígitos)</label><input id="f_clave" inputmode="numeric" maxlength="6" value="${esc(u.clave||"")}" class="w-full px-3 py-2 rounded-xl border border-slate-200 tracking-widest"></div>
-    <div><label class="text-xs text-slate-500">Área que supervisa (para asignar días libres)</label><select id="f_area" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="">(todas / no aplica)</option>${AREAS.map(a=>`<option ${u.area===a?"selected":""}>${esc(a)}</option>`).join("")}</select></div>
+    <div><label class="text-xs text-slate-500">Áreas que supervisa (días libres / incidencias) — puedes marcar varias</label>
+      <div class="grid grid-cols-2 gap-1.5 bg-slate-50 rounded-xl p-2 mt-1">${AREAS.map(a=>`<label class="flex items-center gap-2 text-sm"><input type="checkbox" class="uarea" value="${esc(a)}" ${usuarioAreas(u).some(x=>mismaAreaCI(x,a))?"checked":""}> ${esc(a)}</label>`).join("")}</div></div>
     ${buscador("empleado_id","Perfil de personal (empleado vinculado)","emp",u.empleado_id)}
     <p class="text-[11px] text-slate-400 -mt-2">Vincula este usuario con su ficha de empleado para que reciba avisos de tareas y asignaciones. Solo gerencia puede cambiarlo.</p>
     <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_es_gerencia" ${u.es_gerencia?"checked":""} onchange="togglePermisosBox()"> <b>Gerencia</b> (acceso total y administra usuarios)</label>
@@ -609,7 +610,8 @@ function marcarTodos(v){ OPCIONES.forEach(([o])=>{ const el=document.getElementB
 async function saveUsuario(id){
   const nombre=(document.getElementById("f_nombre").value||"").trim();
   const clave=(document.getElementById("f_clave").value||"").trim();
-  const area=(document.getElementById("f_area").value||"").trim();
+  const areas=[...document.querySelectorAll(".uarea:checked")].map(el=>el.value);
+  const area=areas[0]||"";  // primera área (compatibilidad con lo anterior)
   const es_g=document.getElementById("f_es_gerencia").checked;
   const es_sup=document.getElementById("f_es_supervisor").checked;
   const es_asis=document.getElementById("f_es_asistente").checked;
@@ -620,7 +622,7 @@ async function saveUsuario(id){
   const permisos=es_g?[]:OPCIONES.filter(([o])=>document.getElementById("perm_"+o)?.checked).map(([o])=>o);
   // no dejar el sistema sin ninguna gerencia
   if(id){ const otros=db.list("usuarios").filter(u=>u.id!==id && u.es_gerencia); if(!es_g && otros.length===0){ toast("Debe quedar al menos un usuario de gerencia"); return; } }
-  const row={nombre,clave,area,empleado_id,es_gerencia:es_g,es_supervisor:es_sup,es_asistente:es_asis,permisos,activo};
+  const row={nombre,clave,area,areas,empleado_id,es_gerencia:es_g,es_supervisor:es_sup,es_asistente:es_asis,permisos,activo};
   try{ if(id){ await db.update("usuarios",id,row); if(currentUser&&currentUser.id===id){ currentUser={...currentUser,...row}; aplicarPermisos(); } } else await db.insert("usuarios",row);
     closeModal(); render(); toast("Usuario guardado"); }catch(e){ toast("Error: "+e.message); }
 }
@@ -1075,6 +1077,7 @@ function descargarPlantilla(){ const ws=XLSX.utils.aoa_to_sheet([["Empleado","Fe
 let tareaFiltro="Todas";
 function openTarea(id){ const t=id?db.list("tareas").find(x=>x.id===id):{};
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nueva"} tarea</h3><div class="space-y-3">
+    ${id && t.creado_por_nombre?`<div class="bg-slate-50 rounded-xl px-3 py-2 text-[11px] text-slate-500">Asignada por: <b class="text-slate-700">${esc(t.creado_por_nombre)}</b></div>`:""}
     ${field("titulo","Título",t.titulo)}
     ${buscador("empleado_id","Asignar a","emp",t.empleado_id)}
     <div><label class="text-xs text-slate-500">Descripción</label><textarea id="f_descripcion" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(t.descripcion||"")}</textarea></div>
@@ -1084,16 +1087,17 @@ function openTarea(id){ const t=id?db.list("tareas").find(x=>x.id===id):{};
     ${id?`<button onclick="delTarea('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
 }
-async function saveTarea(id){ const prev=id?db.list("tareas").find(x=>x.id===id):null; if(!puedeEditarTA(prev)){ toast("Solo supervisores o gerencia pueden modificar tareas"); return; }
+async function saveTarea(id){ const prev=id?db.list("tareas").find(x=>x.id===id):null; if(!puedeEditarTarea(prev)){ toast(prev?"Solo quien asignó la tarea (o gerencia) puede modificarla":"Solo supervisores o gerencia pueden crear tareas"); return; }
   const r=readForm(["titulo","empleado_id","descripcion","prioridad","tiempo_estimado","fecha_limite","estado"]); if(!r.titulo){ toast("Falta el título"); return; }
   r.tiempo_estimado=Number(r.tiempo_estimado)||0; const esNueva=!id; r.creado_por_gerencia = prev? prev.creado_por_gerencia : esGerencia();
+  r.creado_por_id = prev? (prev.creado_por_id||"") : (currentUser?currentUser.id:""); r.creado_por_nombre = prev? (prev.creado_por_nombre||"") : (currentUser?currentUser.nombre:"");
   const antesEmp=prev?prev.empleado_id:null;
   try{ let saved; if(id){ await db.update("tareas",id,r); saved={...r,id}; } else { saved=await db.insert("tareas",r); }
     closeModal(); render(); toast("Guardado"); if(esNueva){ if(r.prioridad==="Alta") sonarAlerta(); else sonarNuevo(); }
     if(r.empleado_id && r.empleado_id!==antesEmp){ notificarAsignado(r.empleado_id,"tarea",r.titulo,"Se te asignó una tarea: "+r.titulo,saved.id); }
   }catch(e){ toast("Error: "+e.message); } }
-async function delTarea(id){ const t=db.list("tareas").find(x=>x.id===id); if(!puedeEditarTA(t)){ toast("No tienes permiso para eliminar esta tarea"); return; } if(confirm("¿Eliminar?")){ await db.remove("tareas",id); closeModal(); render(); } }
-async function avanzarTarea(id,ev){ ev.stopPropagation(); const t=db.list("tareas").find(x=>x.id===id); if(!puedeEditarTA(t)){ toast("Solo supervisores o gerencia pueden cambiar tareas"); return; } const next={Pendiente:"En progreso","En progreso":"Hecha",Hecha:"Pendiente"}[t.estado||"Pendiente"]; await db.update("tareas",id,{estado:next}); render(); }
+async function delTarea(id){ const t=db.list("tareas").find(x=>x.id===id); if(!puedeEditarTarea(t)){ toast("Solo quien asignó la tarea (o gerencia) puede eliminarla"); return; } if(confirm("¿Eliminar?")){ await db.remove("tareas",id); closeModal(); render(); } }
+async function avanzarTarea(id,ev){ ev.stopPropagation(); const t=db.list("tareas").find(x=>x.id===id); if(!puedeEditarTarea(t)){ toast("Solo quien asignó la tarea (o gerencia) puede cambiar su estado"); return; } const next={Pendiente:"En progreso","En progreso":"Hecha",Hecha:"Pendiente"}[t.estado||"Pendiente"]; await db.update("tareas",id,{estado:next}); render(); }
 function renderTareas(){ let l=db.list("tareas"); if(tareaFiltro!=="Todas") l=l.filter(t=>(t.estado||"Pendiente")===tareaFiltro);
   const ord={Alta:0,Media:1,Baja:2}; l=l.sort((a,b)=>(ord[a.prioridad]??1)-(ord[b.prioridad]??1)||(a.fecha_limite||"").localeCompare(b.fecha_limite||""));
   document.querySelectorAll(".filtro-tarea").forEach(b=>b.classList.toggle("bg-teal-600",false));
@@ -1106,13 +1110,14 @@ function renderTareas(){ let l=db.list("tareas"); if(tareaFiltro!=="Todas") l=l.
       <button onclick="avanzarTarea('${t.id}',event)" class="text-[10px] px-2 py-1 rounded-full ${ec[st]} font-semibold shrink-0">${st} ▸</button></div>
       <div class="flex flex-wrap items-center gap-2 mt-2 text-[11px]"><span class="px-2 py-0.5 rounded-full ${pc[t.prioridad]||pc.Media}">${esc(t.prioridad||"Media")}</span>
       ${e?`<span class="text-slate-500">👤 ${esc(e.nombre)}</span>`:""}${t.tiempo_estimado?`<span class="text-slate-500">⏱ ${t.tiempo_estimado}h</span>`:""}
-      ${t.fecha_limite?`<span class="${vencida?"text-red-600 font-semibold":"text-slate-500"}">📅 ${esc(t.fecha_limite)}${vencida?" (vencida)":""}</span>`:""}</div></div>`; }).join("");
+      ${t.fecha_limite?`<span class="${vencida?"text-red-600 font-semibold":"text-slate-500"}">📅 ${esc(t.fecha_limite)}${vencida?" (vencida)":""}</span>`:""}
+      ${t.creado_por_nombre?`<span class="text-slate-400">✍ Asignó: ${esc(t.creado_por_nombre)}</span>`:""}</div></div>`; }).join("");
 }
 
 /* ===================== DÍAS LIBRES (por área) ===================== */
 function puedeGestionarArea(area){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.area && currentUser.area===area))); }
 /* Días libres: solo gerencia, o supervisor de la MISMA área del empleado */
-function puedeEditarDiaLibre(area){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.es_supervisor && currentUser.area && mismaAreaCI(currentUser.area, area)))); }
+function puedeEditarDiaLibre(area){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.es_supervisor && enAreaUsuario(area)))); }
 function lunesDe(iso){ const d=new Date(iso+"T00:00:00"); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return fechaLocal(d); }
 function diasSemana(lun){ const out=[]; const d=new Date(lun+"T00:00:00"); for(let i=0;i<7;i++){ out.push(fechaLocal(d)); d.setDate(d.getDate()+1); } return out; }
 let dlSemanaRef=null;
@@ -1127,8 +1132,11 @@ function renderDiasLibres(){
   const esGer=!!(currentUser && currentUser.es_gerencia);
   if(esGer){ const cur=document.getElementById("dlAreaSel")?document.getElementById("dlAreaSel").value:"";
     wrap.innerHTML=`<label class="text-xs text-slate-500">Área</label><select id="dlAreaSel" onchange="render()" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="" ${cur===""?"selected":""}>Todas las áreas (general)</option>${AREAS.map(a=>`<option ${a===cur?"selected":""}>${esc(a)}</option>`).join("")}</select>`;
-  } else { wrap.innerHTML=`<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-sm">Tu área: <b>${esc(currentUser&&currentUser.area?currentUser.area:"(sin área asignada)")}</b></div>`; }
-  const areaSel = esGer ? (document.getElementById("dlAreaSel")?document.getElementById("dlAreaSel").value:"") : (currentUser?(currentUser.area||""):"");
+  } else { const mias=usuarioAreas();
+    if(mias.length>1){ const cur=document.getElementById("dlAreaSel")?.value||mias[0];
+      wrap.innerHTML=`<label class="text-xs text-slate-500">Área</label><select id="dlAreaSel" onchange="render()" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${mias.map(a=>`<option ${a===cur?"selected":""}>${esc(a)}</option>`).join("")}</select>`;
+    } else { wrap.innerHTML=`<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-sm">Tu área: <b>${esc(mias[0]||"(sin área asignada)")}</b></div>`; } }
+  const areaSel = esGer ? (document.getElementById("dlAreaSel")?document.getElementById("dlAreaSel").value:"") : (function(){ const mias=usuarioAreas(); return mias.length>1?(document.getElementById("dlAreaSel")?.value||mias[0]):(mias[0]||""); })();
   if(!dlSemanaRef) dlSemanaRef=hoy();
   const lun=lunesDe(dlSemanaRef); const dias=diasSemana(lun); const NN=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"]; const hoyISO=hoy();
   if(nav) nav.innerHTML=`<div class="flex items-center justify-between bg-white rounded-xl shadow-sm px-2 py-1.5">
@@ -1168,15 +1176,21 @@ async function delDiaLibre(id){ if(bloqueoBorrado()) return; const d=db.list("di
 
 /* ===================== INCIDENCIAS DE PERSONAL (asistencia por área) ===================== */
 function mismaAreaCI(a,b){ return (a||"").trim().toLowerCase()===(b||"").trim().toLowerCase(); }
-function puedeGestionarAreaCI(area){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.area && mismaAreaCI(currentUser.area,area)))); }
-function areaActualIP(){ if(currentUser && currentUser.es_gerencia){ return document.getElementById("ipAreaSel")?.value || AREAS[0]; } return currentUser? (currentUser.area||"") : ""; }
+/* Áreas de un usuario (soporta varias). Usa 'areas' (lista) o cae a 'area' (una) */
+function usuarioAreas(u){ u=u||currentUser; if(!u) return []; if(Array.isArray(u.areas)&&u.areas.length) return u.areas.filter(Boolean); return u.area?[u.area]:[]; }
+function enAreaUsuario(area,u){ return usuarioAreas(u).some(a=>mismaAreaCI(a,area)); }
+function puedeGestionarAreaCI(area){ return !!(currentUser && (currentUser.es_gerencia || enAreaUsuario(area))); }
+function areaActualIP(){ if(currentUser && currentUser.es_gerencia){ return document.getElementById("ipAreaSel")?.value || AREAS[0]; } const mias=usuarioAreas(); if(mias.length>1) return document.getElementById("ipAreaSel")?.value || mias[0]; return mias[0]||""; }
 const IP_TIPOS=["Llegada tarde","Falta","Falta justificada","Permiso","Retiro anticipado","Otro"];
 function renderIncPersonal(){
   const wrap=document.getElementById("ipAreaWrap"), cont=document.getElementById("listaIncPersonal"); if(!cont) return;
   const esGer=!!(currentUser && currentUser.es_gerencia);
   if(esGer){ const cur=document.getElementById("ipAreaSel")?.value||AREAS[0];
     wrap.innerHTML=`<label class="text-xs text-slate-500">Área</label><select id="ipAreaSel" onchange="render()" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${AREAS.map(a=>`<option ${a===cur?"selected":""}>${esc(a)}</option>`).join("")}</select>`;
-  } else { wrap.innerHTML=`<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-sm">Tu área: <b>${esc(currentUser&&currentUser.area?currentUser.area:"(sin área asignada)")}</b></div>`; }
+  } else { const mias=usuarioAreas();
+    if(mias.length>1){ const cur=document.getElementById("ipAreaSel")?.value||mias[0];
+      wrap.innerHTML=`<label class="text-xs text-slate-500">Área</label><select id="ipAreaSel" onchange="render()" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${mias.map(a=>`<option ${a===cur?"selected":""}>${esc(a)}</option>`).join("")}</select>`;
+    } else { wrap.innerHTML=`<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-sm">Tu área: <b>${esc(mias[0]||"(sin área asignada)")}</b></div>`; } }
   const area=areaActualIP();
   if(!area){ cont.innerHTML=empty("No tienes un área asignada. Pídele a gerencia que te asigne un área."); return; }
   const emps=db.list("empleados").filter(e=>e.estado!=="Inactivo" && mismaAreaCI(e.area,area)).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
@@ -1877,6 +1891,12 @@ setInterval(pintarUltSync, 20000);
 /* ===================== PERMISOS TAREAS/ASIGNACIONES ===================== */
 function esSupervisorU(){ return !!(currentUser && (currentUser.es_gerencia || currentUser.es_supervisor || currentUser.es_asistente)); }
 function puedeEditarTA(item){ if(!currentUser) return false; if(currentUser.es_gerencia) return true; if(item && item.creado_por_gerencia) return false; return !!(currentUser.es_supervisor || currentUser.es_asistente); }
+/* Tareas: solo gerencia o el MISMO usuario que la asignó puede modificarla */
+function puedeEditarTarea(t){ if(!currentUser) return false; if(currentUser.es_gerencia) return true;
+  if(!t) return !!(currentUser.es_supervisor || currentUser.es_asistente);        // crear una nueva
+  if(t.creado_por_id) return t.creado_por_id===currentUser.id;                     // solo quien la asignó
+  if(t.creado_por_gerencia) return false;                                          // legado: creada por gerencia
+  return !!(currentUser.es_supervisor || currentUser.es_asistente); }              // legado sin autor
 function puedeVerTotales(){ return !!(currentUser && !currentUser.es_asistente); }
 
 /* ===================== EXCEL: helpers e importaciones ===================== */
