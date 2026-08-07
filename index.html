@@ -466,12 +466,12 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="4.10"; // se incrementa con cada mejora
+const APP_VERSION="4.13"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
 function diasEntre(desde,hasta){ if(!desde||!hasta) return NaN; return Math.ceil((new Date(hasta+"T00:00:00")-new Date(desde+"T00:00:00"))/86400000); }
-function diasHasta(f){ return diasEntre(new Date().toISOString().slice(0,10), f); }
+function diasHasta(f){ return diasEntre(hoy(), f); }
 let sb=null, USE_CLOUD=false, store={};
 let ultimaSyncTs=Date.now(), lastSyncISO=null;
 let _dlCache={emp:-1,prov:-1,prod:-1}; // memo de datalists grandes
@@ -741,7 +741,7 @@ const OPCIONES=[
   ["empleados","Personal"],["empleados_editar","Modificar personal (editar datos de empleados)"],["nomina","Nómina"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],["incpersonal","Incidencias de personal (asistencia)"],
   ["proveedores","Proveedores"],["inventario","Inventario"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],
-  ["caja","Caja (cierres y arqueos)"],["tesoreria","Tesorería (totales y tasa)"],["deudas","Finanzas (deudas, pagos y facturas recibidas)"],["conexiones","Conexiones (quién se conecta)"]
+  ["caja","Caja (cierres y arqueos)"],["caja_editar","Modificar cajas con día cerrado (autorizado por gerencia)"],["tesoreria","Tesorería (totales y tasa)"],["deudas","Finanzas (deudas, pagos y facturas recibidas)"],["conexiones","Conexiones (quién se conecta)"]
 ];
 const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma","quiebre"];
 const OP_PERM=["tareas","asignaciones","asistencia","piso","quiebre"];
@@ -773,14 +773,14 @@ async function logout(){ if(confirm("¿Cerrar sesión?")){ await desregistrarPus
 /* ---------- REGISTRO DE CONEXIONES (sesiones) ---------- */
 let currentSesionId=null, sesionHeartbeat=null;
 async function iniciarSesion(){ if(!currentUser) return;
-  try{ const row=await db.insert("sesiones",{usuario_id:currentUser.id, usuario_nombre:currentUser.nombre||"", inicio:new Date().toISOString(), fin:new Date().toISOString(), fecha:new Date().toISOString().slice(0,10)}); currentSesionId=row.id; }catch(e){}
+  try{ const row=await db.insert("sesiones",{usuario_id:currentUser.id, usuario_nombre:currentUser.nombre||"", inicio:new Date().toISOString(), fin:new Date().toISOString(), fecha:hoy()}); currentSesionId=row.id; }catch(e){}
   if(sesionHeartbeat) clearInterval(sesionHeartbeat); sesionHeartbeat=setInterval(latidoSesion,60000); }
 async function latidoSesion(){ if(currentSesionId){ try{ await db.update("sesiones",currentSesionId,{fin:new Date().toISOString()}); }catch(e){} } }
 async function finalizarSesion(){ if(sesionHeartbeat){ clearInterval(sesionHeartbeat); sesionHeartbeat=null; } if(currentSesionId){ try{ await db.update("sesiones",currentSesionId,{fin:new Date().toISOString()}); }catch(e){} currentSesionId=null; } }
 window.addEventListener("beforeunload", ()=>{ try{ if(currentSesionId && USE_CLOUD && sb) sb.from("sesiones").update({fin:new Date().toISOString()}).eq("id",currentSesionId); else if(currentSesionId){ latidoSesion(); } }catch(e){} });
 function fmtDuracionMin(min){ min=Math.max(0,Math.round(min)); const h=Math.floor(min/60), m=min%60; return (h?h+"h ":"")+m+"m"; }
 function horaDe(iso){ if(!iso) return "—"; const d=new Date(iso); if(isNaN(d)) return "—"; return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
-function renderConexiones(){ const el=document.getElementById("conexFecha"); if(el&&!el.value) el.value=new Date().toISOString().slice(0,10); const fecha=el?el.value:new Date().toISOString().slice(0,10);
+function renderConexiones(){ const el=document.getElementById("conexFecha"); if(el&&!el.value) el.value=hoy(); const fecha=el?el.value:hoy();
   const c=document.getElementById("listaConexiones"); if(!c) return; const res=document.getElementById("conexResumen");
   let l=db.list("sesiones").filter(s=>(s.fecha||(s.inicio||"").slice(0,10))===fecha).sort((a,b)=>String(b.inicio||"").localeCompare(String(a.inicio||"")));
   const totalMin=l.reduce((s,x)=>s+Math.max(0,(new Date(x.fin||x.inicio)-new Date(x.inicio))/60000),0);
@@ -1028,7 +1028,8 @@ function renderEvalSup(){ const l=db.list("evalsup").sort((a,b)=>(b.fecha||"").l
   c.innerHTML=l.length?l.map(v=>evalCard(v,"openEvalSup")).join(""):empty("Sin evaluaciones de supervisores. Recuerda poner «Supervisor» en el cargo del empleado."); }
 
 /* ===================== ASISTENCIA ===================== */
-function hoy(){ return new Date().toISOString().slice(0,10); }
+function fechaLocal(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function hoy(){ return fechaLocal(new Date()); }  // fecha LOCAL del dispositivo (no UTC)
 function hhmmToMin(t){ if(!t) return null; const m=String(t).match(/(\d{1,2}):(\d{2})/); return m?(+m[1])*60+(+m[2]):null; }
 function calcAsistencia(r){ const ent=hhmmToMin(r.entrada),sal=hhmmToMin(r.salida),ai=hhmmToMin(r.almuerzo_inicio),af=hhmmToMin(r.almuerzo_fin);
   let horas=null,tardanza=0; if(ent!=null&&sal!=null){ let t=sal-ent; if(ai!=null&&af!=null) t-=(af-ai); horas=Math.max(0,+(t/60).toFixed(2)); }
@@ -1110,13 +1111,15 @@ function renderTareas(){ let l=db.list("tareas"); if(tareaFiltro!=="Todas") l=l.
 
 /* ===================== DÍAS LIBRES (por área) ===================== */
 function puedeGestionarArea(area){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.area && currentUser.area===area))); }
-function lunesDe(iso){ const d=new Date(iso+"T00:00:00"); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return d.toISOString().slice(0,10); }
-function diasSemana(lun){ const out=[]; const d=new Date(lun+"T00:00:00"); for(let i=0;i<7;i++){ out.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1); } return out; }
+/* Días libres: solo gerencia, o supervisor de la MISMA área del empleado */
+function puedeEditarDiaLibre(area){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.es_supervisor && currentUser.area && mismaAreaCI(currentUser.area, area)))); }
+function lunesDe(iso){ const d=new Date(iso+"T00:00:00"); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return fechaLocal(d); }
+function diasSemana(lun){ const out=[]; const d=new Date(lun+"T00:00:00"); for(let i=0;i<7;i++){ out.push(fechaLocal(d)); d.setDate(d.getDate()+1); } return out; }
 let dlSemanaRef=null;
-function dlSemana(delta){ const d=new Date((dlSemanaRef||hoy())+"T00:00:00"); d.setDate(d.getDate()+delta); dlSemanaRef=d.toISOString().slice(0,10); render(); }
+function dlSemana(delta){ const d=new Date((dlSemanaRef||hoy())+"T00:00:00"); d.setDate(d.getDate()+delta); dlSemanaRef=fechaLocal(d); render(); }
 function dlSemanaHoy(){ dlSemanaRef=hoy(); render(); }
 async function toggleDiaLibre(empId, fecha){ const e=empById(empId); if(!e) return;
-  if(!puedeGestionarAreaCI(e.area)){ toast("Solo el supervisor de "+(e.area||"esa área")+" o gerencia puede modificar"); return; }
+  if(!puedeEditarDiaLibre(e.area)){ toast("Solo gerencia o el supervisor de "+(e.area||"esa área")+" puede modificar los días libres"); return; }
   const ex=db.list("dias_libres").find(d=>d.empleado_id===empId && d.fecha===fecha);
   try{ if(ex) await db.remove("dias_libres",ex.id); else await db.insert("dias_libres",{empleado_id:empId, fecha, area:e.area||""}); render(); }catch(err){ toast("Error: "+err.message); } }
 function renderDiasLibres(){
@@ -1139,7 +1142,7 @@ function renderDiasLibres(){
   if(!emps.length){ cont.innerHTML=empty(areaSel?("Sin empleados activos en «"+areaSel+"»."):"Sin empleados activos."); return; }
   const libres={}; db.list("dias_libres").forEach(d=>{ libres[d.empleado_id+"|"+d.fecha]=d; });
   const head=`<tr><th class="text-left px-2 py-1.5 sticky left-0 bg-slate-100 z-10 text-[11px]">Trabajador${!areaSel&&esGer?" · Área":""}</th>${dias.map((f,i)=>`<th class="px-1 py-1.5 text-center ${f===hoyISO?'bg-teal-50 text-teal-700':''}"><div class="text-[11px]">${NN[i]}</div><div class="text-[9px] text-slate-400">${f.slice(8)}/${f.slice(5,7)}</div></th>`).join("")}</tr>`;
-  const rows=emps.map(e=>{ const cells=dias.map(f=>{ const d=libres[e.id+"|"+f]; const puedo=puedeGestionarAreaCI(e.area);
+  const rows=emps.map(e=>{ const cells=dias.map(f=>{ const d=libres[e.id+"|"+f]; const puedo=puedeEditarDiaLibre(e.area);
       return `<td class="px-0.5 py-0.5 text-center"><button onclick="toggleDiaLibre('${e.id}','${f}')" ${puedo?"":"disabled"} title="${d?esc(d.motivo||'Día libre'):''}" class="w-8 h-8 rounded-lg ${d?'bg-emerald-500 text-white':'bg-slate-100 text-slate-300'} ${puedo?'active:opacity-70':'opacity-60'} text-xs font-bold">${d?'✓':'+'}</button></td>`; }).join("");
     return `<tr class="border-t border-slate-100"><td class="text-left px-2 py-1 sticky left-0 bg-white z-10 max-w-[130px]"><p class="font-medium text-[11px] truncate">${esc(e.nombre)}</p>${!areaSel&&esGer?`<p class="text-[9px] text-slate-400 truncate">${esc(e.area||"—")}</p>`:""}</td>${cells}</tr>`; }).join("");
   const totalSemana=emps.reduce((s,e)=>s+dias.filter(f=>libres[e.id+"|"+f]).length,0);
@@ -1147,7 +1150,7 @@ function renderDiasLibres(){
     <p class="text-[11px] text-slate-400 mt-2">Toca una casilla para marcar (✓ verde) o quitar el día libre. ${emps.length} trabajador${emps.length===1?"":"es"} · ${totalSemana} días libres esta semana.</p>`;
 }
 function openDiaLibre(empId){ const e=empById(empId); if(!e) return;
-  if(!puedeGestionarArea(e.area)){ toast("Solo el supervisor de "+(e.area||"esa área")+" puede asignar sus días libres."); return; }
+  if(!puedeEditarDiaLibre(e.area)){ toast("Solo gerencia o el supervisor de "+(e.area||"esa área")+" puede asignar sus días libres."); return; }
   openModal(`<h3 class="font-bold text-lg mb-3">Día libre — ${esc(e.nombre)}</h3><p class="text-xs text-slate-500 mb-3">Área: ${esc(e.area||"—")}</p><div class="space-y-3">
     ${field("fecha","Fecha del día libre",hoy(),"date")}
     ${field("motivo","Motivo (opcional)","")}</div>
@@ -1155,7 +1158,7 @@ function openDiaLibre(empId){ const e=empById(empId); if(!e) return;
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
 }
 async function saveDiaLibre(empId){ const e=empById(empId); if(!e){ return; }
-  if(!puedeGestionarArea(e.area)){ toast("No autorizado para el área "+(e.area||"")); return; }
+  if(!puedeEditarDiaLibre(e.area)){ toast("No autorizado. Solo gerencia o el supervisor del área "+(e.area||"")); return; }
   const r=readForm(["fecha","motivo"]); if(!r.fecha){ toast("Elige la fecha"); return; }
   if(db.list("dias_libres").some(d=>d.empleado_id===empId && d.fecha===r.fecha)){ toast("Ese día ya está asignado"); return; }
   r.empleado_id=empId; r.area=e.area||"";
@@ -1979,6 +1982,10 @@ function cajaFechaVal(){ return document.getElementById("cajaFecha")?.value || h
 function cierreDe(cajaId,fecha){ return db.list("cierres_caja").find(c=>c.caja_id===cajaId && c.fecha===fecha && !c.arqueo); }
 function arqueosDe(cajaId,fecha){ return db.list("cierres_caja").filter(c=>c.caja_id===cajaId && c.fecha===fecha && c.arqueo).sort((a,b)=>String(a.hora||"").localeCompare(String(b.hora||""))); }
 function sumFacturas(c){ if(Array.isArray(c.facturas)) return c.facturas.reduce((s,f)=>s+(Number(f.monto)||0),0); return Number(c.autorizado_monto)||0; }
+/* Bloqueo de edición cuando el día ya tiene cierre definitivo */
+function diaCerrado(fecha){ return !!cierreDiaDe(fecha); }
+function puedeEditarCajaCerrada(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("caja_editar"))); }
+function bloqueoDiaCerrado(fecha){ if(diaCerrado(fecha) && !puedeEditarCajaCerrada()){ toast("El día ya tiene cierre definitivo. Solo gerencia o autorizado puede modificar."); return true; } return false; }
 // Tasa CONGELADA del cierre: usa la guardada al hacer el cierre; si no tiene (registros viejos), la actual.
 function tasaDe(c){ const t=Number(c&&c.tasa); return t>0?t:tipoCambio; }
 function calcCierre(c){ const tasa=tasaDe(c); const auto=sumFacturas(c); const fondos=Number(c.fondos_monto)||0;
@@ -2024,6 +2031,7 @@ function openCierre(cajaId){ const caja=db.list("cajas").find(x=>x.id===cajaId);
   renderCierreFacturas(); }
 function facturasLimpias(){ return cierreFacturas.map(f=>({monto:Number(f.monto)||0, por:(f.por||"").trim(), a:(f.a||"").trim()})).filter(f=>f.monto>0 || f.por || f.a); }
 async function saveCierre(cajaId){ if(!puede("caja")){ toast("Sin acceso"); return; } const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal();
+  if(bloqueoDiaCerrado(fecha)) return;
   const r=readForm(["cajero","nombre_asistente","nombre_supervisor","cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","fondos_monto","fondos_por"]);
   ["cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","fondos_monto"].forEach(k=>r[k]=Number(r[k])||0);
   r.facturas=facturasLimpias(); r.autorizado_monto=0; r.autorizado_por=""; r.autorizado_a="";
@@ -2064,6 +2072,7 @@ function openArqueo(cajaId, id){ if(!puede("caja")){ toast("Sin acceso"); return
   renderCierreFacturas(); }
 async function saveArqueo(cajaId, id){ if(!puede("caja")){ toast("Sin acceso"); return; } if(id && !puedeEditarArqueo()){ toast("Solo supervisor o gerencia puede editar arqueos"); return; }
   const caja=db.list("cajas").find(x=>x.id===cajaId); const fecha=cajaFechaVal();
+  if(bloqueoDiaCerrado(fecha)) return;
   const r=readForm(["motivo","cajero","nombre_asistente","nombre_supervisor","cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","fondos_monto","fondos_por"]);
   ["cashea","biopago","punto_venta","efectivo","divisa_usd","facturado_bs","fondos_monto"].forEach(k=>r[k]=Number(r[k])||0);
   r.facturas=facturasLimpias(); r.autorizado_monto=0; r.autorizado_por=""; r.autorizado_a="";
@@ -2111,8 +2120,10 @@ function renderCaja(){ const el=document.getElementById("cajaFecha"); if(el&&!el
     return `<div class="bg-white rounded-2xl p-3 shadow-sm"><div class="flex items-center justify-between"><div><p class="font-semibold">Caja ${esc(cj.numero)}${cj.nombre?" · "+esc(cj.nombre):""}</p>${ci?`<p class="text-xs text-slate-500">Cajero: ${esc(ci.cajero||"—")}</p>`:`<p class="text-xs text-slate-400">Sin cierre en la fecha</p>`}</div>${esGerencia()?`<button onclick="delCaja('${cj.id}')" class="text-slate-300">🗑</button>`:""}</div>
       ${r?`<div class="grid grid-cols-3 gap-2 mt-2 text-center text-[11px]"><div><p class="text-slate-400">Contado</p><p class="font-semibold">${fmtBs(r.contadoBs)}</p></div><div><p class="text-slate-400">Facturado</p><p class="font-semibold">${fmtBs(r.facturadoBs)}</p></div><div><p class="text-slate-400">${r.difBs<0?"Faltante":"Sobrante"}</p><p class="font-bold ${r.difBs<0?"text-red-600":"text-emerald-600"}">${fmtBs(Math.abs(r.difBs))}<br><span class="text-[10px]">${fmtUsd(Math.abs(r.difUsd))}</span></p></div></div>`:""}
       ${arqHtml}
-      <div class="flex gap-2 mt-2"><button onclick="openCierre('${cj.id}')" class="flex-1 text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">${ci?"Editar cierre":"Cerrar caja"}</button>
-      <button onclick="openArqueo('${cj.id}')" class="flex-1 text-xs bg-amber-500 text-white px-3 py-1.5 rounded-lg font-semibold">＋ Arqueo parcial</button></div></div>`; }).join("");
+      ${(diaCerrado(fecha) && !puedeEditarCajaCerrada())
+        ? `<div class="mt-2"><button onclick="toast('El día ya tiene cierre definitivo. Solo gerencia o autorizado puede modificar.')" class="w-full text-xs bg-slate-200 text-slate-500 px-3 py-1.5 rounded-lg font-semibold">🔒 Día cerrado — no editable</button></div>`
+        : `<div class="flex gap-2 mt-2"><button onclick="openCierre('${cj.id}')" class="flex-1 text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">${ci?"Editar cierre":"Cerrar caja"}</button>
+      <button onclick="openArqueo('${cj.id}')" class="flex-1 text-xs bg-amber-500 text-white px-3 py-1.5 rounded-lg font-semibold">＋ Arqueo parcial</button></div>`}</div>`; }).join("");
   if(!puedeVerTotales()){ if(tot) tot.innerHTML=""; return; }
   const cierres=db.list("cierres_caja").filter(x=>x.fecha===fecha && !x.arqueo);
   const T=cierres.reduce((a,ci)=>{ const r=calcCierre(ci); a.cont+=r.contadoBs; a.fact+=r.facturadoBs; a.dif+=r.difBs; a.contUsd+=r.contadoUsd; a.factUsd+=r.facturadoUsd; a.difUsd+=r.difUsd; return a; },{cont:0,fact:0,dif:0,contUsd:0,factUsd:0,difUsd:0});
@@ -2146,10 +2157,49 @@ function renderTesoreria(){ const el=document.getElementById("tesFecha"); if(el&
       : `<div class="bg-amber-50 text-amber-700 rounded-xl px-3 py-2 text-xs mb-3">El día ${fecha} aún no tiene cierre definitivo. Hazlo en Caja con «🔒 Cierre total del día».</div>`; }
   if(!cierres.length){ cont.innerHTML=cdBanner+empty("Sin cierres en el periodo."); return; }
   const T=cierres.reduce((a,ci)=>{ const r=calcCierre(ci); a.cont+=r.contadoBs; a.fact+=r.facturadoBs; a.dif+=r.difBs; a.contUsd+=r.contadoUsd; a.factUsd+=r.facturadoUsd; a.difUsd+=r.difUsd; return a; },{cont:0,fact:0,dif:0,contUsd:0,factUsd:0,difUsd:0});
-  const porCaja={}; cierres.forEach(ci=>{ const k=ci.numero_caja||"?"; const r=calcCierre(ci); if(!porCaja[k]) porCaja[k]={cont:0,dif:0}; porCaja[k].cont+=r.contadoBs; porCaja[k].dif+=r.difBs; });
+  // Totales por MÉTODO DE PAGO (todas las cajas). Bs y su equivalente en $ con la tasa fija de cada cierre.
+  const MET=[["cashea","Cashea"],["biopago","Biopago"],["punto","Punto de venta"],["efectivo","Efectivo"],["divisa","Divisa (USD)"],["facturas","Facturas autorizadas"],["fondos","Fondos"]];
+  const met={}; MET.forEach(([k])=>met[k]={bs:0,usd:0});
+  const porCaja={};
+  cierres.forEach(ci=>{ const r=calcCierre(ci); const tasa=tasaDe(ci); const u=(bs)=> tasa>0?bs/tasa:0; const k=ci.numero_caja||"?";
+    const cashea=Number(ci.cashea)||0, bio=Number(ci.biopago)||0, pv=Number(ci.punto_venta)||0, ef=Number(ci.efectivo)||0, dv=Number(ci.divisa_usd)||0, fa=sumFacturas(ci), fo=Number(ci.fondos_monto)||0;
+    met.cashea.bs+=cashea; met.cashea.usd+=u(cashea);
+    met.biopago.bs+=bio; met.biopago.usd+=u(bio);
+    met.punto.bs+=pv; met.punto.usd+=u(pv);
+    met.efectivo.bs+=ef; met.efectivo.usd+=u(ef);
+    met.divisa.bs+=dv*tasa; met.divisa.usd+=dv;
+    met.facturas.bs+=fa; met.facturas.usd+=u(fa);
+    met.fondos.bs+=fo; met.fondos.usd+=u(fo);
+    if(!porCaja[k]) porCaja[k]={cont:0,contUsd:0,fact:0,dif:0,difUsd:0,cashea:0,biopago:0,punto:0,efectivo:0,divisaUsd:0,divisaBs:0,facturas:0,fondos:0};
+    const p=porCaja[k]; p.cont+=r.contadoBs; p.contUsd+=r.contadoUsd; p.fact+=r.facturadoBs; p.dif+=r.difBs; p.difUsd+=r.difUsd;
+    p.cashea+=cashea; p.biopago+=bio; p.punto+=pv; p.efectivo+=ef; p.divisaUsd+=dv; p.divisaBs+=dv*tasa; p.facturas+=fa; p.fondos+=fo; });
+  const metHtml=MET.filter(([k])=>met[k].bs>0.009).map(([k,lbl])=>`<div class="bg-white rounded-xl p-3 shadow-sm flex items-center justify-between"><span class="font-semibold text-sm">${lbl}</span><span class="text-sm text-right">${fmtBs(met[k].bs)}<br><span class="text-[11px] text-slate-500">${fmtUsd(met[k].usd)}</span></span></div>`).join("");
+  const detCaja=(p)=>{ const it=[["Cashea",fmtBs(p.cashea)],["Biopago",fmtBs(p.biopago)],["Punto",fmtBs(p.punto)],["Efectivo",fmtBs(p.efectivo)],["Divisa",fmtUsd(p.divisaUsd)],["Facturado",fmtBs(p.fact)]];
+    return `<div class="grid grid-cols-3 gap-1 mt-2 text-[10px]">${it.map(([l,v])=>`<div class="bg-slate-50 rounded-lg px-1.5 py-1 text-center"><p class="text-slate-400">${l}</p><p class="font-semibold text-slate-700">${v}</p></div>`).join("")}</div>`; };
   cont.innerHTML=cdBanner+`<div class="bg-slate-800 text-white rounded-2xl p-4 mb-3"><p class="text-xs text-slate-300">${tesPeriodo==="dia"?"Total del día "+fecha:"Acumulado del mes hasta "+fecha}</p><p class="text-2xl font-bold mt-1">${fmtBs(T.cont)}</p><p class="text-sm text-slate-300">${fmtUsd(T.contUsd)}</p><div class="grid grid-cols-2 gap-2 mt-2 text-xs"><div><p class="text-slate-400">Facturado</p><p class="font-semibold">${fmtBs(T.fact)}</p><p class="text-[10px] text-slate-400">${fmtUsd(T.factUsd)}</p></div><div><p class="text-slate-400">${T.dif<0?"Faltante":"Sobrante"}</p><p class="font-semibold ${T.dif<0?"text-red-400":"text-emerald-400"}">${fmtBs(Math.abs(T.dif))}<br>${fmtUsd(Math.abs(T.difUsd))}</p></div></div></div>
-    <p class="text-xs font-semibold text-slate-600 mb-1">Por caja</p><div class="space-y-2">${Object.keys(porCaja).sort().map(k=>`<div class="bg-white rounded-xl p-3 shadow-sm flex items-center justify-between"><span class="font-semibold text-sm">Caja ${esc(k)}</span><span class="text-sm">${fmtBs(porCaja[k].cont)} · <span class="${porCaja[k].dif<0?"text-red-600":"text-emerald-600"}">${porCaja[k].dif<0?"−":"+"}${fmtBs(Math.abs(porCaja[k].dif))}</span></span></div>`).join("")}</div>`;
+    ${metHtml?`<p class="text-xs font-semibold text-slate-600 mb-1">Por método de pago (todas las cajas)</p><div class="space-y-2 mb-3">${metHtml}</div>`:""}
+    <div class="flex items-center justify-between mb-1"><p class="text-xs font-semibold text-slate-600">Detalle por caja</p><button onclick="exportarCierresExcel('')" class="text-[11px] bg-emerald-600 text-white px-2.5 py-1 rounded-lg font-semibold">⬇ Excel (todas)</button></div>
+    <div class="space-y-2">${Object.keys(porCaja).sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true})).map(k=>{ const p=porCaja[k];
+      return `<div class="bg-white rounded-xl p-3 shadow-sm"><div class="flex items-center justify-between"><span class="font-semibold text-sm">Caja ${esc(k)}</span><span class="flex items-center gap-2"><span class="text-sm text-right">${fmtBs(p.cont)} · <span class="${p.dif<0?"text-red-600":"text-emerald-600"}">${p.dif<0?"−":"+"}${fmtBs(Math.abs(p.dif))}</span><br><span class="text-[10px] text-slate-400">${fmtUsd(p.contUsd)}</span></span><button onclick="exportarCierresExcel('${esc(String(k))}')" class="text-emerald-600 text-base" title="Descargar Excel de esta caja">⬇</button></span></div>${detCaja(p)}</div>`; }).join("")}</div>`;
 }
+/* Exporta el detalle de cierres a Excel: '' = todas las cajas, o el número de una caja */
+function cierresTesoreriaActual(){ let cierres=db.list("cierres_caja").filter(c=>!c.arqueo); const el=document.getElementById("tesFecha"); const fecha=el&&el.value?el.value:hoy();
+  if(tesPeriodo==="dia") cierres=cierres.filter(c=>c.fecha===fecha); else { const mes=fecha.slice(0,7); cierres=cierres.filter(c=>(c.fecha||"").startsWith(mes) && (c.fecha||"")<=fecha); }
+  return {cierres, fecha}; }
+function exportarCierresExcel(caja){ if(!puede("tesoreria")){ toast("Sin acceso"); return; }
+  let {cierres,fecha}=cierresTesoreriaActual(); if(caja) cierres=cierres.filter(c=>String(c.numero_caja)===String(caja));
+  if(!cierres.length){ toast("No hay cierres para exportar"); return; }
+  cierres.sort((a,b)=> (a.fecha||"").localeCompare(b.fecha||"") || String(a.numero_caja).localeCompare(String(b.numero_caja),undefined,{numeric:true}));
+  const head=["Fecha","Caja","Cajero","Cashea (Bs)","Biopago (Bs)","Punto de venta (Bs)","Efectivo (Bs)","Divisa (USD)","Divisa (Bs)","Facturas autoriz. (Bs)","Fondos (Bs)","Contado (Bs)","Contado ($)","Facturado (Bs)","Diferencia (Bs)","Diferencia ($)","Tasa"];
+  const n2=x=>+(Number(x)||0).toFixed(2);
+  const tot={cashea:0,biopago:0,punto:0,efectivo:0,divUsd:0,divBs:0,fac:0,fondos:0,cont:0,contUsd:0,factdo:0,dif:0,difUsd:0};
+  const rows=cierres.map(ci=>{ const r=calcCierre(ci); const tasa=tasaDe(ci); const dv=Number(ci.divisa_usd)||0; const fa=sumFacturas(ci); const fo=Number(ci.fondos_monto)||0;
+    tot.cashea+=Number(ci.cashea)||0; tot.biopago+=Number(ci.biopago)||0; tot.punto+=Number(ci.punto_venta)||0; tot.efectivo+=Number(ci.efectivo)||0; tot.divUsd+=dv; tot.divBs+=dv*tasa; tot.fac+=fa; tot.fondos+=fo; tot.cont+=r.contadoBs; tot.contUsd+=r.contadoUsd; tot.factdo+=r.facturadoBs; tot.dif+=r.difBs; tot.difUsd+=r.difUsd;
+    return [ci.fecha||"", ci.numero_caja||"", ci.cajero||"", n2(ci.cashea), n2(ci.biopago), n2(ci.punto_venta), n2(ci.efectivo), n2(dv), n2(dv*tasa), n2(fa), n2(fo), n2(r.contadoBs), n2(r.contadoUsd), n2(r.facturadoBs), n2(r.difBs), n2(r.difUsd), Number(tasa)||""]; });
+  rows.push(["TOTAL","","",n2(tot.cashea),n2(tot.biopago),n2(tot.punto),n2(tot.efectivo),n2(tot.divUsd),n2(tot.divBs),n2(tot.fac),n2(tot.fondos),n2(tot.cont),n2(tot.contUsd),n2(tot.factdo),n2(tot.dif),n2(tot.difUsd),""]);
+  const ws=XLSX.utils.aoa_to_sheet([head,...rows]); ws["!cols"]=head.map(()=>({wch:16}));
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Cierres");
+  const suf=tesPeriodo==="dia"?fecha:fecha.slice(0,7); XLSX.writeFile(wb,`cierres_${suf}${caja?("_caja"+caja):""}.xlsx`); toast("Excel descargado"); }
 
 /* ===================== PRÉSTAMOS AL PERSONAL ===================== */
 function restantePrestamo(p){ return Math.max(0,(Number(p.monto)||0)-(Number(p.abonado)||0)); }
