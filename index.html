@@ -443,12 +443,12 @@
 <!-- Barra inferior -->
 <nav class="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 safe-bottom">
   <div class="max-w-3xl mx-auto flex">
-    <button data-tab="inicio" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">🏠</span>Inicio</button>
-    <button data-tab="rrhh" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">👥</span>RRHH</button>
-    <button data-tab="supervisores" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">🎖️</span>Superv.</button>
-    <button data-tab="productos" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">📦</span>Productos</button>
-    <button data-tab="finanzas" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">💵</span>Caja</button>
-    <button data-tab="ajustes" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">⚙️</span>Ajustes</button>
+    <button data-tab="inicio" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">🏠</span><span class="tl">Inicio</span></button>
+    <button data-tab="rrhh" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">👥</span><span class="tl">RRHH</span></button>
+    <button data-tab="supervisores" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">🎖️</span><span class="tl">Superv.</span></button>
+    <button data-tab="productos" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">📦</span><span class="tl">Productos</span></button>
+    <button data-tab="finanzas" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">💵</span><span class="tl">Caja</span></button>
+    <button data-tab="ajustes" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">⚙️</span><span class="tl">Ajustes</span></button>
   </div>
 </nav>
 
@@ -480,7 +480,8 @@ let verSueldosCfg=true; // ¿mostrar sueldos al personal? (lo controla gerencia)
 let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
-const APP_VERSION="4.20"; // se incrementa con cada mejora
+let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
+const APP_VERSION="4.22"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -617,6 +618,7 @@ function openUsuario(id){ const u=id?db.list("usuarios").find(x=>x.id===id):{per
     <div><label class="text-xs text-slate-500">Clave (6 dígitos)</label><input id="f_clave" inputmode="numeric" maxlength="6" value="${esc(u.clave||"")}" class="w-full px-3 py-2 rounded-xl border border-slate-200 tracking-widest"></div>
     <div><label class="text-xs text-slate-500">Áreas que supervisa (días libres / incidencias) — puedes marcar varias</label>
       <div class="grid grid-cols-2 gap-1.5 bg-slate-50 rounded-xl p-2 mt-1">${AREAS.map(a=>`<label class="flex items-center gap-2 text-sm"><input type="checkbox" class="uarea" value="${esc(a)}" ${usuarioAreas(u).some(x=>mismaAreaCI(x,a))?"checked":""}> ${esc(a)}</label>`).join("")}</div></div>
+    <div><label class="text-xs text-slate-500">Idioma de la app para este usuario</label><select id="f_idioma" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="es" ${u.idioma!=="zh"?"selected":""}>Español</option><option value="zh" ${u.idioma==="zh"?"selected":""}>繁體中文 (chino tradicional)</option></select></div>
     ${buscador("empleado_id","Perfil de personal (empleado vinculado)","emp",u.empleado_id)}
     <p class="text-[11px] text-slate-400 -mt-2">Vincula este usuario con su ficha de empleado para que reciba avisos de tareas y asignaciones. Solo gerencia puede cambiarlo.</p>
     <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_es_gerencia" ${u.es_gerencia?"checked":""} onchange="togglePermisosBox()"> <b>Gerencia</b> (acceso total y administra usuarios)</label>
@@ -647,12 +649,13 @@ async function saveUsuario(id){
   const es_asis=document.getElementById("f_es_asistente").checked;
   const activo=document.getElementById("f_activo").checked;
   const empleado_id=(document.getElementById("f_empleado_id")?.value||"")||null;
+  const idioma=(document.getElementById("f_idioma")?.value==="zh")?"zh":"es";
   if(!nombre){ toast("Falta el nombre"); return; }
   if(!/^\d{6}$/.test(clave)){ toast("La clave debe ser de 6 dígitos"); return; }
   const permisos=es_g?[]:OPCIONES.filter(([o])=>document.getElementById("perm_"+o)?.checked).map(([o])=>o);
   // no dejar el sistema sin ninguna gerencia
   if(id){ const otros=db.list("usuarios").filter(u=>u.id!==id && u.es_gerencia); if(!es_g && otros.length===0){ toast("Debe quedar al menos un usuario de gerencia"); return; } }
-  const row={nombre,clave,area,areas,empleado_id,es_gerencia:es_g,es_supervisor:es_sup,es_asistente:es_asis,permisos,activo};
+  const row={nombre,clave,area,areas,empleado_id,idioma,es_gerencia:es_g,es_supervisor:es_sup,es_asistente:es_asis,permisos,activo};
   try{ if(id){ await db.update("usuarios",id,row); if(currentUser&&currentUser.id===id){ currentUser={...currentUser,...row}; aplicarPermisos(); } } else await db.insert("usuarios",row);
     closeModal(); render(); toast("Usuario guardado"); }catch(e){ toast("Error: "+e.message); }
 }
@@ -768,6 +771,28 @@ const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["
 const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"],["quiebre","🚨","Quiebre"]];
 const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"],["incpersonal","⏰","Asistencia personal"]];
 const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
+/* ---- Idioma (chino tradicional) — solo textos del menú/etiquetas, NO los datos ---- */
+const DICT_ZH={
+  "Inicio":"首頁","RRHH":"人事","Superv.":"主管","Productos":"商品","Caja":"收銀","Ajustes":"設定",
+  "Personal y RRHH":"人員與人事","Supervisores":"主管","Productos y Compras":"商品與採購","Caja y Finanzas":"收銀與財務",
+  "Recursos Humanos":"人力資源","Gestión de supermercado":"超市管理","Sala de ventas":"賣場",
+  "Personal":"人員","Nómina":"薪資單","Salarios":"工資","Salarios y bonos":"工資與獎金",
+  "Evaluación":"評估","Evaluación de personal":"人員評估","Evaluación de supervisores":"主管評估","Eval. sup.":"主管評估","Asistencia":"考勤",
+  "Tareas":"任務","Asignaciones":"工作分配","Asignaciones de trabajo":"工作分配","Días libres":"休息日",
+  "Incidencias de personal":"人員異常","Asistencia personal":"人員考勤","Piso de venta":"賣場",
+  "Proveedores":"供應商","Inventario":"庫存","Órdenes":"訂購單","Órdenes de compra":"採購訂單",
+  "Recepción":"收貨","Merma":"損耗","Quiebre":"缺貨","Quiebre de inventario":"庫存缺貨",
+  "Tesorería":"資金","Finanzas":"財務","Conexiones":"連線"
+};
+function t(s){ if(idiomaCfg!=="zh") return s; return DICT_ZH[s]||s; }
+const TABLBL={inicio:"Inicio",rrhh:"RRHH",supervisores:"Superv.",productos:"Productos",finanzas:"Caja",ajustes:"Ajustes"};
+/* El idioma es POR USUARIO: gerencia se lo asigna a cada usuario. Al entrar, se aplica el suyo. */
+function aplicarIdiomaUsuario(){ idiomaCfg = (currentUser && currentUser.idioma==="zh") ? "zh" : "es"; }
+function pintarIdioma(){
+  document.querySelectorAll(".tab").forEach(bt=>{ const l=bt.querySelector(".tl"); if(l && TABLBL[bt.dataset.tab]) l.textContent=t(TABLBL[bt.dataset.tab]); });
+  const H={hRRHH:"Personal y RRHH",hSup:"Supervisores",hProd:"Productos y Compras",hFin:"Caja y Finanzas"};
+  Object.keys(H).forEach(id=>{ const e=document.getElementById(id); if(e) e.textContent=t(H[id]); });
+}
 let currentView="inicio";
 
 /* ---------- USUARIOS Y PERMISOS ---------- */
@@ -835,7 +860,7 @@ function aplicarPermisos(){
   const showTab=(name,vis)=>{ const b=document.querySelector('.tab[data-tab="'+name+'"]'); if(b) b.style.display=vis?"":"none"; };
   showTab("inicio",true); showTab("rrhh",any(RRHH_VIEWS)); showTab("productos",any(PROD_VIEWS)); showTab("supervisores",any(SUP_VIEWS)); showTab("finanzas",any(FIN_VIEWS)); showTab("ajustes",puede("ajustes")||(currentUser&&currentUser.es_gerencia));
   const rb=document.getElementById("rolBadge"); if(rb) rb.textContent=(currentUser?currentUser.nombre:"")+" ⎋";
-  pintarCampana();
+  aplicarIdiomaUsuario(); pintarCampana(); pintarIdioma();
 }
 
 /* ===================== NOTIFICACIONES ===================== */
@@ -916,8 +941,8 @@ function show(view){
   document.querySelectorAll("[data-view]").forEach(s=> s.hidden = s.dataset.view!==view);
   const mod=MODULES[view];
   document.getElementById("btnBack").classList.toggle("hidden", !mod);
-  document.getElementById("hTitle").textContent = mod? mod.title : (view==="ajustes"?"Ajustes":view==="piso"?"Piso de venta":ajustes.nombre||"SuperGestión");
-  document.getElementById("hSub").textContent = mod? mod.sub : (view==="piso"?"Sala de ventas":"Gestión de supermercado");
+  document.getElementById("hTitle").textContent = mod? t(mod.title) : (view==="ajustes"?t("Ajustes"):view==="piso"?t("Piso de venta"):ajustes.nombre||"SuperGestión");
+  document.getElementById("hSub").textContent = mod? t(mod.sub) : (view==="piso"?t("Sala de ventas"):t("Gestión de supermercado"));
   // resaltar pestaña base
   const base = mod? mod.parent : view;
   document.querySelectorAll(".tab").forEach(b=>{ const on=b.dataset.tab===base; b.classList.toggle("text-teal-700",on); b.classList.toggle("text-slate-400",!on); });
@@ -927,7 +952,7 @@ function goBack(){ const mod=MODULES[currentView]; show(mod? "inicio":"inicio");
 document.querySelectorAll(".tab").forEach(b=> b.onclick=()=>show(b.dataset.tab));
 
 function renderTiles(){
-  const t=(arr)=>arr.filter(([v])=>puede(v)).map(([v,ic,l])=>`<button onclick="show('${v}')" class="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1 active:scale-95 transition"><span class="text-2xl">${ic}</span><span class="text-[11px] font-semibold text-slate-600">${l}</span></button>`).join("");
+  const t=(arr)=>arr.filter(([v])=>puede(v)).map(([v,ic,l])=>`<button onclick="show('${v}')" class="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1 active:scale-95 transition"><span class="text-2xl">${ic}</span><span class="text-[11px] font-semibold text-slate-600">${window.t?window.t(l):l}</span></button>`).join("");
   const grp=(idTiles,idHead,arr)=>{ const html=t(arr); document.getElementById(idTiles).innerHTML=html; const h=document.getElementById(idHead); const g=document.getElementById(idTiles); const vis=!!html; if(h) h.style.display=vis?"":"none"; if(g) g.style.display=vis?"":"none"; };
   grp("tilesRRHH","hRRHH",TILES_RRHH);
   grp("tilesProd","hProd",TILES_PROD);
@@ -2630,7 +2655,7 @@ const RENDER_VISTA={
 function render(){
   pintarUltSync(); pintarMarca(); actualizarDatalists();
   const badge=document.getElementById("modeBadge"); if(badge){ badge.textContent=USE_CLOUD?"compartido ☁":"local"; badge.className="text-[10px] font-semibold px-2 py-1 rounded-full "+(USE_CLOUD?"bg-emerald-400/30":"bg-white/15"); }
-  pintarCampana(); pintarMoneda();
+  pintarCampana(); pintarMoneda(); pintarIdioma();
   const fn=RENDER_VISTA[currentView]; if(fn) fn();
 }
 
