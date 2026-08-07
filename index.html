@@ -466,7 +466,7 @@ const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup"
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
-const APP_VERSION="4.9"; // se incrementa con cada mejora
+const APP_VERSION="4.10"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -769,7 +769,7 @@ function setUser(u){ currentUser=u; localStorage.setItem("supergestion_user",u.i
   document.getElementById("login").style.display="none";
   aplicarPermisos(); iniciarSesion(); pedirPermisoNotif(); show("inicio"); }
 function mostrarLogin(){ renderLoginRoles(); pintarMarca(); document.getElementById("login").style.display="flex"; }
-async function logout(){ if(confirm("¿Cerrar sesión?")){ await finalizarSesion(); currentUser=null; localStorage.removeItem("supergestion_user"); mostrarLogin(); } }
+async function logout(){ if(confirm("¿Cerrar sesión?")){ await desregistrarPush(); await finalizarSesion(); currentUser=null; localStorage.removeItem("supergestion_user"); mostrarLogin(); } }
 /* ---------- REGISTRO DE CONEXIONES (sesiones) ---------- */
 let currentSesionId=null, sesionHeartbeat=null;
 async function iniciarSesion(){ if(!currentUser) return;
@@ -808,7 +808,10 @@ function pintarCampana(){ const btn=document.getElementById("btnCampana"), bdg=d
   btn.classList.remove("hidden"); const n=noLeidasCount();
   if(n>0){ bdg.textContent=n>99?"99+":n; bdg.classList.remove("hidden"); } else bdg.classList.add("hidden"); }
 /* Pide permiso al navegador para mostrar avisos del teléfono */
-function pedirPermisoNotif(){ try{ if("Notification" in window && Notification.permission==="default"){ Notification.requestPermission().catch(()=>{}); } }catch(e){} }
+function pedirPermisoNotif(){ try{ if(!("Notification" in window)) return;
+  if(Notification.permission==="granted"){ registrarPush(); }
+  else if(Notification.permission==="default"){ Notification.requestPermission().then(p=>{ if(p==="granted") registrarPush(); }).catch(()=>{}); }
+}catch(e){} }
 /* Muestra un aviso del sistema (funciona con la app abierta o en segundo plano) */
 function mostrarNotifSistema(titulo, cuerpo){
   try{ if("Notification" in window && Notification.permission==="granted"){
@@ -842,6 +845,28 @@ async function abrirNotificaciones(){
 async function marcarTodasLeidas(){ const noleidas=misNotificaciones().filter(n=>!n.leida); for(const n of noleidas){ try{ await db.update("notificaciones",n.id,{leida:true}); }catch(e){} } pintarCampana(); abrirNotificaciones(); }
 async function abrirNotif(id,tipo){ const n=db.list("notificaciones").find(x=>x.id===id); if(n&&!n.leida){ try{ await db.update("notificaciones",id,{leida:true}); }catch(e){} }
   closeModal(); pintarCampana(); if(tipo==="tarea") show("tareas"); else if(tipo==="asignacion") show("asignaciones"); }
+
+/* ---- Web Push: avisos con la app CERRADA (requiere función en Supabase) ---- */
+const VAPID_PUBLIC="BGO0KYrne1qTVDS1178cO5dx4yCepg7RBaCoTvmu-_FhjplRONd_xNB9x8DjXZG8jOUhVHmonRVNwJNGFlqFuRQ";
+function urlBase64ToUint8Array(b){ const pad="=".repeat((4-b.length%4)%4); const base=(b+pad).replace(/-/g,"+").replace(/_/g,"/"); const raw=atob(base); const arr=new Uint8Array(raw.length); for(let i=0;i<raw.length;i++) arr[i]=raw.charCodeAt(i); return arr; }
+async function registrarPush(){
+  try{
+    if(!("serviceWorker" in navigator) || !("PushManager" in window)) return;      // navegador sin soporte
+    if(!USE_CLOUD || !sb) return;                                                  // se necesita Supabase
+    if(!("Notification" in window) || Notification.permission!=="granted") return; // sin permiso, no se suscribe
+    const reg=await navigator.serviceWorker.register("sw.js");
+    await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub){ sub=await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC) }); }
+    const j=sub.toJSON(); if(!j||!j.endpoint||!j.keys) return;
+    await sb.from("push_subs").upsert({ endpoint:j.endpoint, usuario_id:currentUser?currentUser.id:null, p256dh:j.keys.p256dh, auth:j.keys.auth, navegador:(navigator.userAgent||"").slice(0,180), actualizado:new Date().toISOString() }, { onConflict:"endpoint" });
+  }catch(e){ console.warn("Push no disponible:", e.message); }
+}
+async function desregistrarPush(){
+  try{ if(!("serviceWorker" in navigator)) return; const reg=await navigator.serviceWorker.getRegistration(); if(!reg) return;
+    const sub=await reg.pushManager.getSubscription(); if(sub){ const ep=sub.endpoint; try{ if(USE_CLOUD&&sb) await sb.from("push_subs").delete().eq("endpoint",ep); }catch(e){} try{ await sub.unsubscribe(); }catch(e){} }
+  }catch(e){}
+}
 
 function show(view){
   // "rrhh" y "productos" no son secciones propias: muestran el inicio (lanzador)
