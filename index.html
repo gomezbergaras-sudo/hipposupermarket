@@ -234,11 +234,11 @@
   <!-- ======== INVENTARIO ======== -->
   <section data-view="inventario" hidden>
     <div class="flex items-center justify-between mb-3"><h2 class="text-lg font-bold">Inventario</h2>
-      <button onclick="openProducto()" class="bg-teal-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">+ Producto</button></div>
+      <button id="btnNuevoProd" onclick="openProducto()" class="bg-teal-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">+ Producto</button></div>
     <button onclick="escanearBuscarProducto()" class="w-full mb-2 bg-teal-600 text-white text-sm font-semibold px-3 py-2.5 rounded-xl active:scale-95 transition">📷 Escanear código de barras</button>
     <div class="flex flex-wrap gap-2 mb-2">
-      <label class="bg-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelProductos(event)"></label>
-      <button onclick="plantillaProductos()" class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl">⬇ Plantilla</button>
+      <label id="btnCargarProd" class="bg-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelProductos(event)"></label>
+      <button id="btnPlantillaProd" onclick="plantillaProductos()" class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl">⬇ Plantilla</button>
     </div>
     <p id="impProdMsg" class="text-xs mb-2"></p>
     <input id="buscarProd" oninput="renderInventario()" placeholder="Buscar por nombre, categoría o código…" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 bg-white" />
@@ -481,7 +481,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.24"; // se incrementa con cada mejora
+const APP_VERSION="4.25"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -696,6 +696,7 @@ function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&l
 function esGerencia(){ return !!(currentUser && currentUser.es_gerencia); }
 function bloqueoEdicion(id){ if(id && !esGerencia()){ toast("Solo gerencia puede modificar un registro ya guardado"); return true; } return false; }
 function puedeEditarEmpleado(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("empleados_editar"))); }
+function puedeEditarInv(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("inventario_editar"))); }
 /* Editar un empleado concreto: gerencia siempre; o quien tenga permiso "empleados_editar"
    y sea de la MISMA área del empleado (si el usuario tiene áreas asignadas). */
 function puedeEditarEmpleadoDe(emp){ if(!currentUser) return false; if(currentUser.es_gerencia) return true;
@@ -805,7 +806,7 @@ const OPCIONES=[
   ["resumen","Resumen / indicadores del inicio"],
   ["empleados","Personal"],["empleados_editar","Modificar personal (editar datos de empleados)"],["nomina","Nómina"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],["incpersonal","Incidencias de personal (asistencia)"],
-  ["proveedores","Proveedores"],["inventario","Inventario"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],
+  ["proveedores","Proveedores"],["inventario","Inventario"],["inventario_editar","Modificar inventario (crear/editar/eliminar productos y stock)"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],
   ["caja","Caja (cierres y arqueos)"],["caja_editar","Modificar cajas con día cerrado (autorizado por gerencia)"],["tesoreria","Tesorería (totales y tasa)"],["deudas","Finanzas (deudas, pagos y facturas recibidas)"],["conexiones","Conexiones (quién se conecta)"]
 ];
 const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma","quiebre"];
@@ -1370,14 +1371,19 @@ function openProducto(id){ const p=id?prodById(id):{};
     <div class="grid grid-cols-2 gap-3">${field("stock","Stock actual",p.stock,"number")}${field("stock_min","Stock mínimo",p.stock_min,"number")}</div>
     ${verCosto()?field("precio_compra","Precio de compra",p.precio_compra,"number"):`<input type="hidden" id="f_precio_compra" value="${esc(p.precio_compra??"")}">`}
     ${buscador("proveedor_id","Proveedor","prov",p.proveedor_id)}</div>
-    <div class="flex gap-2 mt-5"><button onclick="saveProducto('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
+    ${puedeEditarInv()
+      ? `<div class="flex gap-2 mt-5"><button onclick="saveProducto('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
     ${id?`<button onclick="delProducto('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
-    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`
+      : `<p class="text-[11px] text-slate-400 mt-4">Solo lectura — no tienes permiso para modificar el inventario.</p>
+    <button onclick="closeModal()" class="w-full mt-2 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`}`);
+  if(!puedeEditarInv()){ setTimeout(()=>{ document.querySelectorAll("#modalContent input,#modalContent select,#modalContent textarea").forEach(el=>{ el.disabled=true; }); },0); }
 }
-async function saveProducto(id){ if(bloqueoEdicion(id)) return; const r=readForm(["nombre","codigo","categoria","unidad","empaque","unidades_empaque","stock","stock_min","precio_compra","proveedor_id"]); if(!r.nombre){ toast("Falta el nombre"); return; }
+async function saveProducto(id){ if(!puedeEditarInv()){ toast("No tienes permiso para modificar el inventario"); return; } const r=readForm(["nombre","codigo","categoria","unidad","empaque","unidades_empaque","stock","stock_min","precio_compra","proveedor_id"]); if(!r.nombre){ toast("Falta el nombre"); return; }
   ["stock","stock_min","precio_compra","unidades_empaque"].forEach(k=>r[k]=Number(r[k])||0); try{ id?await db.update("productos",id,r):await db.insert("productos",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
-async function delProducto(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar?")){ await db.remove("productos",id); closeModal(); render(); } }
+async function delProducto(id){ if(!puedeEditarInv()){ toast("No tienes permiso para modificar el inventario"); return; } if(confirm("¿Eliminar?")){ await db.remove("productos",id); closeModal(); render(); } }
 function renderInventario(){ const q=(document.getElementById("buscarProd")?.value||"").toLowerCase(); const soloBajo=document.getElementById("soloBajo")?.checked;
+  const editaInv=puedeEditarInv(); ["btnNuevoProd","btnCargarProd"].forEach(bid=>{ const el=document.getElementById(bid); if(el) el.style.display=editaInv?"":"none"; });
   const todos=db.list("productos"); const bajoMin=todos.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0)).length;
   let l=todos.filter(p=>[p.nombre,p.categoria,p.codigo].join(" ").toLowerCase().includes(q)); if(soloBajo) l=l.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0));
   l=l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
@@ -2136,7 +2142,7 @@ function importarExcelProveedores(ev){ const f=ev.target.files[0]; if(!f) return
     return { nombre, rif, contacto:String(pick(raw,["contacto","persona"])).trim(), telefono:String(pick(raw,["telefono","teléfono","whatsapp","celular"])).trim(), productos:String(pick(raw,["productos","surte","rubro"])).trim() };
   }, "impProvMsg", p=> (String(p.rif||"").trim()? "R:"+String(p.rif).trim() : "N:"+String(p.nombre||"").trim().toLowerCase())); ev.target.value=""; }
 function plantillaProveedores(){ bajarPlantilla("plantilla_proveedores.xlsx",["Nombre","RIF","Contacto","Telefono","Productos"],["Distribuidora El Sol","J-12345678-9","Pedro","584120000000","Abarrotes"]); }
-function importarExcelProductos(ev){ const f=ev.target.files[0]; if(!f) return;
+function importarExcelProductos(ev){ if(!puedeEditarInv()){ toast("No tienes permiso para modificar el inventario"); ev.target.value=""; return; } const f=ev.target.files[0]; if(!f) return;
   importarGenerico(f, "productos", raw=>{ const nombre=String(pick(raw,["nombre","producto","descripcion","descripción"])).trim(); if(!nombre) return null;
     return { nombre, codigo:String(pick(raw,["codigo","código","barra","barcode","codigo de barras"])).trim(), categoria:String(pick(raw,["categoria","categoría"])).trim()||"Otros", unidad:String(pick(raw,["unidad","um"])).trim()||"Unidad", empaque:String(pick(raw,["empaque","presentacion","presentación","bulto","embalaje"])).trim()||"Bulto", unidades_empaque:numExcel(pick(raw,["unidades por empaque","unidades por bulto","unidades bulto","und x bulto","cantidad por bulto","unidades caja","contenido"])), precio_compra:numExcel(pick(raw,["precio costo","precio compra","costo","precio","costo unitario"])), stock:numExcel(pick(raw,["stock","existencia","cantidad"])), stock_min:numExcel(pick(raw,["stock minimo","stock mínimo","minimo","mínimo"])) };
   }, "impProdMsg", p=> (String(p.codigo||"").trim()? "C:"+String(p.codigo).trim() : "N:"+String(p.nombre||"").trim().toLowerCase())); ev.target.value=""; }
