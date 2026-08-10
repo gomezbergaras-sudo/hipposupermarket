@@ -481,7 +481,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.23"; // se incrementa con cada mejora
+const APP_VERSION="4.24"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1686,13 +1686,16 @@ function openPerfil(id){ const e=empById(id); if(!e) return; const mes=hoy().sli
 }
 
 /* ===================== RECEPCIÓN MANUAL + HISTORIAL ===================== */
-let recItems=[], recOrdenId=null;
+let recItems=[], recOrdenId=null, recOrdenCotejo=null;
 function openRecepcion(orderId){
   recOrdenId=orderId||null;
   const o=orderId? db.list("ordenes").find(x=>x.id===orderId):null;
+  recOrdenCotejo=o||null;
   recItems = o? (o.items||[]).map(it=>({...it, categoria:(it.categoria||(prodById(it.producto_id)?.categoria)||""), vencimiento:""})) : [];
   openModal(`<h3 class="font-bold text-lg mb-3">${o?"Recibir orden de compra":"Recepción manual"}</h3><div class="space-y-3">
-    ${o?`<div><label class="text-xs text-slate-500">Proveedor</label><input value="${esc(provById(o.proveedor_id)?.nombre||'')}" disabled class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50"><input type="hidden" id="f_proveedor_id" value="${esc(o.proveedor_id||'')}"></div>`:buscador("proveedor_id","Proveedor","prov","")}
+    ${o?`<div><label class="text-xs text-slate-500">Proveedor</label><input value="${esc(provById(o.proveedor_id)?.nombre||'')}" disabled class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50"><input type="hidden" id="f_proveedor_id" value="${esc(o.proveedor_id||'')}"></div>`:buscador("proveedor_id","Proveedor","prov","","recProvChange")}
+    <div id="recUltimaOrden" class="text-xs"></div>
+    <div id="recCotejoBox"></div>
     <div class="grid grid-cols-2 gap-3">${field("fecha","Fecha de recepción",hoy(),"date")}${selectField("tipo_documento","Tipo de documento",["Factura fiscal","Nota de entrega"],"Factura fiscal")}</div>
     <div class="bg-slate-50 rounded-xl p-3"><p class="text-xs font-semibold text-slate-600 mb-2">Productos recibidos ${o?"(de la orden)":""} · indica su vencimiento</p>
       ${o?"":`<div class="space-y-1 mb-2">
@@ -1723,7 +1726,7 @@ function resolverRecProd(){ const txt=document.getElementById("rec_prod_txt"), h
 function removeRecItem(i){ recItems.splice(i,1); renderRecItems(); }
 function setRecVenc(i,val){ recItems[i].vencimiento=val; renderRecItems(); }
 function renderRecItems(){ const c=document.getElementById("rec_lista"); if(!c) return;
-  if(!recItems.length){ c.innerHTML=`<p class="text-xs text-slate-400">Aún sin productos.</p>`; return; }
+  if(!recItems.length){ c.innerHTML=`<p class="text-xs text-slate-400">Aún sin productos.</p>`; renderCotejo(); return; }
   c.innerHTML=recItems.map((it,i)=>{ const cat=it.categoria||""; const min=MIN_VENC[cat]||0; let aviso="";
     if(min>0){ if(!it.vencimiento){ aviso=`<span class="text-[10px] text-amber-600">Falta vencimiento (mín ${min}d)</span>`; }
       else { const d=diasHasta(it.vencimiento); aviso=d<min?`<span class="text-[10px] text-red-600 font-semibold">⚠ vence en ${d}d (mín ${min}d)</span>`:`<span class="text-[10px] text-emerald-600">✔ ${d}d</span>`; } }
@@ -1732,7 +1735,27 @@ function renderRecItems(){ const c=document.getElementById("rec_lista"); if(!c) 
     return `<div class="bg-white rounded-lg p-2">
       <div class="flex items-center justify-between"><span class="text-sm font-medium truncate">${esc(it.nombre)} ${cantTxt}${cat?` · ${esc(cat)}`:""}</span><button onclick="removeRecItem(${i})" class="text-red-500 text-sm">✕</button></div>
       <div class="flex items-center gap-2 mt-1"><input type="date" value="${esc(it.vencimiento||"")}" onchange="setRecVenc(${i},this.value)" class="px-2 py-1 rounded border border-slate-200 text-xs">${aviso}</div></div>`; }).join("");
+  renderCotejo();
 }
+/* Cotejo: compara lo recibido contra la última orden de compra del proveedor */
+function cotejarRecepcion(){ if(!recOrdenCotejo) return null;
+  const ord={}, nom={}; (recOrdenCotejo.items||[]).forEach(it=>{ const k=it.producto_id||it.nombre; ord[k]=(ord[k]||0)+(Number(it.cantidad)||0); nom[k]=it.nombre||nom[k]; });
+  const rec={}; recItems.forEach(it=>{ const k=it.producto_id||it.nombre; rec[k]=(rec[k]||0)+(Number(it.cantidad)||0); nom[k]=it.nombre||nom[k]; });
+  const ids=new Set([...Object.keys(ord),...Object.keys(rec)]); const rows=[];
+  ids.forEach(k=>{ const o=ord[k]||0, r=rec[k]||0; let estado="ok"; if(r>o) estado="mas"; else if(r<o) estado="menos"; rows.push({nombre:nom[k]||"?", ordenado:o, recibido:r, dif:r-o, estado}); });
+  rows.sort((a,b)=> (a.estado==="ok"?1:0)-(b.estado==="ok"?1:0) || (a.nombre||"").localeCompare(b.nombre||""));
+  return {rows, disc: rows.filter(x=>x.estado!=="ok")}; }
+function renderCotejo(){ const box=document.getElementById("recCotejoBox"); if(!box) return; const c=cotejarRecepcion(); if(!c){ box.innerHTML=""; return; }
+  const badge=(x)=> x.estado==="ok"?`<span class="text-emerald-600">✓ igual</span>`: x.estado==="mas"?`<span class="text-amber-600 font-semibold">▲ ${x.dif} de más</span>`:`<span class="text-red-600 font-semibold">▼ ${Math.abs(x.dif)} de menos</span>`;
+  box.innerHTML=`<div class="bg-slate-50 rounded-xl p-2 mt-2"><p class="text-[11px] font-semibold text-slate-600 mb-1">Cotejo con la orden — ${c.disc.length?`<span class="text-red-600">${c.disc.length} diferencia${c.disc.length===1?"":"s"}</span>`:`<span class="text-emerald-600">todo coincide ✓</span>`}</p>
+    <div class="space-y-0.5 max-h-40 overflow-y-auto">${c.rows.map(x=>`<div class="flex items-center justify-between text-[11px] gap-2"><span class="truncate">${esc(x.nombre)}</span><span class="shrink-0 text-slate-500">ped ${x.ordenado} · rec ${x.recibido} · ${badge(x)}</span></div>`).join("")}</div></div>`; }
+function recProvChange(){ recOrdenCotejo=null; const prov=document.getElementById("f_proveedor_id")?.value;
+  if(prov){ const ords=db.list("ordenes").filter(o=>o.proveedor_id===prov && o.estado!=="Cancelada").sort((a,b)=>String(b.fecha||b.creado||"").localeCompare(String(a.fecha||a.creado||""))); if(ords.length) recOrdenCotejo=ords[0]; }
+  const box=document.getElementById("recUltimaOrden");
+  if(box){ box.innerHTML = recOrdenCotejo
+    ? `<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 mt-1">📋 Última orden: ${esc(recOrdenCotejo.fecha||"")} · ${(recOrdenCotejo.items||[]).length} producto(s) · total ${money(recOrdenCotejo.total||ordenTotal(recOrdenCotejo.items||[]))}. Se cotejará abajo.</div>`
+    : `<p class="text-[11px] text-slate-400 mt-1">Sin órdenes de compra previas de este proveedor para cotejar.</p>`; }
+  renderCotejo(); }
 async function saveRecepcion(){
   const prov=document.getElementById("f_proveedor_id").value;
   const fecha=document.getElementById("f_fecha").value||hoy();
@@ -1744,6 +1767,7 @@ async function saveRecepcion(){
   const cortos=recItems.filter(it=>{ const min=MIN_VENC[it.categoria||""]||0; return min>0 && it.vencimiento && diasHasta(it.vencimiento)<min; });
   if(cortos.length){ const lista=cortos.map(it=>`• ${it.nombre}: vence en ${diasHasta(it.vencimiento)} días (mínimo ${MIN_VENC[it.categoria||""]})`).join("\n");
     if(!confirm("⚠ Estos productos vienen con vencimiento por debajo del mínimo permitido:\n\n"+lista+"\n\nLo recomendable es NO recibirlos. ¿Recibir de todas formas?")) return; }
+  const cot=cotejarRecepcion(); if(cot && cot.disc.length){ const lista=cot.disc.map(x=>`• ${x.nombre}: pedido ${x.ordenado}, recibido ${x.recibido} (${x.dif>0?"+"+x.dif+" de más":x.dif+" de menos"})`).join("\n"); if(!confirm("⚠ Lo recibido NO coincide con la orden de compra:\n\n"+lista+"\n\n¿Recibir de todas formas?")) return; }
   for(const it of recItems){ if(it.producto_id){ const p=prodById(it.producto_id); if(p) await db.update("productos",it.producto_id,{stock:(Number(p.stock)||0)+(Number(it.cantidad)||0)}); } }
   await db.insert("recepciones",{ orden_id:recOrdenId||"", proveedor_id:prov, fecha, tipo_documento:tipo, observaciones:obs, items:recItems, total:ordenTotal(recItems) });
   if(recOrdenId){ await db.update("ordenes",recOrdenId,{estado:"Recibida"}); }
