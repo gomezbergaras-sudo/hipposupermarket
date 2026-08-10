@@ -66,11 +66,14 @@
 <div id="scanner" style="display:none" class="fixed inset-0 z-[60] bg-black flex-col">
   <div class="p-4 text-white flex items-center justify-between">
     <span class="font-semibold">Escanear código de barras</span>
-    <button onclick="cerrarEscaner()" class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-semibold">Cerrar</button>
+    <div class="flex items-center gap-2">
+      <button id="btnTorch" onclick="toggleTorch()" style="display:none" class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-semibold">🔦 Luz</button>
+      <button onclick="cerrarEscaner()" class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-semibold">Cerrar</button>
+    </div>
   </div>
   <div class="flex-1 relative overflow-hidden">
     <video id="scanVideo" class="w-full h-full object-cover" playsinline muted></video>
-    <div class="absolute inset-0 flex items-center justify-center pointer-events-none"><div class="w-64 h-40 border-2 border-teal-400 rounded-2xl"></div></div>
+    <div class="absolute inset-0 flex items-center justify-center pointer-events-none"><div class="w-64 h-32 border-2 border-teal-400 rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]"></div></div>
   </div>
   <p id="scanMsg" class="p-4 text-center text-white/80 text-sm">Apunta la cámara al código de barras…</p>
 </div>
@@ -481,7 +484,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.26"; // se incrementa con cada mejora
+const APP_VERSION="4.27"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1986,7 +1989,7 @@ async function purgarFotosVencidas(){ const now=Date.now(); const venc=(ts)=> ts
   for(const s of db.list("piso_secciones")){ const p={}; if(s.foto_antes&&venc(s.foto_antes_ts)){ p.foto_antes=""; p.foto_antes_ts=null; } if(s.foto_despues&&venc(s.foto_despues_ts)){ p.foto_despues=""; p.foto_despues_ts=null; } if(Object.keys(p).length){ try{ await db.update("piso_secciones",s.id,p); }catch(e){} } } }
 
 /* ===================== ESCÁNER DE CÓDIGO DE BARRAS ===================== */
-let scanReader=null, scannerOnResult=null, scanContinuo=false, scanUltimo="", scanUltimoTs=0;
+let scanReader=null, scannerOnResult=null, scanContinuo=false, scanUltimo="", scanUltimoTs=0, scanTrack=null, torchOn=false;
 /* Pitido + vibración corta al leer bien un código */
 function beepScan(){ try{ const AC=window.AudioContext||window.webkitAudioContext; if(AC){ const c=new AC(); const o=c.createOscillator(),g=c.createGain(); o.type="square"; o.frequency.value=1180; g.gain.setValueAtTime(0.22,c.currentTime); g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+0.1); o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+0.11); } }catch(e){} try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){} }
 /* onResult: función que recibe el código. opts.continuo=true deja la cámara abierta para escanear varios. */
@@ -1999,9 +2002,13 @@ async function abrirEscaner(onResult, opts){
   try{
     // Restringe a los códigos de barras de supermercado: más rápido y con menos lecturas erróneas
     let hints=null;
-    try{ hints=new Map(); const F=ZXing.BarcodeFormat; hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.CODE_128,F.CODE_39,F.ITF]); hints.set(ZXing.DecodeHintType.TRY_HARDER,true); }catch(e){ hints=null; }
+    try{ hints=new Map(); const F=ZXing.BarcodeFormat; hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.CODE_128,F.CODE_39,F.CODE_93,F.ITF,F.CODABAR]); hints.set(ZXing.DecodeHintType.TRY_HARDER,true); }catch(e){ hints=null; }
     scanReader = hints? new ZXing.BrowserMultiFormatReader(hints) : new ZXing.BrowserMultiFormatReader();
-    await scanReader.decodeFromConstraints({ video:{ facingMode:{ ideal:"environment" }, width:{ideal:1280}, height:{ideal:720} } }, "scanVideo", (result)=>{
+    // Más intentos de lectura por segundo (por defecto ZXing espera 500 ms entre intentos)
+    try{ scanReader.timeBetweenScansMillis=100; }catch(e){}
+    try{ scanReader.timeBetweenDecodingAttempts=100; }catch(e){}
+    // Cámara a la mayor resolución posible: más píxeles = lee códigos pequeños o de lejos
+    await scanReader.decodeFromConstraints({ video:{ facingMode:{ ideal:"environment" }, width:{ideal:1920}, height:{ideal:1080}, frameRate:{ideal:30} } }, "scanVideo", (result)=>{
       if(!result) return; const t=result.getText? result.getText() : (result.text||""); if(!t) return;
       const now=Date.now();
       if(scanContinuo){
@@ -2013,12 +2020,27 @@ async function abrirEscaner(onResult, opts){
         const cb=scannerOnResult; beepScan(); cerrarEscaner(); if(cb) cb(t);
       }
     });
+    ajustarCamaraEscaner();
     msg.textContent = scanContinuo? "Apunta al código. Puedes escanear varios seguidos." : "Apunta la cámara al código de barras…";
   }catch(e){
     msg.textContent="No se pudo abrir la cámara: "+((e&&e.message)||e)+". Necesita https:// y dar permiso de cámara.";
   }
 }
-function cerrarEscaner(){ try{ if(scanReader) scanReader.reset(); }catch(e){} scanReader=null; scannerOnResult=null; scanContinuo=false; const o=document.getElementById("scanner"); if(o) o.style.display="none"; }
+/* Afina la cámara ya abierta: enfoque continuo/cercano y muestra el botón de luz si el equipo lo permite */
+function ajustarCamaraEscaner(){ try{
+  const v=document.getElementById("scanVideo"); const stream=v&&v.srcObject; if(!stream) return;
+  scanTrack=(stream.getVideoTracks&&stream.getVideoTracks()[0])||null; if(!scanTrack) return;
+  const caps=scanTrack.getCapabilities? scanTrack.getCapabilities() : {};
+  const adv=[];
+  if(caps.focusMode){ if(caps.focusMode.includes&&caps.focusMode.includes("continuous")) adv.push({focusMode:"continuous"}); }
+  if(caps.focusDistance && typeof caps.focusDistance.min==="number"){ adv.push({focusDistance:caps.focusDistance.min}); } // enfoque cercano (macro)
+  // Un poco de zoom ayuda a que el código llene el cuadro y enfoque mejor
+  if(caps.zoom && typeof caps.zoom.min==="number" && typeof caps.zoom.max==="number"){ const z=Math.min(caps.zoom.max, Math.max(caps.zoom.min, (caps.zoom.min||1)*1.6)); if(z>(caps.zoom.min||1)) adv.push({zoom:z}); }
+  if(adv.length){ try{ scanTrack.applyConstraints({advanced:adv}); }catch(e){} }
+  const bt=document.getElementById("btnTorch"); torchOn=false; if(bt){ bt.textContent="🔦 Luz"; bt.style.display=(caps.torch)?"":"none"; }
+}catch(e){} }
+function toggleTorch(){ if(!scanTrack) return; torchOn=!torchOn; try{ scanTrack.applyConstraints({advanced:[{torch:torchOn}]}); const bt=document.getElementById("btnTorch"); if(bt) bt.textContent=torchOn?"🔦 Luz ✓":"🔦 Luz"; }catch(e){ torchOn=!torchOn; } }
+function cerrarEscaner(){ try{ if(torchOn && scanTrack) scanTrack.applyConstraints({advanced:[{torch:false}]}); }catch(e){} try{ if(scanReader) scanReader.reset(); }catch(e){} scanReader=null; scannerOnResult=null; scanContinuo=false; scanTrack=null; torchOn=false; const bt=document.getElementById("btnTorch"); if(bt) bt.style.display="none"; const o=document.getElementById("scanner"); if(o) o.style.display="none"; }
 function escanearACampo(id){ abrirEscaner((code)=>{ const el=document.getElementById(id); if(el) el.value=code; toast("Código: "+code); }); }
 function escanearBuscarProducto(){ abrirEscaner((code)=>{
   const p=db.list("productos").find(x=>String(x.codigo||"")===String(code));
