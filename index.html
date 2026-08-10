@@ -481,7 +481,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.22"; // se incrementa con cada mejora
+const APP_VERSION="4.23"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1401,10 +1401,12 @@ function openOrden(id){ const o=id?db.list("ordenes").find(x=>x.id===id):null; t
     <div class="grid grid-cols-2 gap-3">${field("fecha","Fecha",o?.fecha||hoy(),"date")}${selectField("estado","Estado",["Pendiente","Enviada","Recibida","Cancelada"],o?.estado||"Pendiente")}</div>
     <div class="bg-slate-50 rounded-xl p-3"><p class="text-xs font-semibold text-slate-600 mb-2">Productos</p>
       <div class="grid grid-cols-12 gap-1 items-end">
-        <div class="col-span-6"><input id="oi_prod_txt" list="dlProdOrden" oninput="resolverOrdProd()" placeholder="🔎 Buscar producto…" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"><input type="hidden" id="oi_prod"></div>
-        <div class="col-span-3"><input id="oi_cant" type="number" placeholder="Cant" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"></div>
+        <div class="col-span-5"><input id="oi_prod_txt" list="dlProdOrden" oninput="resolverOrdProd()" placeholder="🔎 Buscar producto…" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"><input type="hidden" id="oi_prod"></div>
+        <div class="col-span-2"><button type="button" onclick="escanearOrden()" title="Escanear código de barras" class="w-full bg-teal-600 text-white rounded-lg py-2 text-sm font-semibold">📷</button></div>
+        <div class="col-span-2"><input id="oi_cant" type="number" placeholder="Cant" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"></div>
         <div class="col-span-3"><button onclick="addItem()" class="w-full bg-teal-700 text-white rounded-lg py-2 text-sm font-semibold">+</button></div>
       </div>
+      <p class="text-[10px] text-slate-400 mt-0.5">Escanea el código: agrega el producto con la cantidad puesta (o 1).</p>
       <div id="oi_lista" class="mt-2 space-y-1"></div>
       <p class="text-right font-bold mt-2" id="oi_total">Total: ${money(0)}</p>
     </div>
@@ -1429,6 +1431,13 @@ function addItem(){ const pid=document.getElementById("oi_prod").value; const ca
   tempItems.push({ producto_id:pid, nombre:p?p.nombre:"?", cantidad:cant, precio:p?Number(p.precio_compra)||0:0, unidad:p?p.unidad:"" });
   document.getElementById("oi_cant").value=""; const ot=document.getElementById("oi_prod_txt"); if(ot) ot.value=""; const oh=document.getElementById("oi_prod"); if(oh) oh.value=""; renderItems(); }
 function removeItem(i){ tempItems.splice(i,1); renderItems(); }
+function escanearOrden(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c);
+  if(!p){ toast("Código "+c+" no está en productos"); return; }
+  const cant=Number(document.getElementById("oi_cant")?.value)||1;
+  const ex=tempItems.find(it=>it.producto_id===p.id);
+  if(ex){ ex.cantidad=(Number(ex.cantidad)||0)+cant; } else { tempItems.push({producto_id:p.id, nombre:p.nombre, cantidad:cant, precio:Number(p.precio_compra)||0, unidad:p.unidad||""}); }
+  renderItems(); toast("＋ "+p.nombre);
+}, {continuo:true}); }
 function ordenTotal(items){ return (items||[]).reduce((s,it)=>s+(Number(it.cantidad)||0)*(Number(it.precio)||0),0); }
 function setItemCant(i,val){ let n=Number(val); if(isNaN(n)||n<0) n=0; if(!tempItems[i]) return; tempItems[i].cantidad=n;
   const sub=document.getElementById("oi_sub_"+i); if(sub) sub.textContent=money(n*(Number(tempItems[i].precio)||0));
@@ -1536,7 +1545,7 @@ function addQuiebreItem(){ const pid=document.getElementById("qb_prod")?.value; 
   const t=document.getElementById("qb_prod_txt"); if(t) t.value=""; const h=document.getElementById("qb_prod"); if(h) h.value=""; renderQuiebreItems(); }
 function escanearQuiebre(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c);
   if(p){ const h=document.getElementById("qb_prod"), t=document.getElementById("qb_prod_txt"); if(h) h.value=p.id; if(t) t.value=p.nombre; addQuiebreItem(); }
-  else toast("Código "+c+" no está en productos."); }); }
+  else toast("Código "+c+" no está en productos."); }, {continuo:true}); }
 function openQuiebre(id){ if(!puede("quiebre")){ toast("Sin acceso"); return; } const q=id?db.list("quiebres").find(x=>x.id===id):null;
   quiebreItems = q? (q.items||[]).map(it=>({...it})) : [];
   openModal(`<h3 class="font-bold text-lg mb-1">${id?"Editar":"Nuevo"} quiebre de inventario</h3><p class="text-xs text-slate-500 mb-3">Agrega los productos sin stock. Se avisa a gerencia con su proveedor para el pedido.</p><div class="space-y-3">
@@ -1946,24 +1955,39 @@ async function purgarFotosVencidas(){ const now=Date.now(); const venc=(ts)=> ts
   for(const s of db.list("piso_secciones")){ const p={}; if(s.foto_antes&&venc(s.foto_antes_ts)){ p.foto_antes=""; p.foto_antes_ts=null; } if(s.foto_despues&&venc(s.foto_despues_ts)){ p.foto_despues=""; p.foto_despues_ts=null; } if(Object.keys(p).length){ try{ await db.update("piso_secciones",s.id,p); }catch(e){} } } }
 
 /* ===================== ESCÁNER DE CÓDIGO DE BARRAS ===================== */
-let scanReader=null, scannerOnResult=null;
-async function abrirEscaner(onResult){
-  scannerOnResult=onResult;
+let scanReader=null, scannerOnResult=null, scanContinuo=false, scanUltimo="", scanUltimoTs=0;
+/* Pitido + vibración corta al leer bien un código */
+function beepScan(){ try{ const AC=window.AudioContext||window.webkitAudioContext; if(AC){ const c=new AC(); const o=c.createOscillator(),g=c.createGain(); o.type="square"; o.frequency.value=1180; g.gain.setValueAtTime(0.22,c.currentTime); g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+0.1); o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+0.11); } }catch(e){} try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){} }
+/* onResult: función que recibe el código. opts.continuo=true deja la cámara abierta para escanear varios. */
+async function abrirEscaner(onResult, opts){
+  opts=opts||{}; scannerOnResult=onResult; scanContinuo=!!opts.continuo; scanUltimo=""; scanUltimoTs=0;
   document.getElementById("scanner").style.display="flex";
   const msg=document.getElementById("scanMsg"); msg.textContent="Iniciando cámara…";
   if(!window.ZXing){ msg.textContent="No se pudo cargar el lector (revisa tu conexión a internet)."; return; }
   if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){ msg.textContent="Este navegador no permite la cámara aquí. Abre la app por https:// (el enlace publicado)."; return; }
   try{
-    scanReader=new ZXing.BrowserMultiFormatReader();
-    await scanReader.decodeFromConstraints({ video:{ facingMode:{ ideal:"environment" } } }, "scanVideo", (result)=>{
-      if(result){ const t=result.getText? result.getText() : (result.text||""); const cb=scannerOnResult; cerrarEscaner(); if(cb) cb(t); }
+    // Restringe a los códigos de barras de supermercado: más rápido y con menos lecturas erróneas
+    let hints=null;
+    try{ hints=new Map(); const F=ZXing.BarcodeFormat; hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.CODE_128,F.CODE_39,F.ITF]); hints.set(ZXing.DecodeHintType.TRY_HARDER,true); }catch(e){ hints=null; }
+    scanReader = hints? new ZXing.BrowserMultiFormatReader(hints) : new ZXing.BrowserMultiFormatReader();
+    await scanReader.decodeFromConstraints({ video:{ facingMode:{ ideal:"environment" }, width:{ideal:1280}, height:{ideal:720} } }, "scanVideo", (result)=>{
+      if(!result) return; const t=result.getText? result.getText() : (result.text||""); if(!t) return;
+      const now=Date.now();
+      if(scanContinuo){
+        if(t===scanUltimo && (now-scanUltimoTs)<1500) return; // no repetir el mismo código muy seguido
+        scanUltimo=t; scanUltimoTs=now; beepScan();
+        if(msg) msg.textContent="✓ "+t+" — sigue escaneando o cierra ✕";
+        if(scannerOnResult) scannerOnResult(t);
+      } else {
+        const cb=scannerOnResult; beepScan(); cerrarEscaner(); if(cb) cb(t);
+      }
     });
-    msg.textContent="Apunta la cámara al código de barras…";
+    msg.textContent = scanContinuo? "Apunta al código. Puedes escanear varios seguidos." : "Apunta la cámara al código de barras…";
   }catch(e){
     msg.textContent="No se pudo abrir la cámara: "+((e&&e.message)||e)+". Necesita https:// y dar permiso de cámara.";
   }
 }
-function cerrarEscaner(){ try{ if(scanReader) scanReader.reset(); }catch(e){} scanReader=null; scannerOnResult=null; const o=document.getElementById("scanner"); if(o) o.style.display="none"; }
+function cerrarEscaner(){ try{ if(scanReader) scanReader.reset(); }catch(e){} scanReader=null; scannerOnResult=null; scanContinuo=false; const o=document.getElementById("scanner"); if(o) o.style.display="none"; }
 function escanearACampo(id){ abrirEscaner((code)=>{ const el=document.getElementById(id); if(el) el.value=code; toast("Código: "+code); }); }
 function escanearBuscarProducto(){ abrirEscaner((code)=>{
   const p=db.list("productos").find(x=>String(x.codigo||"")===String(code));
