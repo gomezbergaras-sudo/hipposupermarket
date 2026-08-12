@@ -502,7 +502,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.30"; // se incrementa con cada mejora
+const APP_VERSION="4.31"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -545,7 +545,10 @@ const db = {
             (data||[]).forEach(row=>{ const i=store[t].findIndex(r=>r.id===row.id); if(i>=0) store[t][i]=row; else store[t].push(row); }); }));
         }catch(e){ inc=false; } // si falta la columna "actualizado", carga completa
       }
-      if(!inc){ await Promise.all(TABLES.map(async t=>{ try{ store[t]=await fetchAllRows(t); }catch(e){ try{ const {data}=await sb.from(t).select("*"); store[t]=data||[]; }catch(_){ } } })); }
+      if(!inc){ await Promise.all(TABLES.map(async t=>{
+          // No pisar datos ya cargados con un resultado vacío (protege ante fallos de lectura/RLS o cortes de red)
+          try{ const fresh=await fetchAllRows(t); if(fresh.length || !(store[t]&&store[t].length)) store[t]=fresh; }
+          catch(e){ try{ const {data}=await sb.from(t).select("*"); if((data&&data.length) || !(store[t]&&store[t].length)) store[t]=data||store[t]||[]; }catch(_){ } } })); }
       _dlCache={emp:-1,prov:-1,prod:-1};
     }
     else { const s=lsLoad(); TABLES.forEach(t=> store[t]=s[t]||[]); }
@@ -553,7 +556,7 @@ const db = {
   },
   list(t){ return store[t]||[]; },
   async insert(t,row){ row.id=row.id||uid(); row.creado=row.creado||new Date().toISOString();
-    if(USE_CLOUD){ const {data,error}=await sb.from(t).insert(row).select().single(); if(error) throw error; store[t].push(data); }
+    if(USE_CLOUD){ const {data,error}=await sb.from(t).insert(row).select(); if(error) throw error; store[t].push((data&&data[0])||row); }
     else { store[t].push(row); lsSave(); } return row; },
   async update(t,id,patch){ if(USE_CLOUD){ const {error}=await sb.from(t).update(patch).eq("id",id); if(error) throw error; }
     const i=store[t].findIndex(r=>r.id===id); if(i>=0) store[t][i]={...store[t][i],...patch}; if(!USE_CLOUD) lsSave(); },
