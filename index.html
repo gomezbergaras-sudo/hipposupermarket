@@ -502,7 +502,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.29"; // se incrementa con cada mejora
+const APP_VERSION="4.30"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1378,7 +1378,7 @@ function renderPPModal(provId){ const prov=provById(provId); if(!prov) return; c
     <button onclick="closeModal();render()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Listo</button>`);
   const el=document.getElementById("ppBuscar"); if(el){ el.focus(); el.setSelectionRange(el.value.length,el.value.length); }
 }
-async function togglePP(prodId, provId, checked){ if(!puede("proveedores")){ toast("Sin acceso"); return; } try{ await db.update("productos",prodId,{proveedor_id: checked?provId:""}); }catch(e){ toast("Error: "+e.message); } }
+async function togglePP(prodId, provId, checked){ if(!puede("proveedores")){ toast("Sin acceso"); return; } try{ await db.update("productos",prodId,{proveedor_id: checked?provId:null}); }catch(e){ toast("Error: "+e.message); } }
 
 /* ===================== INVENTARIO ===================== */
 function prodById(id){ return db.list("productos").find(p=>p.id===id); }
@@ -1406,14 +1406,14 @@ function openProducto(id){ const p=id?prodById(id):{};
   if(!puedeEditarInv()){ setTimeout(()=>{ document.querySelectorAll("#modalContent input,#modalContent select,#modalContent textarea").forEach(el=>{ el.disabled=true; }); },0); }
 }
 async function saveProducto(id){ if(!puedeEditarInv()){ toast("No tienes permiso para modificar el inventario"); return; } const r=readForm(["nombre","codigo","categoria","unidad","empaque","unidades_empaque","stock","stock_min","precio_compra","proveedor_id"]); if(!r.nombre){ toast("Falta el nombre"); return; }
-  ["stock","stock_min","precio_compra","unidades_empaque"].forEach(k=>r[k]=Number(r[k])||0); try{ id?await db.update("productos",id,r):await db.insert("productos",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
+  ["stock","stock_min","precio_compra","unidades_empaque"].forEach(k=>r[k]=Number(r[k])||0); if(!r.proveedor_id) r.proveedor_id=null; try{ id?await db.update("productos",id,r):await db.insert("productos",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delProducto(id){ if(!puedeEditarInv()){ toast("No tienes permiso para modificar el inventario"); return; } if(confirm("¿Eliminar?")){ await db.remove("productos",id); closeModal(); render(); } }
 /* Quita el proveedor asignado en el formulario de producto (se confirma al Guardar) */
 function quitarProveedorProd(){ const t=document.getElementById("f_proveedor_id_txt"), h=document.getElementById("f_proveedor_id"); if(t) t.value=""; if(h) h.value=""; toast("Proveedor quitado. Pulsa «Guardar» para confirmar."); }
 /* Quita un producto de un proveedor directamente desde la lista filtrada */
 async function quitarProdDeProveedor(pid,ev){ if(ev) ev.stopPropagation(); if(!puedeEditarInv()){ toast("No tienes permiso para modificar el inventario"); return; }
   const p=prodById(pid); if(!p) return; if(!confirm("¿Quitar «"+(p.nombre||"")+"» de este proveedor?")) return;
-  try{ await db.update("productos",pid,{proveedor_id:""}); render(); toast("Producto quitado del proveedor"); }catch(e){ toast("Error: "+e.message); } }
+  try{ await db.update("productos",pid,{proveedor_id:null}); render(); toast("Producto quitado del proveedor"); }catch(e){ toast("Error: "+e.message); } }
 
 /* ===================== SALIDAS, ROTACIÓN Y CLASIFICACIÓN ABC ===================== */
 const SAL_MOTIVOS=["venta","consumo","dañado","ajuste"];
