@@ -376,6 +376,7 @@
     <div class="mb-1"><h2 class="text-lg font-bold">Finanzas</h2></div>
     <div class="flex flex-wrap gap-2 mb-2">
       <button onclick="openFacturasRec()" class="text-xs bg-slate-700 text-white px-3 py-1.5 rounded-lg font-semibold">📥 Facturas recibidas</button>
+      <button onclick="openFacturasProv()" class="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-semibold">🧾 Facturas por proveedor</button>
       <button onclick="openPagoProv()" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold">💵 Pago a proveedor</button>
       <button onclick="openReportePagos()" class="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg font-semibold">📊 Reporte de pagos</button>
       <button onclick="openDeuda()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Deuda</button>
@@ -502,7 +503,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.31"; // se incrementa con cada mejora
+const APP_VERSION="4.32"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -2723,7 +2724,9 @@ async function delDeuda(id){ if(!esGerencia()){ toast("Solo gerencia elimina"); 
 async function ciclarStatus(id,ev){ ev.stopPropagation(); if(!puede("deudas")){ return; } const d=db.list("deudas").find(x=>x.id===id); const next={ "Pendiente":"Pagado parcial","Pagado parcial":"Pagado total","Pagado total":"Pendiente" }[d.status||"Pendiente"]; await db.update("deudas",id,{status:next}); render(); }
 /* ---- Deuda en $ (base): deudas + facturas recibidas − pagos a proveedores ---- */
 function esUSDmon(m){ m=String(m||"").toUpperCase(); return m.includes("US")||m.includes("$")||m.includes("DOL"); }
-function frUsd(f){ const m=Number(f.monto)||0; return esUSDmon(f.moneda)?m:(tipoCambio>0?m/tipoCambio:0); }
+/* Pendiente de una factura recibida (monto − abonado), en su propia moneda, nunca negativo */
+function frPend(f){ return Math.max(0,(Number(f.monto)||0)-(Number(f.abonado)||0)); }
+function frUsd(f){ const m=frPend(f); return esUSDmon(f.moneda)?m:(tipoCambio>0?m/tipoCambio:0); }
 function pagoUsd(pg){ const tp=Number(pg.total_pagado)||0; const t=Number(pg.tasa)||tipoCambio; return (pg.moneda==="USD")?tp:(t>0?tp/t:0); }
 function coincideProv(x, nombre, rif){ const rn=(rif||"").trim().toLowerCase(), nn=(nombre||"").trim().toLowerCase(); const xr=(x.rif||"").trim().toLowerCase(), xn=(x.proveedor||"").trim().toLowerCase(); if(rn && xr) return xr===rn; return xn===nn && nn!==""; }
 function deudaBaseUsd(fn){ return db.list("deudas").filter(d=>d.tipo!=="Nota de crédito" && d.status!=="Pagado total" && (!fn||fn(d))).reduce((s,d)=>s+((Number(d.monto)||0)-(Number(d.abonado)||0)),0); }
@@ -2840,6 +2843,57 @@ async function addFacturaRec(){ if(!puede("deudas")){ toast("Sin acceso"); retur
   const r={ proveedor_id:provId||"", proveedor:prov?prov.nombre:provTxt, rif:(document.getElementById("fr_rif").value||"")||(prov?prov.rif:""), fecha:_frFecha, tipo:document.getElementById("fr_tipo").value, numero, monto, moneda:document.getElementById("fr_moneda").value, notas:(document.getElementById("fr_notas").value||"") };
   try{ await db.insert("facturas_rec", r); renderFacturasRecModal(); render(); toast("Documento registrado"); }catch(e){ toast("Error: "+e.message); } }
 async function delFacturaRec(id){ if(!puede("deudas")){ return; } if(confirm("¿Eliminar este documento?")){ await db.remove("facturas_rec",id); renderFacturasRecModal(); render(); } }
+
+/* -------- Facturas recibidas AGRUPADAS POR PROVEEDOR + abonos por factura -------- */
+let _fpBuscar="";
+function openFacturasProv(){ if(!puede("deudas")){ toast("Sin acceso"); return; } _fpBuscar=""; renderFacturasProv(); }
+function renderFacturasProv(){ const q=_fpBuscar.trim().toLowerCase();
+  let l=db.list("facturas_rec"); if(q) l=l.filter(f=>[f.proveedor,f.rif,f.numero].join(" ").toLowerCase().includes(q));
+  const groups={};
+  l.forEach(f=>{ const k=f.proveedor_id||("n:"+(f.proveedor||"—").toLowerCase()); if(!groups[k]) groups[k]={nombre:f.proveedor||"—", rif:f.rif||"", items:[]}; groups[k].items.push(f); });
+  const arr=Object.values(groups).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+  let granUsd=0, granCount=0, granPagUsd=0;
+  const body=arr.map(g=>{ const items=g.items.sort((a,b)=>String(a.numero||"").localeCompare(String(b.numero||""),undefined,{numeric:true}));
+    let subUsd=0; granCount+=items.length;
+    const rows=items.map(f=>{ const mon=Number(f.monto)||0, ab=Number(f.abonado)||0, pend=frPend(f); const pagada=pend<=0.001 && mon>0; subUsd+=frUsd(f);
+      return `<div class="flex items-center justify-between gap-2 px-2 py-1.5 border-b border-slate-100 text-sm">
+        <div class="min-w-0"><p class="font-medium truncate">N° ${esc(f.numero||"—")} <span class="text-[10px] text-slate-400">${esc(f.tipo||"")}${f.fecha?" · "+esc(f.fecha):""}</span></p>
+          <p class="text-[11px] text-slate-500 truncate">Monto ${fmt2(mon)} ${esc(f.moneda||"Bs")}${ab?` · abonado ${fmt2(ab)}`:""} · <b class="${pagada?'text-emerald-600':'text-red-600'}">${pagada?"PAGADA ✓":"pend "+fmt2(pend)+" "+esc(f.moneda||"Bs")}</b></p></div>
+        ${pagada?"":`<button onclick="openAbonoFactura('${f.id}')" class="text-[11px] bg-emerald-600 text-white font-semibold px-2 py-1.5 rounded-lg shrink-0">Abonar</button>`}</div>`; }).join("");
+    granUsd+=subUsd;
+    return `<div class="bg-white rounded-xl shadow-sm mb-2 overflow-hidden">
+      <div class="bg-slate-100 px-3 py-2 flex items-center justify-between"><div class="min-w-0"><p class="font-bold text-sm truncate">${esc(g.nombre)}</p>${g.rif?`<p class="text-[10px] text-slate-500">${esc(g.rif)}</p>`:""}</div>
+        <div class="text-right shrink-0"><p class="text-[11px] text-slate-500">${items.length} factura(s)</p><p class="text-sm font-bold text-slate-700">${money(subUsd)}</p></div></div>
+      ${rows}</div>`; }).join("");
+  openModal(`<h3 class="font-bold text-lg mb-1">🧾 Facturas por proveedor</h3><p class="text-xs text-slate-500 mb-2">Facturas recibidas agrupadas por proveedor. Puedes abonar sobre una factura.</p>
+    <input value="${esc(_fpBuscar)}" oninput="_fpBuscar=this.value;renderFacturasProv()" placeholder="🔎 Proveedor, RIF o N° de factura" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 text-sm">
+    <div class="bg-slate-800 text-white rounded-xl px-3 py-2 mb-2 text-sm flex items-center justify-between"><span>${arr.length} proveedor(es) · ${granCount} factura(s)</span><span class="font-bold">Pendiente ${money(granUsd)}</span></div>
+    <div class="max-h-[60vh] overflow-y-auto">${body|| `<p class="text-sm text-slate-400 text-center py-6">${q?"Sin coincidencias.":"No hay facturas recibidas cargadas."}</p>`}</div>
+    <button onclick="closeModal()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`);
+  const inp=document.querySelector('#modalContent input'); if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length,inp.value.length); } }
+function openAbonoFactura(id){ if(!puede("deudas")){ toast("Sin acceso"); return; } const f=db.list("facturas_rec").find(x=>x.id===id); if(!f) return;
+  const mon=Number(f.monto)||0, ab=Number(f.abonado)||0, pend=frPend(f);
+  openModal(`<h3 class="font-bold text-lg mb-1">Abonar a factura</h3>
+    <p class="text-xs text-slate-500 mb-2">${esc(f.proveedor||"—")} · N° ${esc(f.numero||"—")}</p>
+    <div class="bg-slate-50 rounded-xl p-2 text-xs text-slate-600 mb-3">Monto ${fmt2(mon)} ${esc(f.moneda||"Bs")} · Abonado ${fmt2(ab)} · <b>Pendiente ${fmt2(pend)} ${esc(f.moneda||"Bs")}</b></div>
+    <div class="grid grid-cols-2 gap-3 mb-1">
+      <div><label class="text-xs text-slate-500">Monto del abono</label><input id="ab_monto" type="number" min="0" value="${pend?fmt2(pend):""}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
+      <div><label class="text-xs text-slate-500">Moneda</label><select id="ab_moneda" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="${esc(f.moneda||'Bs')}" selected>${esc(f.moneda||'Bs')}</option><option value="${(f.moneda==='USD')?'Bs':'USD'}">${(f.moneda==='USD')?'Bs':'USD'}</option></select></div></div>
+    <p class="text-[10px] text-slate-400 mb-3">Si abonas en otra moneda, se convierte con la tasa actual (${tipoCambio||"—"} Bs/$).</p>
+    <div class="flex gap-2"><button onclick="saveAbonoFactura('${id}')" class="flex-1 bg-emerald-600 text-white font-semibold py-2.5 rounded-xl">Registrar abono</button>
+    ${pend>0?`<button onclick="abonoTotalFactura('${id}')" class="px-4 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Pagar todo</button>`:""}
+    <button onclick="renderFacturasProv()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`); }
+function _abonoEnMonedaFactura(monto, monedaAbono, monedaFactura){ if(monedaAbono===monedaFactura) return monto;
+  if(monedaFactura==="USD") return tipoCambio>0? monto/tipoCambio : 0;   // abono en Bs → USD
+  return monto*(tipoCambio||0); }                                          // abono en USD → Bs
+async function saveAbonoFactura(id){ if(!puede("deudas")){ toast("Sin acceso"); return; } const f=db.list("facturas_rec").find(x=>x.id===id); if(!f) return;
+  const monto=Number(document.getElementById("ab_monto").value)||0; const moneda=document.getElementById("ab_moneda").value||f.moneda||"Bs";
+  if(monto<=0){ toast("Indica el monto del abono"); return; }
+  const add=_abonoEnMonedaFactura(monto, moneda, f.moneda||"Bs");
+  const cap=Number(f.monto)||0; const nuevoAb=Math.min(cap, (Number(f.abonado)||0)+add);
+  try{ await db.update("facturas_rec",id,{abonado:nuevoAb}); render(); toast(nuevoAb>=cap?"Factura pagada por completo":"Abono registrado"); renderFacturasProv(); }catch(e){ toast("Error: "+e.message); } }
+async function abonoTotalFactura(id){ if(!puede("deudas")){ toast("Sin acceso"); return; } const f=db.list("facturas_rec").find(x=>x.id===id); if(!f) return;
+  const cap=Number(f.monto)||0; try{ await db.update("facturas_rec",id,{abonado:cap}); render(); toast("Factura pagada por completo"); renderFacturasProv(); }catch(e){ toast("Error: "+e.message); } }
 /* -------- Reporte de pagos a proveedores (diario / mensual) -------- */
 let _rpModo="dia", _rpFecha=null;
 function openReportePagos(){ if(!puede("deudas")){ toast("Sin acceso"); return; } _rpFecha=_rpFecha||hoy(); renderReportePagos(); }
