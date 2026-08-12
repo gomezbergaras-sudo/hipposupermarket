@@ -102,6 +102,8 @@
       <div id="card_incid" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Incidencias abiertas</p><p id="mIncid" class="text-2xl font-bold text-amber-600">0</p></div>
       <div id="card_repo" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Secciones por reponer</p><p id="mRepo" class="text-2xl font-bold text-amber-600">0</p></div>
       <div id="card_quiebre" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">🚨 Quiebres pendientes</p><p id="mQuiebre" class="text-2xl font-bold text-red-600">0</p></div>
+      <div id="card_compA" onclick="show('compras')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">🚨 Quiebres en productos A</p><p id="mCompA" class="text-2xl font-bold text-red-600">0</p></div>
+      <div id="card_compC" onclick="show('compras')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">Capital detenido en C</p><p id="mCompC" class="text-2xl font-bold text-amber-600">0</p></div>
     </div>
     <div id="desgloseAreas" class="mt-3"></div>
 
@@ -239,6 +241,7 @@
     <div class="flex items-center justify-between mb-3"><h2 class="text-lg font-bold">Inventario</h2>
       <button id="btnNuevoProd" onclick="openProducto()" class="bg-teal-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">+ Producto</button></div>
     <button onclick="escanearBuscarProducto()" class="w-full mb-2 bg-teal-600 text-white text-sm font-semibold px-3 py-2.5 rounded-xl active:scale-95 transition">📷 Escanear código de barras</button>
+    <button id="btnSalidaProd" onclick="openSalida()" class="w-full mb-2 bg-amber-600 text-white text-sm font-semibold px-3 py-2.5 rounded-xl active:scale-95 transition">➖ Salida de producto (descuenta stock)</button>
     <div class="flex flex-wrap gap-2 mb-2">
       <label id="btnCargarProd" class="bg-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelProductos(event)"></label>
       <button id="btnPlantillaProd" onclick="plantillaProductos()" class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl">⬇ Plantilla</button>
@@ -300,6 +303,20 @@
       <button onclick="openQuiebre()" class="bg-teal-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">+ Quiebre</button></div>
     <p class="text-xs text-slate-500 mb-3">El supervisor de piso informa los productos sin stock. Se avisa a gerencia con el proveedor que lo distribuye para hacer el pedido.</p>
     <div id="listaQuiebre" class="space-y-2"></div>
+  </section>
+
+  <!-- ======== ROTACIÓN Y ABC ======== -->
+  <section data-view="rotacion" hidden>
+    <h2 class="text-lg font-bold mb-1">Rotación y clasificación ABC</h2>
+    <p class="text-xs text-slate-500 mb-3">Métricas automáticas a partir de las salidas de producto (ventas).</p>
+    <div id="listaRotacion"></div>
+  </section>
+
+  <!-- ======== EVALUACIÓN DE COMPRAS ======== -->
+  <section data-view="compras" hidden>
+    <h2 class="text-lg font-bold mb-1">Evaluación de compras</h2>
+    <p class="text-xs text-slate-500 mb-3">Indicador del encargado de compras: disponibilidad de productos A y capital detenido en productos C.</p>
+    <div id="comprasBox"></div>
   </section>
 
   <!-- ======== PISO DE VENTA ======== -->
@@ -474,7 +491,7 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
@@ -484,7 +501,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.27"; // se incrementa con cada mejora
+const APP_VERSION="4.28"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -700,6 +717,7 @@ function esGerencia(){ return !!(currentUser && currentUser.es_gerencia); }
 function bloqueoEdicion(id){ if(id && !esGerencia()){ toast("Solo gerencia puede modificar un registro ya guardado"); return true; } return false; }
 function puedeEditarEmpleado(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("empleados_editar"))); }
 function puedeEditarInv(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("inventario_editar"))); }
+function puedeRegistrarSalida(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("inventario_editar") || (currentUser.permisos||[]).includes("compras"))); }
 /* Editar un empleado concreto: gerencia siempre; o quien tenga permiso "empleados_editar"
    y sea de la MISMA área del empleado (si el usuario tiene áreas asignadas). */
 function puedeEditarEmpleadoDe(emp){ if(!currentUser) return false; if(currentUser.es_gerencia) return true;
@@ -766,13 +784,15 @@ const MODULES = {
   recepcion:{parent:"productos",title:"Recepción",sub:"Productos y Compras"},
   merma:{parent:"productos",title:"Merma",sub:"Productos y Compras"},
   quiebre:{parent:"productos",title:"Quiebre de inventario",sub:"Productos y Compras"},
+  rotacion:{parent:"productos",title:"Rotación y ABC",sub:"Productos y Compras"},
+  compras:{parent:"productos",title:"Evaluación de compras",sub:"Productos y Compras"},
   caja:{parent:"finanzas",title:"Caja",sub:"Caja y Finanzas"},
   tesoreria:{parent:"finanzas",title:"Tesorería",sub:"Caja y Finanzas"},
   deudas:{parent:"finanzas",title:"Finanzas",sub:"Caja y Finanzas"},
   conexiones:{parent:"finanzas",title:"Conexiones",sub:"Caja y Finanzas"},
 };
 const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"]];
-const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"],["quiebre","🚨","Quiebre"]];
+const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"],["quiebre","🚨","Quiebre"],["rotacion","🔥","Rotación/ABC"],["compras","🛒","Compras"]];
 const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"],["incpersonal","⏰","Asistencia personal"]];
 const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
 /* ---- Idioma (chino tradicional) — solo textos del menú/etiquetas, NO los datos ---- */
@@ -801,7 +821,7 @@ let currentView="inicio";
 
 /* ---------- USUARIOS Y PERMISOS ---------- */
 const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia"];
-const PROD_VIEWS=["proveedores","inventario","ordenes","recepcion","merma","quiebre"];
+const PROD_VIEWS=["proveedores","inventario","ordenes","recepcion","merma","quiebre","rotacion","compras"];
 const SUP_VIEWS=["piso","tareas","asignaciones","diaslibres","incpersonal"];
 const FIN_VIEWS=["caja","tesoreria","deudas","conexiones"];
 // Todas las opciones que gerencia puede otorgar/quitar por usuario (tesoreria es solo gerencia, por eso no está aquí)
@@ -809,7 +829,7 @@ const OPCIONES=[
   ["resumen","Resumen / indicadores del inicio"],
   ["empleados","Personal"],["empleados_editar","Modificar personal (editar datos de empleados)"],["nomina","Nómina"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],["incpersonal","Incidencias de personal (asistencia)"],
-  ["proveedores","Proveedores"],["inventario","Inventario"],["inventario_editar","Modificar inventario (crear/editar/eliminar productos y stock)"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],
+  ["proveedores","Proveedores"],["inventario","Inventario"],["inventario_editar","Modificar inventario (crear/editar/eliminar productos y stock)"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],["rotacion","Rotación y clasificación ABC"],["compras","Compras (evaluación e indicadores del encargado)"],
   ["caja","Caja (cierres y arqueos)"],["caja_editar","Modificar cajas con día cerrado (autorizado por gerencia)"],["tesoreria","Tesorería (totales y tasa)"],["deudas","Finanzas (deudas, pagos y facturas recibidas)"],["conexiones","Conexiones (quién se conecta)"]
 ];
 const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma","quiebre"];
@@ -1386,8 +1406,158 @@ function openProducto(id){ const p=id?prodById(id):{};
 async function saveProducto(id){ if(!puedeEditarInv()){ toast("No tienes permiso para modificar el inventario"); return; } const r=readForm(["nombre","codigo","categoria","unidad","empaque","unidades_empaque","stock","stock_min","precio_compra","proveedor_id"]); if(!r.nombre){ toast("Falta el nombre"); return; }
   ["stock","stock_min","precio_compra","unidades_empaque"].forEach(k=>r[k]=Number(r[k])||0); try{ id?await db.update("productos",id,r):await db.insert("productos",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delProducto(id){ if(!puedeEditarInv()){ toast("No tienes permiso para modificar el inventario"); return; } if(confirm("¿Eliminar?")){ await db.remove("productos",id); closeModal(); render(); } }
+
+/* ===================== SALIDAS, ROTACIÓN Y CLASIFICACIÓN ABC ===================== */
+const SAL_MOTIVOS=["venta","consumo","dañado","ajuste"];
+const ABC_DIAS=90;   // ventana de análisis para la clasificación ABC (se recalcula sola)
+function diasAtras(n){ const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
+function salFecha(s){ return String(s.fecha||(s.creado?String(s.creado).slice(0,10):"")||""); }
+function esVenta(s){ return (s.motivo||"venta")==="venta"; }
+/* Suma cantidades y valor (cantidad × costo) por producto en los últimos `dias` días */
+function ventasProducto(dias, soloVenta){ const desde=diasAtras(dias); const map={};
+  db.list("salidas").forEach(s=>{ if(soloVenta && !esVenta(s)) return; if(salFecha(s)<desde) return; const k=s.producto_id||s.nombre; if(!k) return;
+    const q=Number(s.cantidad)||0; const pref=prodById(s.producto_id); const pc=Number(s.precio_compra)|| (pref?Number(pref.precio_compra)||0:0);
+    if(!map[k]) map[k]={qty:0,valor:0,nombre:s.nombre||(pref&&pref.nombre)||"?"}; map[k].qty+=q; map[k].valor+=q*pc; });
+  return map; }
+let _abcCache=null;
+/* Clasificación ABC automática por VALOR (Pareto): A ≤80% del valor, B ≤95%, C el resto.
+   Los productos sin ventas en la ventana quedan en C (capital detenido / baja rotación). */
+function abcMap(){ const ver=db.list("salidas").length+"/"+db.list("productos").length;
+  if(_abcCache && _abcCache.ver===ver) return _abcCache.map;
+  const vt=ventasProducto(ABC_DIAS,true);
+  const arr=Object.keys(vt).map(k=>({k,valor:vt[k].valor})).filter(x=>x.valor>0).sort((a,b)=>b.valor-a.valor);
+  const total=arr.reduce((s,x)=>s+x.valor,0); const map={}; let acc=0;
+  arr.forEach(x=>{ const prev=total>0?acc/total:1; acc+=x.valor; map[x.k]= prev<0.8?"A": prev<0.95?"B":"C"; });
+  db.list("productos").forEach(p=>{ if(!map[p.id]) map[p.id]="C"; });
+  _abcCache={ver,map}; return map; }
+function abcDe(prodId){ return abcMap()[prodId]||"C"; }
+function abcBadge(cls){ const c=cls||"C"; const col=c==="A"?"bg-emerald-100 text-emerald-700":c==="B"?"bg-amber-100 text-amber-700":"bg-slate-100 text-slate-500";
+  return `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full ${col}" title="Clasificación ABC (por valor de ventas)">ABC: ${c}</span>`; }
+/* Un producto está "quebrado" si su stock cayó a 0 o por debajo del mínimo */
+function enQuiebreStock(p){ return (Number(p.stock)||0)<=(Number(p.stock_min)||0); }
+
+/* ---- Salida de producto: descuenta del inventario y registra la venta/salida ---- */
+let salItem=null;
+function openSalida(prefillId){ if(!puedeRegistrarSalida()){ toast("No tienes permiso para registrar salidas"); return; }
+  salItem=null; const p=prefillId?prodById(prefillId):null;
+  openModal(`<h3 class="font-bold text-lg mb-1">Salida de producto</h3><p class="text-xs text-slate-500 mb-3">Descuenta del inventario. Las ventas alimentan la rotación y la clasificación ABC.</p><div class="space-y-3">
+    <div class="space-y-1"><label class="text-xs text-slate-500">Producto</label>
+      <div class="flex gap-2"><input id="sal_prod_txt" list="dlProductos" value="${p?esc(p.nombre):""}" oninput="resolverSalProd()" placeholder="🔎 Escribe o escanea…" class="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-sm"><input type="hidden" id="sal_prod" value="${p?esc(p.id):""}">
+        <button type="button" onclick="escanearSalida()" class="bg-teal-600 text-white px-4 rounded-xl font-semibold shrink-0">📷</button></div>
+      <p id="sal_info" class="text-[11px] text-slate-400"></p></div>
+    <div class="grid grid-cols-2 gap-3"><div><label class="text-xs text-slate-500">Cantidad (unidades)</label><input id="sal_cant" type="number" min="0" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
+      <div><label class="text-xs text-slate-500">Motivo</label><select id="sal_motivo" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="venta">Venta</option><option value="consumo">Consumo interno</option><option value="dañado">Dañado / vencido</option><option value="ajuste">Ajuste de inventario</option></select></div></div>
+    <div><label class="text-xs text-slate-500">Fecha</label><input id="sal_fecha" type="date" value="${hoy()}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
+    </div>
+    <div class="flex gap-2 mt-5"><button onclick="saveSalida()" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Registrar salida</button>
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+  if(p) pintarSalInfo(p);
+}
+function resolverSalProd(){ const txt=document.getElementById("sal_prod_txt"), hid=document.getElementById("sal_prod"); if(!txt||!hid) return;
+  const q=(txt.value||"").trim().toLowerCase(); const p=q?db.list("productos").find(x=>(x.nombre||"").trim().toLowerCase()===q):null; hid.value=p?p.id:""; pintarSalInfo(p); }
+function pintarSalInfo(p){ const el=document.getElementById("sal_info"); if(!el) return; if(!p){ el.textContent=""; return; }
+  el.innerHTML=`Stock actual: <b>${Number(p.stock)||0}</b> ${esc(p.unidad||"")} · mín ${Number(p.stock_min)||0} · ${abcBadge(abcDe(p.id))}`; }
+function escanearSalida(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c);
+  const hid=document.getElementById("sal_prod"), txt=document.getElementById("sal_prod_txt");
+  if(p && hid){ hid.value=p.id; if(txt) txt.value=p.nombre; pintarSalInfo(p); const cant=document.getElementById("sal_cant"); if(cant) cant.focus(); toast("✔ "+p.nombre); }
+  else { toast("Código "+c+" no está en inventario. Cárgalo primero."); } }); }
+async function saveSalida(){ if(!puedeRegistrarSalida()){ toast("Sin permiso"); return; }
+  const pid=document.getElementById("sal_prod").value; const cant=Number(document.getElementById("sal_cant").value)||0;
+  const motivo=document.getElementById("sal_motivo").value||"venta"; const fecha=document.getElementById("sal_fecha").value||hoy();
+  const p=prodById(pid); if(!p){ toast("Elige un producto de la lista"); return; }
+  if(cant<=0){ toast("Indica una cantidad válida"); return; }
+  const stock=Number(p.stock)||0;
+  if(cant>stock){ if(!confirm("La cantidad ("+cant+") es mayor al stock actual ("+stock+"). El stock quedará en negativo. ¿Continuar?")) return; }
+  try{
+    await db.update("productos",pid,{stock:stock-cant});
+    await db.insert("salidas",{ producto_id:pid, nombre:p.nombre, categoria:p.categoria||"", cantidad:cant, motivo, precio_compra:Number(p.precio_compra)||0, fecha, usuario:currentUser?currentUser.nombre:"" });
+    _abcCache=null; closeModal(); render(); toast("Salida registrada. Inventario actualizado.");
+  }catch(e){ toast("Error: "+e.message); }
+}
+async function delSalida(id){ if(!esGerencia()){ toast("Solo gerencia puede eliminar salidas"); return; } if(confirm("¿Eliminar esta salida? (no repone el stock automáticamente)")){ await db.remove("salidas",id); _abcCache=null; render(); toast("Salida eliminada"); } }
+
+/* ---- Rotación semanal + clasificación ABC (vista de métricas) ---- */
+function renderRotacion(){ const c=document.getElementById("listaRotacion"); if(!c) return;
+  const dias=7; const vt=ventasProducto(dias,true);
+  const top=Object.keys(vt).map(k=>({k,...vt[k]})).sort((a,b)=>b.qty-a.qty).slice(0,20);
+  const maxQ=top.length?top[0].qty:0;
+  const abc=abcMap(); const prods=db.list("productos");
+  const cont={A:0,B:0,C:0}, val={A:0,B:0,C:0};
+  const vt90=ventasProducto(ABC_DIAS,true);
+  prods.forEach(p=>{ const cl=abc[p.id]||"C"; cont[cl]++; val[cl]+=(vt90[p.id]?vt90[p.id].valor:0); });
+  const totVal=val.A+val.B+val.C||1;
+  const barra=(q)=>`<div class="h-2 rounded-full bg-teal-500" style="width:${maxQ?Math.max(4,Math.round(q/maxQ*100)):0}%"></div>`;
+  const clsCard=(cl,desc,color)=>`<div class="bg-white rounded-2xl p-3 shadow-sm"><div class="flex items-center justify-between"><span class="text-sm font-bold ${color}">Clase ${cl}</span><span class="text-lg font-bold">${cont[cl].toLocaleString("es-VE")}</span></div><p class="text-[11px] text-slate-500">${desc}</p><p class="text-[11px] text-slate-400 mt-1">${Math.round(val[cl]/totVal*100)}% del valor · ${money(val[cl])}</p></div>`;
+  c.innerHTML=`
+    <div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-xs mb-3">La clasificación ABC se recalcula sola con las ventas de los últimos ${ABC_DIAS} días. La rotación muestra los últimos ${dias} días.</div>
+    <h3 class="font-bold text-sm text-slate-600 mb-2">Clasificación ABC (automática, por valor)</h3>
+    <div class="grid grid-cols-3 gap-2 mb-4">
+      ${clsCard("A","Alta prioridad: nunca deben faltar","text-emerald-700")}
+      ${clsCard("B","Prioridad media","text-amber-700")}
+      ${clsCard("C","Baja rotación: cuidar el sobre-stock","text-slate-500")}
+    </div>
+    <h3 class="font-bold text-sm text-slate-600 mb-2">🔥 Mayor rotación — últimos ${dias} días</h3>
+    ${top.length? `<div class="space-y-2">`+top.map((x,i)=>{ const p=prodById(x.k);
+      return `<div class="bg-white rounded-xl p-3 shadow-sm"><div class="flex items-center justify-between gap-2"><span class="text-sm font-medium truncate">${i+1}. ${esc(x.nombre)} ${abcBadge(abc[x.k]||"C")}</span><span class="text-sm font-bold text-teal-700 shrink-0">${x.qty.toLocaleString("es-VE")} u</span></div><div class="mt-1">${barra(x.qty)}</div></div>`; }).join("")+`</div>`
+      : `<p class="text-sm text-slate-400 text-center py-6">Aún no hay ventas registradas. Usa el botón «Salida» del inventario para registrar las ventas.</p>` }`;
+}
+
+/* ---- Evaluación de compras: indicadores del encargado de compras ---- */
+function comprasKPIs(){ const abc=abcMap(); const prods=db.list("productos");
+  const aTotal=prods.filter(p=>(abc[p.id]||"C")==="A");
+  const aQuebrados=aTotal.filter(enQuiebreStock);
+  const cProds=prods.filter(p=>(abc[p.id]||"C")==="C");
+  const valorC=cProds.reduce((s,p)=>s+((Number(p.stock)||0)>0?(Number(p.stock)||0)*(Number(p.precio_compra)||0):0),0);
+  const valorTotal=prods.reduce((s,p)=>s+((Number(p.stock)||0)>0?(Number(p.stock)||0)*(Number(p.precio_compra)||0):0),0);
+  const fill= aTotal.length? Math.round((aTotal.length-aQuebrados.length)/aTotal.length*100):100;
+  const pctC= valorTotal>0? Math.round(valorC/valorTotal*100):0;
+  // Puntaje simple: disponibilidad de A (70%) + penalización por capital en C (30%)
+  const score=Math.max(0, Math.round(fill*0.7 + (100-pctC)*0.3));
+  return {aTotal:aTotal.length, aQuebrados, cProds:cProds.length, valorC, valorTotal, pctC, fill, score};
+}
+function renderCompras(){ const c=document.getElementById("comprasBox"); if(!c) return; const k=comprasKPIs();
+  const tono=(v,bueno,malo)=> v>=bueno?"text-emerald-600": v>=malo?"text-amber-600":"text-red-600";
+  const listaA=k.aQuebrados.slice(0,20).map(p=>`<div class="flex items-center justify-between text-xs border-b border-slate-100 py-1.5"><span class="truncate">${esc(p.nombre)} ${abcBadge("A")}</span><span class="text-red-600 font-semibold shrink-0">${Number(p.stock)||0} / mín ${Number(p.stock_min)||0}</span></div>`).join("");
+  c.innerHTML=`
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Disponibilidad de productos A</p><p class="text-2xl font-bold ${tono(k.fill,95,85)}">${k.fill}%</p><p class="text-[11px] text-slate-400">Objetivo: 100% (los A nunca deben faltar)</p></div>
+      <div class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">🚨 Quiebres en productos A</p><p class="text-2xl font-bold ${k.aQuebrados.length?'text-red-600':'text-emerald-600'}">${k.aQuebrados.length}</p><p class="text-[11px] text-slate-400">de ${k.aTotal} productos clase A</p></div>
+      <div class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Inventario detenido en C</p><p class="text-2xl font-bold ${tono(100-k.pctC,80,60)}">${k.pctC}%</p><p class="text-[11px] text-slate-400">${money(k.valorC)} en ${k.cProds} productos C</p></div>
+      <div class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Puntaje de compras</p><p class="text-2xl font-bold ${tono(k.score,85,70)}">${k.score}</p><p class="text-[11px] text-slate-400">Disponibilidad de A + control de C</p></div>
+    </div>
+    <div class="bg-white rounded-2xl p-3 shadow-sm mb-3">
+      <p class="text-sm font-bold text-slate-600 mb-1">Productos A en quiebre — atención inmediata</p>
+      ${k.aQuebrados.length? listaA + (k.aQuebrados.length>20?`<p class="text-[11px] text-slate-400 mt-1">y ${k.aQuebrados.length-20} más…</p>`:"") : `<p class="text-xs text-emerald-600 py-2">✔ Ningún producto A está en quiebre. ¡Bien!</p>`}
+    </div>
+    ${esGerencia()? `<button onclick="openEvalCompras()" class="w-full bg-teal-700 text-white font-semibold py-2.5 rounded-xl">📝 Registrar evaluación del mes</button>` : ""}
+    <div id="evalComprasHist" class="mt-3"></div>`;
+  renderEvalComprasHist();
+}
+function periodoActual(){ return new Date().toISOString().slice(0,7); }
+function openEvalCompras(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const k=comprasKPIs();
+  openModal(`<h3 class="font-bold text-lg mb-1">Evaluación de compras</h3><p class="text-xs text-slate-500 mb-3">Período ${periodoActual()}. Indicadores automáticos guardados como referencia.</p><div class="space-y-3">
+    <div class="bg-slate-50 rounded-xl p-2 text-xs text-slate-600">Quiebres en A: <b>${k.aQuebrados.length}</b> · Disponibilidad A: <b>${k.fill}%</b> · Capital en C: <b>${money(k.valorC)}</b> (${k.pctC}%)</div>
+    ${field("ec_encargado","Encargado de compras","")}
+    <div><label class="text-xs text-slate-500">Puntaje (1 a 5)</label><select id="ec_puntaje" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option>5</option><option>4</option><option selected>3</option><option>2</option><option>1</option></select></div>
+    <div><label class="text-xs text-slate-500">Observaciones</label><textarea id="ec_nota" rows="3" placeholder="Comentarios de gerencia sobre la gestión de compras del mes" class="w-full px-3 py-2 rounded-xl border border-slate-200"></textarea></div>
+    </div>
+    <div class="flex gap-2 mt-5"><button onclick="saveEvalCompras()" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar evaluación</button>
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+}
+async function saveEvalCompras(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const k=comprasKPIs();
+  const r={ periodo:periodoActual(), encargado:(document.getElementById("ec_encargado").value||"").trim(), puntaje:Number(document.getElementById("ec_puntaje").value)||0,
+    quiebres_a:k.aQuebrados.length, valor_c:k.valorC, nota:(document.getElementById("ec_nota").value||"").trim(), evaluador:currentUser?currentUser.nombre:"" };
+  try{ await db.insert("eval_compras",r); closeModal(); render(); toast("Evaluación guardada"); }catch(e){ toast("Error: "+e.message); }
+}
+function renderEvalComprasHist(){ const el=document.getElementById("evalComprasHist"); if(!el) return;
+  const l=db.list("eval_compras").sort((a,b)=>String(b.creado||b.periodo||"").localeCompare(String(a.creado||a.periodo||""))).slice(0,12);
+  if(!l.length){ el.innerHTML=""; return; }
+  el.innerHTML=`<p class="text-sm font-bold text-slate-600 mb-2">Historial de evaluaciones</p><div class="space-y-2">`+l.map(e=>`<div class="bg-white rounded-xl p-3 shadow-sm"><div class="flex items-center justify-between"><span class="text-sm font-semibold">${esc(e.periodo||"")} · ${esc(e.encargado||"—")}</span><span class="text-sm font-bold text-teal-700">${Number(e.puntaje)||0}/5</span></div><p class="text-[11px] text-slate-500 mt-0.5">Quiebres A: ${Number(e.quiebres_a)||0} · Capital C: ${money(Number(e.valor_c)||0)}</p>${e.nota?`<p class="text-xs text-slate-600 mt-1">${esc(e.nota)}</p>`:""}${esGerencia()?`<button onclick="delEvalCompras('${e.id}')" class="text-[11px] text-red-500 mt-1">Eliminar</button>`:""}</div>`).join("")+`</div>`;
+}
+async function delEvalCompras(id){ if(!esGerencia()){ toast("Solo gerencia"); return; } if(confirm("¿Eliminar esta evaluación?")){ await db.remove("eval_compras",id); render(); } }
 function renderInventario(){ const q=(document.getElementById("buscarProd")?.value||"").toLowerCase(); const soloBajo=document.getElementById("soloBajo")?.checked;
   const editaInv=puedeEditarInv(); ["btnNuevoProd","btnCargarProd"].forEach(bid=>{ const el=document.getElementById(bid); if(el) el.style.display=editaInv?"":"none"; });
+  { const bs=document.getElementById("btnSalidaProd"); if(bs) bs.style.display=puedeRegistrarSalida()?"":"none"; }
   const todos=db.list("productos"); const bajoMin=todos.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0)).length;
   let l=todos.filter(p=>[p.nombre,p.categoria,p.codigo].join(" ").toLowerCase().includes(q)); if(soloBajo) l=l.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0));
   l=l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
@@ -1396,9 +1566,9 @@ function renderInventario(){ const q=(document.getElementById("buscarProd")?.val
     const toggle=esGerencia()?`<label class="flex items-center justify-between gap-2 bg-white rounded-xl px-3 py-2 text-xs shadow-sm mb-2"><span class="text-slate-600 font-semibold">👁 Mostrar precio costo al personal</span><input type="checkbox" ${verCostoCfg?"checked":""} onchange="toggleVerCosto(this)" class="w-4 h-4"></label>`:"";
     cnt.innerHTML=toggle+`<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-xs flex items-center justify-between"><span>📦 <b>${todos.length.toLocaleString("es-VE")}</b> productos en total${bajoMin?` · <span class="text-red-600">${bajoMin} bajo mínimo</span>`:""}</span>${filtrando?`<span class="text-slate-500">${l.length.toLocaleString("es-VE")} mostrados</span>`:""}</div>`; }
   const c=document.getElementById("listaInventario"); if(!l.length){ c.innerHTML=empty(q||soloBajo?"Sin resultados.":"Sin productos."); return; }
-  const vco=verCosto();
+  const vco=verCosto(); const abc=abcMap();
   c.innerHTML=l.map(p=>{ const bajo=(Number(p.stock)||0)<=(Number(p.stock_min)||0);
-    return `<div onclick="openProducto('${p.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(p.nombre)}</p><p class="text-xs text-slate-500 truncate">${p.codigo?"🏷 "+esc(p.codigo)+" · ":""}${esc(p.categoria||"—")}${vco?" · "+money(p.precio_compra):""}${(Number(p.unidades_empaque)||0)>0?" · 📦 "+esc(p.empaque||"Bulto")+" x"+(Number(p.unidades_empaque)||0):""}</p></div>
+    return `<div onclick="openProducto('${p.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(p.nombre)} ${abcBadge(abc[p.id]||"C")}</p><p class="text-xs text-slate-500 truncate">${p.codigo?"🏷 "+esc(p.codigo)+" · ":""}${esc(p.categoria||"—")}${vco?" · "+money(p.precio_compra):""}${(Number(p.unidades_empaque)||0)>0?" · 📦 "+esc(p.empaque||"Bulto")+" x"+(Number(p.unidades_empaque)||0):""}</p></div>
     <div class="text-right"><p class="text-sm font-bold ${bajo?"text-red-600":"text-slate-700"}">${Number(p.stock)||0} ${esc(p.unidad||"")}</p>${bajo?`<span class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700">Bajo mínimo</span>`:`<span class="text-[10px] text-slate-400">mín: ${Number(p.stock_min)||0}</span>`}</div></div>`; }).join("");
 }
 
@@ -2707,6 +2877,11 @@ function renderInicio(){
   document.getElementById("mIncid").textContent=db.list("piso_incidencias").filter(x=>x.estado!=="Resuelta").length;
   document.getElementById("mRepo").textContent=db.list("piso_secciones").filter(s=>s.estado!=="Surtida").length;
   { const mq=document.getElementById("mQuiebre"); if(mq) mq.textContent=db.list("quiebres").filter(q=>(q.status||"Pendiente")!=="Resuelto").length; }
+  { const verComp=esGerencia()||puede("compras"); const ca=document.getElementById("card_compA"), cc=document.getElementById("card_compC");
+    if(ca) ca.style.display=verComp?"":"none"; if(cc) cc.style.display=verComp?"":"none";
+    if(verComp){ const k=comprasKPIs(); const ma=document.getElementById("mCompA"), mc=document.getElementById("mCompC");
+      if(ma){ ma.textContent=k.aQuebrados.length; ma.className="text-2xl font-bold "+(k.aQuebrados.length?"text-red-600":"text-emerald-600"); }
+      if(mc) mc.textContent=money(k.valorC); } }
   const verResumen=puede("resumen");
   const rbx=document.getElementById("resumenBox"), hR=document.getElementById("hResumen");
   if(rbx) rbx.style.display=verResumen?"":"none"; if(hR) hR.style.display=verResumen?"":"none";
@@ -2733,6 +2908,7 @@ const RENDER_VISTA={
   piso:function(){ renderSecciones(); renderAsignGondolas(); renderIncidencias(); },
   proveedores:renderProveedores, inventario:renderInventario, ordenes:renderOrdenes,
   recepcion:function(){ renderRecepcion(); renderRecepHistory(); }, merma:renderMerma, quiebre:renderQuiebre,
+  rotacion:renderRotacion, compras:renderCompras,
   caja:renderCaja, tesoreria:renderTesoreria, deudas:renderDeudas, conexiones:renderConexiones,
   ajustes:renderAjustesView
 };
