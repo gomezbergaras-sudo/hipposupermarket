@@ -506,7 +506,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.34"; // se incrementa con cada mejora
+const APP_VERSION="4.35"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1165,23 +1165,41 @@ function renderAsistencia(){ const f=document.getElementById("filtroFecha")?.val
     if([...faA.options].some(o=>o.value===actual)) faA.value=actual; else { faA.value=""; areaSel=""; } }
   if(areaSel){ const mapArea={}; db.list("empleados").forEach(e=>{ mapArea[(e.nombre||"").trim().toLowerCase()]=(e.area||""); });
     l=l.filter(a=>{ const ar=mapArea[(a.empleado||"").trim().toLowerCase()]||""; return areaSel==="__none__"? !ar : (ar.trim().toLowerCase()===areaSel.trim().toLowerCase()); }); }
-  l=l.sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||"")||(a.empleado||"").localeCompare(b.empleado||"")); const c=document.getElementById("listaAsistencia");
-  // Resumen por empleado (reporte de llegadas tarde y horas extra)
-  const rz=document.getElementById("resumenAsistencia");
-  if(rz){ const ag={}; l.forEach(a=>{ const k=a.empleado||"—"; if(!ag[k]) ag[k]={nombre:k,dias:0,tarde:0,extra:0,tardeDias:0}; ag[k].dias++; const tt=Math.max(0,Number(a.tardanza)||0); const ex=Math.max(0,Number(a.extra)||0); ag[k].tarde+=tt; ag[k].extra+=ex; if(tt>0) ag[k].tardeDias++; });
-    const arr=Object.values(ag).sort((a,b)=>(b.tarde+b.extra)-(a.tarde+a.extra));
-    const totTarde=arr.reduce((s,x)=>s+x.tarde,0), totExtra=arr.reduce((s,x)=>s+x.extra,0);
-    rz.innerHTML=`<div class="flex items-center justify-between mb-2"><p class="text-sm font-bold text-slate-600">📊 Reporte tarde / horas extra${f?" — "+esc(f):""}</p><button onclick="toggleResumenAsis()" class="text-xs font-semibold text-teal-700">${_asisResumen?"Ver detalle":"Ver resumen"}</button></div>
-      <div class="grid grid-cols-2 gap-2 mb-2"><div class="bg-amber-50 rounded-xl p-2 text-center"><p class="text-[11px] text-amber-700">Total tarde</p><p class="font-bold text-amber-700">${fmtMin(totTarde)}</p></div><div class="bg-indigo-50 rounded-xl p-2 text-center"><p class="text-[11px] text-indigo-700">Total horas extra</p><p class="font-bold text-indigo-700">${fmtMin(totExtra)}</p></div></div>
-      ${_asisResumen?`<div class="space-y-1">${arr.map(x=>`<div class="bg-white rounded-xl px-3 py-2 shadow-sm flex items-center justify-between gap-2"><div class="min-w-0"><p class="font-semibold text-sm truncate">${esc(x.nombre)}</p><p class="text-[11px] text-slate-400">${x.dias} día(s)${x.tardeDias?` · ${x.tardeDias} tarde`:""}</p></div><div class="text-right shrink-0 text-xs"><span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">tarde ${fmtMin(x.tarde)}</span> <span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">extra ${fmtMin(x.extra)}</span></div></div>`).join("")}</div>`:""}`; }
-  if(!l.length){ if(rz) rz.innerHTML=""; c.innerHTML=empty("Sin registros para ese filtro. Cambia el trabajador, área o fecha."); return; }
-  if(_asisResumen){ c.innerHTML=""; return; }
+  const c=document.getElementById("listaAsistencia");
+  // Agrupar POR TRABAJADOR (el reporte es por trabajador, no por día)
   const mapAreaAll={}; db.list("empleados").forEach(e=>{ mapAreaAll[(e.nombre||"").trim().toLowerCase()]=(e.area||""); });
-  c.innerHTML=l.map(a=>{ const ar=mapAreaAll[(a.empleado||"").trim().toLowerCase()]||"";
-    return `<div onclick="openAsistencia('${a.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50">
-    <div class="flex items-center justify-between"><p class="font-semibold truncate">${esc(a.empleado)}${ar?` <span class="text-[10px] font-normal text-slate-400">· ${esc(ar)}</span>`:""}</p><p class="text-xs text-slate-400">${esc(a.fecha||"")}</p></div>
-    <div class="flex items-center gap-3 mt-1 text-xs text-slate-500"><span>🟢 ${esc(a.entrada||"—")}</span><span>🔴 ${esc(a.salida||"—")}</span><span>🍽 ${esc(a.almuerzo_inicio||"—")}-${esc(a.almuerzo_fin||"—")}</span></div>
-    <div class="flex items-center gap-2 mt-2 flex-wrap"><span class="text-[11px] px-2 py-0.5 rounded-full bg-teal-50 text-teal-700">${a.horas!=null?a.horas+" h":"—"}</span>${a.tardanza>0?`<span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Tarde ${a.tardanza} min</span>`:`<span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">A tiempo</span>`}${a.extra>0?`<span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Extra ${fmtMin(a.extra)}</span>`:""}</div></div>`; }).join("");
+  const ag={}; l.forEach(a=>{ const k=a.empleado||"—"; if(!ag[k]) ag[k]={nombre:k,dias:0,tarde:0,extra:0,tardeDias:0,horas:0,area:mapAreaAll[(k).trim().toLowerCase()]||""}; ag[k].dias++; const tt=Math.max(0,Number(a.tardanza)||0); const ex=Math.max(0,Number(a.extra)||0); ag[k].tarde+=tt; ag[k].extra+=ex; if(tt>0) ag[k].tardeDias++; ag[k].horas+=Number(a.horas)||0; });
+  const arr=Object.values(ag).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+  const totTarde=arr.reduce((s,x)=>s+x.tarde,0), totExtra=arr.reduce((s,x)=>s+x.extra,0);
+  const rz=document.getElementById("resumenAsistencia");
+  if(rz){ rz.innerHTML= arr.length?`<div class="mb-1"><p class="text-sm font-bold text-slate-600">📊 Reporte por trabajador${f?" — "+esc(f):""}</p><p class="text-[11px] text-slate-400">${arr.length} trabajador(es) · toca un nombre para ver su reporte completo</p></div>
+      <div class="grid grid-cols-2 gap-2 mt-2"><div class="bg-amber-50 rounded-xl p-2 text-center"><p class="text-[11px] text-amber-700">Total tarde</p><p class="font-bold text-amber-700">${fmtMin(totTarde)}</p></div><div class="bg-indigo-50 rounded-xl p-2 text-center"><p class="text-[11px] text-indigo-700">Total horas extra</p><p class="font-bold text-indigo-700">${fmtMin(totExtra)}</p></div></div>`:""; }
+  if(!arr.length){ c.innerHTML=empty("Sin registros para ese filtro. Cambia el trabajador, área o fecha."); return; }
+  c.innerHTML=arr.map(x=>`<div onclick="openReporteEmpleado('${esc(x.nombre).replace(/'/g,"\\'")}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50 flex items-center justify-between gap-2">
+    <div class="min-w-0"><p class="font-semibold truncate">${esc(x.nombre)}${x.area?` <span class="text-[10px] font-normal text-slate-400">· ${esc(x.area)}</span>`:""}</p>
+      <p class="text-[11px] text-slate-400">${x.dias} día(s) · ${(+x.horas).toFixed(1)} h${x.tardeDias?` · ${x.tardeDias} día(s) tarde`:""}</p>
+      <div class="flex items-center gap-2 mt-1 flex-wrap">${x.tarde>0?`<span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Tarde ${fmtMin(x.tarde)}</span>`:`<span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Sin retardos</span>`}${x.extra>0?`<span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Extra ${fmtMin(x.extra)}</span>`:""}</div></div>
+    <span class="text-slate-300 text-xl shrink-0">›</span></div>`).join("");
+}
+/* Reporte general de asistencia de un trabajador (todos sus días) */
+function openReporteEmpleado(nombre){
+  const recs=db.list("asistencia").filter(a=>(a.empleado||"").trim().toLowerCase()===String(nombre).trim().toLowerCase()).sort((a,b)=>String(b.fecha||"").localeCompare(String(a.fecha||"")));
+  const emp=db.list("empleados").find(e=>(e.nombre||"").trim().toLowerCase()===String(nombre).trim().toLowerCase());
+  let tarde=0,extra=0,tardeDias=0,horas=0; recs.forEach(a=>{ const tt=Math.max(0,Number(a.tardanza)||0), ex=Math.max(0,Number(a.extra)||0); tarde+=tt; extra+=ex; if(tt>0) tardeDias++; horas+=Number(a.horas)||0; });
+  const area=emp?(emp.area||""):""; const hE=(emp&&emp.h_entrada)?emp.h_entrada:"—", hS=(emp&&emp.h_salida)?emp.h_salida:"—";
+  const filas=recs.map(a=>`<div onclick="openAsistencia('${a.id}')" class="bg-white border border-slate-100 rounded-lg px-2 py-1.5 active:bg-slate-50">
+    <div class="flex items-center justify-between"><span class="text-xs font-semibold">${esc(a.fecha||"")}</span><span class="text-[11px] text-slate-500">🟢 ${esc(a.entrada||"—")} · 🔴 ${esc(a.salida||"—")}</span></div>
+    <div class="flex items-center gap-2 mt-1 flex-wrap"><span class="text-[10px] px-1.5 py-0.5 rounded-full bg-teal-50 text-teal-700">${a.horas!=null?a.horas+" h":"—"}</span>${a.almuerzo_inicio?`<span class="text-[10px] text-slate-400">🍽 ${esc(a.almuerzo_inicio)}-${esc(a.almuerzo_fin||"—")}</span>`:""}${Number(a.tardanza)>0?`<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Tarde ${a.tardanza}m</span>`:""}${Number(a.extra)>0?`<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Extra ${fmtMin(a.extra)}</span>`:""}</div></div>`).join("");
+  openModal(`<h3 class="font-bold text-lg mb-0.5">${esc(nombre)}</h3>
+    <p class="text-xs text-slate-500 mb-2">${area?esc(area)+" · ":""}Horario fijado: ${esc(hE)} a ${esc(hS)}${(!emp)?' · <span class="text-amber-600">no está en Personal (revisa el nombre)</span>':""}</p>
+    <div class="grid grid-cols-4 gap-1.5 mb-3 text-center">
+      <div class="bg-slate-100 rounded-xl p-2"><p class="text-[10px] text-slate-500">Días</p><p class="font-bold text-sm">${recs.length}</p></div>
+      <div class="bg-teal-50 rounded-xl p-2"><p class="text-[10px] text-teal-700">Horas</p><p class="font-bold text-sm text-teal-700">${horas.toFixed(1)}</p></div>
+      <div class="bg-amber-50 rounded-xl p-2"><p class="text-[10px] text-amber-700">Tarde</p><p class="font-bold text-sm text-amber-700">${fmtMin(tarde)}</p><p class="text-[9px] text-amber-600">${tardeDias} día(s)</p></div>
+      <div class="bg-indigo-50 rounded-xl p-2"><p class="text-[10px] text-indigo-700">Extra</p><p class="font-bold text-sm text-indigo-700">${fmtMin(extra)}</p></div></div>
+    <p class="text-[11px] font-semibold text-slate-500 mb-1">Detalle por día (toca uno para editar)</p>
+    <div class="space-y-1 max-h-[46vh] overflow-y-auto">${recs.length?filas:`<p class="text-xs text-slate-400 text-center py-4">Sin registros.</p>`}</div>
+    <button onclick="closeModal()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`);
 }
 const COL_MAP={ empleado:["empleado","nombre","trabajador","name"],fecha:["fecha","dia","date"],entrada:["entrada","hora entrada","hora de entrada","entry","in"],salida:["salida","hora salida","hora de salida","exit","out"],almuerzo_inicio:["almuerzo inicio","inicio almuerzo","salida almuerzo","almuerzoinicio"],almuerzo_fin:["almuerzo fin","fin almuerzo","regreso almuerzo","almuerzofin"] };
 function pick(o,keys){ const low={}; Object.keys(o).forEach(k=>low[k.toString().trim().toLowerCase()]=o[k]); for(const k of keys){ if(low[k]!==undefined&&low[k]!=="") return low[k]; } return ""; }
