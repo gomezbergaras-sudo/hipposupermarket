@@ -177,10 +177,13 @@
       </div>
       <p id="importMsg" class="text-xs mt-2"></p>
     </div>
-    <div class="flex items-center gap-2 mb-2">
-      <input id="filtroFecha" type="date" onchange="renderAsistencia()" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" />
-      <button onclick="document.getElementById('filtroFecha').value='';renderAsistencia()" class="text-xs text-teal-700 font-semibold">Ver todo</button>
+    <div class="space-y-2 mb-2">
+      <div class="flex gap-2"><input id="filtroEmpAsis" list="dlEmpleados" oninput="renderAsistencia()" placeholder="🔎 Trabajador (nombre)" class="flex-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" />
+        <select id="filtroAreaAsis" onchange="renderAsistencia()" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm"></select></div>
+      <div class="flex items-center gap-2"><input id="filtroFecha" type="date" onchange="renderAsistencia()" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" />
+        <button onclick="limpiarFiltrosAsis()" class="text-xs text-teal-700 font-semibold">Limpiar filtros</button></div>
     </div>
+    <div id="resumenAsistencia" class="bg-white rounded-2xl p-3 shadow-sm mb-3"></div>
     <div id="listaAsistencia" class="space-y-2"></div>
   </section>
 
@@ -503,7 +506,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.32"; // se incrementa con cada mejora
+const APP_VERSION="4.34"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1129,9 +1132,13 @@ function fechaLocal(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padSta
 function hoy(){ return fechaLocal(new Date()); }  // fecha LOCAL del dispositivo (no UTC)
 function hhmmToMin(t){ if(!t) return null; const m=String(t).match(/(\d{1,2}):(\d{2})/); return m?(+m[1])*60+(+m[2]):null; }
 function calcAsistencia(r){ const ent=hhmmToMin(r.entrada),sal=hhmmToMin(r.salida),ai=hhmmToMin(r.almuerzo_inicio),af=hhmmToMin(r.almuerzo_fin);
-  let horas=null,tardanza=0; if(ent!=null&&sal!=null){ let t=sal-ent; if(ai!=null&&af!=null) t-=(af-ai); horas=Math.max(0,+(t/60).toFixed(2)); }
+  let horas=null,tardanza=0,extra=0; if(ent!=null&&sal!=null){ let t=sal-ent; if(ai!=null&&af!=null) t-=(af-ai); horas=Math.max(0,+(t/60).toFixed(2)); }
   const emp=r.empleado?db.list("empleados").find(e=>(e.nombre||"").trim().toLowerCase()===String(r.empleado).trim().toLowerCase()):null;
-  const esp=hhmmToMin((emp&&emp.h_entrada)?emp.h_entrada:ajustes.horaEntrada); if(ent!=null&&esp!=null&&ent>esp) tardanza=ent-esp; return {horas,tardanza}; }
+  const esp=hhmmToMin((emp&&emp.h_entrada)?emp.h_entrada:ajustes.horaEntrada); if(ent!=null&&esp!=null&&ent>esp) tardanza=ent-esp;
+  // Horas extra: minutos que se quedó pasada su hora de salida fijada (solo si el empleado tiene h_salida)
+  const espSal=hhmmToMin(emp&&emp.h_salida?emp.h_salida:""); if(sal!=null&&espSal!=null&&sal>espSal) extra=sal-espSal;
+  return {horas,tardanza,extra}; }
+function fmtMin(m){ m=Math.round(Number(m)||0); if(m<=0) return "0m"; return m>=60?(Math.floor(m/60)+"h "+(m%60)+"m"):(m+"m"); }
 function openAsistencia(id){ const a=id?db.list("asistencia").find(x=>x.id===id):{};
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Registrar"} asistencia</h3><div class="space-y-3">
     ${field("empleado","Empleado (nombre)",a.empleado)}${field("fecha","Fecha",a.fecha||hoy(),"date")}
@@ -1144,13 +1151,37 @@ function openAsistencia(id){ const a=id?db.list("asistencia").find(x=>x.id===id)
 async function saveAsistencia(id){ if(bloqueoEdicion(id)) return; const r=readForm(["empleado","fecha","entrada","salida","almuerzo_inicio","almuerzo_fin"]); if(!r.empleado){ toast("Falta el empleado"); return; }
   Object.assign(r,calcAsistencia(r)); try{ id?await db.update("asistencia",id,r):await db.insert("asistencia",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delAsistencia(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar?")){ await db.remove("asistencia",id); closeModal(); render(); } }
+let _asisResumen=false;
+function toggleResumenAsis(){ _asisResumen=!_asisResumen; renderAsistencia(); }
+function limpiarFiltrosAsis(){ ["filtroEmpAsis","filtroFecha"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; }); const a=document.getElementById("filtroAreaAsis"); if(a) a.value=""; renderAsistencia(); }
+/* Área asignada a un empleado por su nombre (para filtrar la asistencia por área) */
+function areaDeEmpleadoNombre(nombre){ const e=db.list("empleados").find(x=>(x.nombre||"").trim().toLowerCase()===String(nombre||"").trim().toLowerCase()); return e?(e.area||""):""; }
 function renderAsistencia(){ const f=document.getElementById("filtroFecha")?.value; let l=db.list("asistencia"); if(f) l=l.filter(a=>a.fecha===f);
+  // Filtro por trabajador (nombre, contiene)
+  const qEmp=(document.getElementById("filtroEmpAsis")?.value||"").trim().toLowerCase(); if(qEmp) l=l.filter(a=>(a.empleado||"").toLowerCase().includes(qEmp));
+  // Filtro por área (según el área asignada al empleado en la app)
+  const faA=document.getElementById("filtroAreaAsis"); let areaSel="";
+  if(faA){ areaSel=faA.value; const actual=areaSel; faA.innerHTML=`<option value="">🏢 Todas las áreas</option>`+AREAS.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join("")+`<option value="__none__">— Sin área asignada —</option>`;
+    if([...faA.options].some(o=>o.value===actual)) faA.value=actual; else { faA.value=""; areaSel=""; } }
+  if(areaSel){ const mapArea={}; db.list("empleados").forEach(e=>{ mapArea[(e.nombre||"").trim().toLowerCase()]=(e.area||""); });
+    l=l.filter(a=>{ const ar=mapArea[(a.empleado||"").trim().toLowerCase()]||""; return areaSel==="__none__"? !ar : (ar.trim().toLowerCase()===areaSel.trim().toLowerCase()); }); }
   l=l.sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||"")||(a.empleado||"").localeCompare(b.empleado||"")); const c=document.getElementById("listaAsistencia");
-  if(!l.length){ c.innerHTML=empty("Sin registros. Importa tu Excel o agrega manual."); return; }
-  c.innerHTML=l.map(a=>`<div onclick="openAsistencia('${a.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50">
-    <div class="flex items-center justify-between"><p class="font-semibold truncate">${esc(a.empleado)}</p><p class="text-xs text-slate-400">${esc(a.fecha||"")}</p></div>
+  // Resumen por empleado (reporte de llegadas tarde y horas extra)
+  const rz=document.getElementById("resumenAsistencia");
+  if(rz){ const ag={}; l.forEach(a=>{ const k=a.empleado||"—"; if(!ag[k]) ag[k]={nombre:k,dias:0,tarde:0,extra:0,tardeDias:0}; ag[k].dias++; const tt=Math.max(0,Number(a.tardanza)||0); const ex=Math.max(0,Number(a.extra)||0); ag[k].tarde+=tt; ag[k].extra+=ex; if(tt>0) ag[k].tardeDias++; });
+    const arr=Object.values(ag).sort((a,b)=>(b.tarde+b.extra)-(a.tarde+a.extra));
+    const totTarde=arr.reduce((s,x)=>s+x.tarde,0), totExtra=arr.reduce((s,x)=>s+x.extra,0);
+    rz.innerHTML=`<div class="flex items-center justify-between mb-2"><p class="text-sm font-bold text-slate-600">📊 Reporte tarde / horas extra${f?" — "+esc(f):""}</p><button onclick="toggleResumenAsis()" class="text-xs font-semibold text-teal-700">${_asisResumen?"Ver detalle":"Ver resumen"}</button></div>
+      <div class="grid grid-cols-2 gap-2 mb-2"><div class="bg-amber-50 rounded-xl p-2 text-center"><p class="text-[11px] text-amber-700">Total tarde</p><p class="font-bold text-amber-700">${fmtMin(totTarde)}</p></div><div class="bg-indigo-50 rounded-xl p-2 text-center"><p class="text-[11px] text-indigo-700">Total horas extra</p><p class="font-bold text-indigo-700">${fmtMin(totExtra)}</p></div></div>
+      ${_asisResumen?`<div class="space-y-1">${arr.map(x=>`<div class="bg-white rounded-xl px-3 py-2 shadow-sm flex items-center justify-between gap-2"><div class="min-w-0"><p class="font-semibold text-sm truncate">${esc(x.nombre)}</p><p class="text-[11px] text-slate-400">${x.dias} día(s)${x.tardeDias?` · ${x.tardeDias} tarde`:""}</p></div><div class="text-right shrink-0 text-xs"><span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">tarde ${fmtMin(x.tarde)}</span> <span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">extra ${fmtMin(x.extra)}</span></div></div>`).join("")}</div>`:""}`; }
+  if(!l.length){ if(rz) rz.innerHTML=""; c.innerHTML=empty("Sin registros para ese filtro. Cambia el trabajador, área o fecha."); return; }
+  if(_asisResumen){ c.innerHTML=""; return; }
+  const mapAreaAll={}; db.list("empleados").forEach(e=>{ mapAreaAll[(e.nombre||"").trim().toLowerCase()]=(e.area||""); });
+  c.innerHTML=l.map(a=>{ const ar=mapAreaAll[(a.empleado||"").trim().toLowerCase()]||"";
+    return `<div onclick="openAsistencia('${a.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50">
+    <div class="flex items-center justify-between"><p class="font-semibold truncate">${esc(a.empleado)}${ar?` <span class="text-[10px] font-normal text-slate-400">· ${esc(ar)}</span>`:""}</p><p class="text-xs text-slate-400">${esc(a.fecha||"")}</p></div>
     <div class="flex items-center gap-3 mt-1 text-xs text-slate-500"><span>🟢 ${esc(a.entrada||"—")}</span><span>🔴 ${esc(a.salida||"—")}</span><span>🍽 ${esc(a.almuerzo_inicio||"—")}-${esc(a.almuerzo_fin||"—")}</span></div>
-    <div class="flex items-center gap-2 mt-2"><span class="text-[11px] px-2 py-0.5 rounded-full bg-teal-50 text-teal-700">${a.horas!=null?a.horas+" h":"—"}</span>${a.tardanza>0?`<span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Tarde ${a.tardanza} min</span>`:`<span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">A tiempo</span>`}</div></div>`).join("");
+    <div class="flex items-center gap-2 mt-2 flex-wrap"><span class="text-[11px] px-2 py-0.5 rounded-full bg-teal-50 text-teal-700">${a.horas!=null?a.horas+" h":"—"}</span>${a.tardanza>0?`<span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Tarde ${a.tardanza} min</span>`:`<span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">A tiempo</span>`}${a.extra>0?`<span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Extra ${fmtMin(a.extra)}</span>`:""}</div></div>`; }).join("");
 }
 const COL_MAP={ empleado:["empleado","nombre","trabajador","name"],fecha:["fecha","dia","date"],entrada:["entrada","hora entrada","hora de entrada","entry","in"],salida:["salida","hora salida","hora de salida","exit","out"],almuerzo_inicio:["almuerzo inicio","inicio almuerzo","salida almuerzo","almuerzoinicio"],almuerzo_fin:["almuerzo fin","fin almuerzo","regreso almuerzo","almuerzofin"] };
 function pick(o,keys){ const low={}; Object.keys(o).forEach(k=>low[k.toString().trim().toLowerCase()]=o[k]); for(const k of keys){ if(low[k]!==undefined&&low[k]!=="") return low[k]; } return ""; }
