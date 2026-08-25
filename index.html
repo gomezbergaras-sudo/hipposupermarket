@@ -86,6 +86,72 @@
   <div id="loginRoles" class="w-full max-w-xs space-y-3"></div>
 </div>
 
+<!-- ======== FORMULARIO PÚBLICO · TRABAJA CON NOSOTROS ======== -->
+<div id="publicoEmpleo" style="display:none" class="fixed inset-0 z-[70] overflow-y-auto bg-slate-100">
+  <div class="max-w-2xl mx-auto px-4 py-6">
+    <div class="rounded-t-3xl text-white p-6" style="background:linear-gradient(135deg,#0b3b6f,#1b5c9c)">
+      <div class="flex items-center gap-3 mb-3"><div class="w-14 h-14 rounded-full bg-white/15 flex items-center justify-center text-3xl">🏗️</div>
+        <div><p class="text-[11px] tracking-widest uppercase text-sky-200 font-bold" id="pe_kicker">Bolsa de empleo</p><h1 class="text-2xl font-extrabold" id="pe_titulo">Trabaja con nosotros</h1></div></div>
+      <p class="text-sky-100 text-sm" id="pe_lema">Buscamos gente que trabaje bien y cumpla los plazos. Déjanos tus datos y tu CV y te tenemos en cuenta.</p>
+    </div>
+    <div class="bg-white rounded-b-3xl p-4 shadow-sm mb-4 grid grid-cols-2 gap-3 text-center">
+      <div><p class="font-bold text-sm">💶 Pago puntual</p><p class="text-xs text-slate-500">Todos los días 1</p></div>
+      <div><p class="font-bold text-sm">📍 Obras cercanas</p><p class="text-xs text-slate-500">Sin dormir fuera</p></div>
+      <div><p class="font-bold text-sm">🛡️ Alta y PRL</p><p class="text-xs text-slate-500">Todo en regla</p></div>
+      <div><p class="font-bold text-sm">📈 Continuidad</p><p class="text-xs text-slate-500">Trabajo estable</p></div>
+    </div>
+
+    <div class="bg-white rounded-2xl p-5 shadow-sm">
+      <h2 class="text-xl font-bold mb-1">Envíanos tu candidatura</h2>
+      <p class="text-sm text-slate-500 mb-4">Dos minutos. Te contestamos siempre.</p>
+      <div id="pe_form" class="space-y-3">
+        <div><label class="text-xs font-semibold text-slate-600">¿A qué te dedicas? *</label>
+          <select id="pe_oficio" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white mt-1"><option value="">Elige tu oficio…</option></select></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-semibold text-slate-600">Nombre y apellidos *</label><input id="pe_nombre" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 mt-1"></div>
+          <div><label class="text-xs font-semibold text-slate-600">Teléfono *</label><input id="pe_telefono" type="tel" placeholder="600 000 000" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 mt-1"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-semibold text-slate-600">Correo electrónico *</label><input id="pe_correo" type="email" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 mt-1"></div>
+          <div><label class="text-xs font-semibold text-slate-600">Población donde vives *</label><input id="pe_poblacion" placeholder="Amposta, Tortosa…" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 mt-1"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-semibold text-slate-600">Experiencia en el oficio *</label>
+            <select id="pe_experiencia" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white mt-1"><option value="">Elige…</option><option>Menos de 1 año</option><option>1 a 3 años</option><option>3 a 5 años</option><option>5 a 10 años</option><option>Más de 10 años</option></select></div>
+          <div><label class="text-xs font-semibold text-slate-600">Cómo prefieres trabajar</label>
+            <select id="pe_modalidad" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white mt-1"><option value="">Elige…</option><option>Por cuenta ajena (contrato)</option><option>Autónomo</option><option>Cualquiera / a convenir</option></select></div>
+        </div>
+        <div><label class="text-xs font-semibold text-slate-600">Cuándo podrías empezar</label>
+          <div id="pe_chips" class="flex flex-wrap gap-2 mt-1">
+            <button type="button" class="pe-chip border border-slate-300 rounded-full px-4 py-2 text-sm font-semibold">Inmediata</button>
+            <button type="button" class="pe-chip border border-slate-300 rounded-full px-4 py-2 text-sm font-semibold">En 15 días</button>
+            <button type="button" class="pe-chip border border-slate-300 rounded-full px-4 py-2 text-sm font-semibold">En un mes</button>
+            <button type="button" class="pe-chip border border-slate-300 rounded-full px-4 py-2 text-sm font-semibold">A consultar</button>
+          </div></div>
+        <label class="flex items-center justify-between gap-3 border-t border-slate-100 pt-3"><span><b class="text-sm">Carnet de conducir B</b><br><span class="text-xs text-slate-500">Nos movemos entre obras a diario.</span></span><input type="checkbox" id="pe_carnet" class="w-6 h-6 accent-teal-700"></label>
+        <label class="flex items-center justify-between gap-3 border-t border-slate-100 pt-3"><span><b class="text-sm">Vehículo propio</b><br><span class="text-xs text-slate-500">No es imprescindible, pero suma.</span></span><input type="checkbox" id="pe_vehiculo" class="w-6 h-6 accent-teal-700"></label>
+        <div class="border-t border-slate-100 pt-3">
+          <label class="text-xs font-semibold text-slate-600">Tu currículum</label>
+          <label id="pe_upBox" class="block border-2 border-dashed border-slate-300 rounded-xl p-5 text-center cursor-pointer mt-1 active:bg-slate-50">
+            <div class="text-2xl">⬆️</div><b class="text-sm block mt-1" id="pe_upTitle">Toca para adjuntar tu CV</b><span class="text-xs text-slate-500" id="pe_upSub">PDF, Word, JPG o PNG · hasta 3 MB</span>
+            <input type="file" id="pe_cv" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="hidden"></label>
+          <p class="text-xs text-slate-400 mt-1">Si no tienes el CV a mano, no pasa nada: cuéntanoslo abajo.</p>
+        </div>
+        <div><label class="text-xs font-semibold text-slate-600">Cuéntanos algo de ti</label><textarea id="pe_sobreti" rows="3" placeholder="Qué sabes hacer, en qué obras has trabajado, qué buscas…" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 mt-1"></textarea></div>
+        <label class="flex items-center justify-between gap-3 border-t border-slate-100 pt-3"><span><b class="text-sm">Autorizo el tratamiento de mis datos *</b><br><span class="text-xs text-slate-500">Usaremos tu CV solo para procesos de selección y lo conservaremos 12 meses.</span></span><input type="checkbox" id="pe_rgpd" class="w-6 h-6 accent-teal-700"></label>
+        <p id="pe_msg" class="text-sm font-semibold hidden rounded-xl px-3 py-2"></p>
+        <button type="button" onclick="enviarCandidatura()" class="w-full bg-sky-600 text-white font-bold py-3.5 rounded-xl active:bg-sky-700">✈️ Enviar candidatura</button>
+      </div>
+      <div id="pe_ok" style="display:none" class="text-center py-8">
+        <div class="text-5xl mb-2">✅</div><h3 class="text-xl font-bold mb-1">¡Candidatura recibida!</h3>
+        <p class="text-sm text-slate-500 mb-4">Gracias por escribirnos. Te tenemos en la bolsa y te avisamos cuando entre una obra que encaje.</p>
+        <button type="button" onclick="resetCandidaturaForm()" class="bg-slate-200 font-semibold px-4 py-2.5 rounded-xl">Enviar otra candidatura</button>
+      </div>
+    </div>
+    <p class="text-center text-xs text-slate-400 mt-4" id="pe_pie">Bolsa de empleo</p>
+  </div>
+</div>
+
 <main class="max-w-3xl mx-auto px-4 pt-4 pb-28 safe-bottom">
 
   <!-- ======== INICIO ======== -->
@@ -185,6 +251,23 @@
     </div>
     <div id="resumenAsistencia" class="bg-white rounded-2xl p-3 shadow-sm mb-3"></div>
     <div id="listaAsistencia" class="space-y-2"></div>
+  </section>
+
+  <!-- ======== CANDIDATOS (BOLSA DE EMPLEO) ======== -->
+  <section data-view="candidatos" hidden>
+    <h2 class="text-lg font-bold mb-1">Candidatos · Bolsa de empleo</h2>
+    <p class="text-xs text-slate-500 mb-2">Candidaturas recibidas desde el formulario público «Trabaja con nosotros».</p>
+    <div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-xs mb-3 flex items-center justify-between gap-2">
+      <span>🔗 Comparte el formulario público con la gente:</span>
+      <button onclick="copiarLinkEmpleo()" class="bg-teal-700 text-white font-semibold px-2 py-1 rounded-lg shrink-0">Copiar enlace</button>
+    </div>
+    <div class="flex flex-wrap gap-2 mb-2">
+      <input id="candBuscar" oninput="renderCandidatos()" placeholder="🔎 Nombre, oficio, población…" class="flex-1 min-w-[150px] px-3 py-2 rounded-xl border border-slate-200 text-sm">
+      <select id="candEstado" onchange="renderCandidatos()" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm"></select>
+      <select id="candOficio" onchange="renderCandidatos()" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm"></select>
+    </div>
+    <div id="candResumen" class="mb-2"></div>
+    <div id="listaCandidatos" class="space-y-2"></div>
   </section>
 
   <!-- ======== TAREAS ======== -->
@@ -496,7 +579,7 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
@@ -506,7 +589,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.35"; // se incrementa con cada mejora
+const APP_VERSION="4.36"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -780,6 +863,7 @@ const MODULES = {
   eval:{parent:"rrhh",title:"Evaluación de personal",sub:"Recursos Humanos"},
   evalsup:{parent:"rrhh",title:"Evaluación de supervisores",sub:"Recursos Humanos"},
   asistencia:{parent:"rrhh",title:"Asistencia",sub:"Recursos Humanos"},
+  candidatos:{parent:"rrhh",title:"Candidatos (Bolsa de empleo)",sub:"Recursos Humanos"},
   nomina:{parent:"rrhh",title:"Nómina",sub:"Recursos Humanos"},
   tareas:{parent:"supervisores",title:"Tareas",sub:"Supervisores"},
   asignaciones:{parent:"supervisores",title:"Asignaciones de trabajo",sub:"Supervisores"},
@@ -799,7 +883,7 @@ const MODULES = {
   deudas:{parent:"finanzas",title:"Finanzas",sub:"Caja y Finanzas"},
   conexiones:{parent:"finanzas",title:"Conexiones",sub:"Caja y Finanzas"},
 };
-const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"]];
+const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"],["candidatos","📨","Candidatos"]];
 const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"],["quiebre","🚨","Quiebre"],["rotacion","🔥","Rotación/ABC"],["compras","🛒","Compras"]];
 const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"],["incpersonal","⏰","Asistencia personal"]];
 const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
@@ -828,14 +912,14 @@ function pintarIdioma(){
 let currentView="inicio";
 
 /* ---------- USUARIOS Y PERMISOS ---------- */
-const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia"];
+const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia","candidatos"];
 const PROD_VIEWS=["proveedores","inventario","ordenes","recepcion","merma","quiebre","rotacion","compras"];
 const SUP_VIEWS=["piso","tareas","asignaciones","diaslibres","incpersonal"];
 const FIN_VIEWS=["caja","tesoreria","deudas","conexiones"];
 // Todas las opciones que gerencia puede otorgar/quitar por usuario (tesoreria es solo gerencia, por eso no está aquí)
 const OPCIONES=[
   ["resumen","Resumen / indicadores del inicio"],
-  ["empleados","Personal"],["empleados_editar","Modificar personal (editar datos de empleados)"],["nomina","Nómina"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],
+  ["empleados","Personal"],["empleados_editar","Modificar personal (editar datos de empleados)"],["nomina","Nómina"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],["candidatos","Candidatos / Bolsa de empleo"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],["incpersonal","Incidencias de personal (asistencia)"],
   ["proveedores","Proveedores"],["inventario","Inventario"],["inventario_editar","Modificar inventario (crear/editar/eliminar productos y stock)"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],["rotacion","Rotación y clasificación ABC"],["compras","Compras (evaluación e indicadores del encargado)"],
   ["caja","Caja (cierres y arqueos)"],["caja_editar","Modificar cajas con día cerrado (autorizado por gerencia)"],["tesoreria","Tesorería (totales y tasa)"],["deudas","Finanzas (deudas, pagos y facturas recibidas)"],["conexiones","Conexiones (quién se conecta)"]
@@ -1201,6 +1285,115 @@ function openReporteEmpleado(nombre){
     <div class="space-y-1 max-h-[46vh] overflow-y-auto">${recs.length?filas:`<p class="text-xs text-slate-400 text-center py-4">Sin registros.</p>`}</div>
     <button onclick="closeModal()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`);
 }
+
+/* ===================== CANDIDATOS · BOLSA DE EMPLEO ===================== */
+const CAND_ESTADOS=["Nuevo","Revisado","Contactado","Entrevista","Contratado","Descartado"];
+function candEstadoColor(e){ return e==="Contratado"?"bg-emerald-100 text-emerald-700": e==="Descartado"?"bg-slate-200 text-slate-500": e==="Entrevista"?"bg-indigo-100 text-indigo-700": e==="Contactado"?"bg-sky-100 text-sky-700": e==="Revisado"?"bg-amber-100 text-amber-700":"bg-red-100 text-red-700"; }
+function linkEmpleo(){ return location.origin+location.pathname+"#empleo"; }
+function copiarLinkEmpleo(){ const url=linkEmpleo(); if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(()=>toast("Enlace copiado: "+url)).catch(()=>toast(url)); } else { toast(url); } }
+function renderCandidatos(){ if(!puede("candidatos")){ return; }
+  const cont=document.getElementById("listaCandidatos"); if(!cont) return;
+  const q=(document.getElementById("candBuscar")?.value||"").trim().toLowerCase();
+  // selects de estado y oficio
+  const fe=document.getElementById("candEstado"); let estSel=fe?fe.value:"";
+  if(fe){ fe.innerHTML=`<option value="">Todos los estados</option>`+CAND_ESTADOS.map(e=>`<option value="${e}">${e}</option>`).join(""); if([...fe.options].some(o=>o.value===estSel)) fe.value=estSel; else estSel=""; }
+  const fo=document.getElementById("candOficio"); let ofiSel=fo?fo.value:"";
+  const oficios=[...new Set(db.list("candidatos").map(c=>c.oficio).filter(Boolean))].sort();
+  if(fo){ fo.innerHTML=`<option value="">Todos los oficios</option>`+oficios.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join(""); if([...fo.options].some(o=>o.value===ofiSel)) fo.value=ofiSel; else ofiSel=""; }
+  let l=db.list("candidatos").slice().sort((a,b)=>String(b.creado||"").localeCompare(String(a.creado||"")));
+  if(estSel) l=l.filter(c=>(c.estado||"Nuevo")===estSel);
+  if(ofiSel) l=l.filter(c=>c.oficio===ofiSel);
+  if(q) l=l.filter(c=>[c.nombre,c.oficio,c.poblacion,c.telefono,c.correo].join(" ").toLowerCase().includes(q));
+  const rz=document.getElementById("candResumen");
+  if(rz){ const nuevos=db.list("candidatos").filter(c=>(c.estado||"Nuevo")==="Nuevo").length;
+    rz.innerHTML=`<div class="bg-slate-800 text-white rounded-xl px-3 py-2 text-sm flex items-center justify-between"><span>${db.list("candidatos").length} candidato(s)</span>${nuevos?`<span class="bg-red-500 rounded-full px-2 py-0.5 text-xs font-semibold">${nuevos} nuevo(s)</span>`:`<span class="text-emerald-300 text-xs">al día</span>`}</div>`; }
+  if(!l.length){ cont.innerHTML=empty(db.list("candidatos").length?"Sin coincidencias con el filtro.":"Aún no hay candidaturas. Comparte el enlace del formulario público."); return; }
+  cont.innerHTML=l.map(c=>{ const est=c.estado||"Nuevo"; const asig=c.asignado_a?nombreUsuario(c.asignado_a):"";
+    return `<div onclick="openCandidato('${c.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50">
+      <div class="flex items-center justify-between gap-2"><p class="font-semibold truncate">${esc(c.nombre||"—")}</p><span class="text-[10px] px-2 py-0.5 rounded-full ${candEstadoColor(est)} shrink-0">${esc(est)}</span></div>
+      <p class="text-xs text-slate-500 truncate">${esc(c.oficio||"—")}${c.experiencia?" · "+esc(c.experiencia):""}${c.poblacion?" · 📍 "+esc(c.poblacion):""}</p>
+      <div class="flex items-center gap-2 mt-1 flex-wrap text-[11px] text-slate-400">${c.telefono?`<span>📞 ${esc(c.telefono)}</span>`:""}${c.cv_data?`<span class="text-teal-600">📎 CV</span>`:""}${asig?`<span>👤 ${esc(asig)}</span>`:""}<span class="ml-auto">${esc((c.creado||"").slice(0,10))}</span></div></div>`; }).join("");
+}
+function nombreUsuario(idOrName){ const u=db.list("usuarios").find(x=>x.id===idOrName); return u?u.nombre:idOrName; }
+function openCandidato(id){ if(!puede("candidatos")){ toast("Sin acceso"); return; } const c=db.list("candidatos").find(x=>x.id===id); if(!c) return;
+  if((c.estado||"Nuevo")==="Nuevo"){ db.update("candidatos",id,{estado:"Revisado"}); c.estado="Revisado"; }
+  const usuarios=db.list("usuarios").filter(u=>u.activo!==false).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+  const waNum=String(c.telefono||"").replace(/\D/g,"");
+  openModal(`<h3 class="font-bold text-lg mb-0.5">${esc(c.nombre||"—")}</h3>
+    <p class="text-xs text-slate-500 mb-3">${esc(c.oficio||"—")}${c.experiencia?" · "+esc(c.experiencia):""} · recibido ${esc((c.creado||"").slice(0,10))}</p>
+    <div class="space-y-1 text-sm bg-slate-50 rounded-xl p-3 mb-3">
+      ${c.telefono?`<p>📞 <b>${esc(c.telefono)}</b></p>`:""}
+      ${c.correo?`<p>✉️ ${esc(c.correo)}</p>`:""}
+      ${c.poblacion?`<p>📍 ${esc(c.poblacion)}</p>`:""}
+      ${c.modalidad?`<p>💼 Prefiere: ${esc(c.modalidad)}</p>`:""}
+      ${c.empezar?`<p>🗓 Puede empezar: ${esc(c.empezar)}</p>`:""}
+      <p>🚗 Carnet B: <b>${c.carnet?"Sí":"No"}</b> · Vehículo propio: <b>${c.vehiculo?"Sí":"No"}</b></p>
+    </div>
+    ${c.sobre_ti?`<div class="mb-3"><p class="text-[11px] font-semibold text-slate-500 mb-1">Sobre él/ella</p><p class="text-sm bg-white border border-slate-100 rounded-xl p-2 whitespace-pre-wrap">${esc(c.sobre_ti)}</p></div>`:""}
+    <div class="flex flex-wrap gap-2 mb-3">
+      ${c.cv_data?`<button onclick="descargarCV('${c.id}')" class="text-xs bg-teal-700 text-white font-semibold px-3 py-2 rounded-xl">📎 Descargar CV</button>`:`<span class="text-xs text-slate-400 px-2 py-2">Sin CV adjunto</span>`}
+      ${waNum?`<a href="https://wa.me/${waNum}" target="_blank" class="text-xs bg-emerald-600 text-white font-semibold px-3 py-2 rounded-xl">💬 WhatsApp</a>`:""}
+      ${c.correo?`<a href="mailto:${esc(c.correo)}" class="text-xs bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-xl">✉️ Correo</a>`:""}
+    </div>
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div><label class="text-xs text-slate-500">Estado</label><select id="cand_estado" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${CAND_ESTADOS.map(e=>`<option ${((c.estado||"Nuevo")===e)?"selected":""}>${e}</option>`).join("")}</select></div>
+      <div><label class="text-xs text-slate-500">Asignar a</label><select id="cand_asig" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="">— Sin asignar —</option>${usuarios.map(u=>`<option value="${u.id}" ${c.asignado_a===u.id?"selected":""}>${esc(u.nombre)}</option>`).join("")}</select></div>
+    </div>
+    <div class="mb-3"><label class="text-xs text-slate-500">Notas internas</label><textarea id="cand_notas" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200" placeholder="Comentarios del proceso…">${esc(c.notas||"")}</textarea></div>
+    <div class="flex gap-2"><button onclick="saveCandidato('${c.id}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
+    ${esGerencia()?`<button onclick="delCandidato('${c.id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
+}
+async function saveCandidato(id){ if(!puede("candidatos")){ toast("Sin acceso"); return; }
+  const patch={ estado:document.getElementById("cand_estado").value, asignado_a:document.getElementById("cand_asig").value||"", notas:document.getElementById("cand_notas").value||"" };
+  try{ await db.update("candidatos",id,patch); closeModal(); render(); toast("Candidato actualizado"); }catch(e){ toast("Error: "+e.message); } }
+async function delCandidato(id){ if(!esGerencia()){ toast("Solo gerencia puede eliminar"); return; } if(confirm("¿Eliminar esta candidatura?")){ await db.remove("candidatos",id); closeModal(); render(); toast("Candidatura eliminada"); } }
+function descargarCV(id){ const c=db.list("candidatos").find(x=>x.id===id); if(!c||!c.cv_data) return;
+  const a=document.createElement("a"); a.href=c.cv_data; a.download=c.cv_nombre||("CV_"+(c.nombre||"candidato")); document.body.appendChild(a); a.click(); a.remove(); }
+
+/* ---- Formulario PÚBLICO (Trabaja con nosotros) ---- */
+const OFICIOS=["Albañil","Encofrador","Ferrallista","Peón de obra","Fontanero","Electricista","Pintor","Pladur / Yesero","Alicatador / Solador","Escayolista","Soldador","Carpintero","Gruista / Maquinista","Conductor","Encargado / Jefe de obra","Cajero/a","Reponedor/a","Carnicería","Charcutería","Panadería","Almacén / Logística","Limpieza","Otro"];
+let _peCV=null, _peEmpezar="";
+function abrirFormularioPublico(){
+  const nom=(ajustes&&ajustes.nombre)?ajustes.nombre:"Bolsa de empleo";
+  const k=document.getElementById("pe_kicker"); if(k) k.textContent=nom+" · Bolsa de empleo";
+  const pie=document.getElementById("pe_pie"); if(pie) pie.textContent=nom+" · Bolsa de empleo";
+  const sel=document.getElementById("pe_oficio"); if(sel && sel.options.length<=1) sel.innerHTML=`<option value="">Elige tu oficio…</option>`+OFICIOS.map(o=>`<option>${o}</option>`).join("");
+  // chips
+  document.querySelectorAll("#pe_chips .pe-chip").forEach(ch=>{ ch.onclick=()=>{ const ya=ch.classList.contains("on"); document.querySelectorAll("#pe_chips .pe-chip").forEach(x=>{x.classList.remove("on","bg-sky-600","text-white","border-sky-600");}); if(!ya){ ch.classList.add("on","bg-sky-600","text-white","border-sky-600"); _peEmpezar=ch.textContent.trim(); } else _peEmpezar=""; }; });
+  // CV
+  const cv=document.getElementById("pe_cv"); if(cv) cv.onchange=()=>{ const f=cv.files[0]; if(!f){ _peCV=null; return; }
+    if(f.size>3*1024*1024){ alert("El archivo supera los 3 MB. Elige uno más ligero."); cv.value=""; _peCV=null; return; }
+    const r=new FileReader(); r.onload=()=>{ _peCV={nombre:f.name, tipo:f.type, data:r.result}; const t=document.getElementById("pe_upTitle"); if(t) t.textContent="✓ "+f.name; const s=document.getElementById("pe_upSub"); if(s) s.textContent=(f.size/1024/1024).toFixed(2)+" MB · toca para cambiarlo"; }; r.readAsDataURL(f); };
+  document.getElementById("login").style.display="none";
+  document.getElementById("publicoEmpleo").style.display="block";
+  document.getElementById("pe_form").style.display="";
+  document.getElementById("pe_ok").style.display="none";
+}
+function peMsg(txt,ok){ const m=document.getElementById("pe_msg"); if(!m) return; m.textContent=txt; m.className="text-sm font-semibold rounded-xl px-3 py-2 "+(ok?"bg-emerald-50 text-emerald-700":"bg-red-50 text-red-600"); m.classList.remove("hidden"); m.scrollIntoView({behavior:"smooth",block:"center"}); }
+async function enviarCandidatura(){
+  const g=id=>document.getElementById(id);
+  const req={ oficio:g("pe_oficio").value, nombre:g("pe_nombre").value.trim(), telefono:g("pe_telefono").value.trim(), correo:g("pe_correo").value.trim(), poblacion:g("pe_poblacion").value.trim(), experiencia:g("pe_experiencia").value };
+  if(!req.oficio||!req.nombre||!req.telefono||!req.correo||!req.poblacion||!req.experiencia){ peMsg("Faltan datos por rellenar (los marcados con *).",false); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.correo)){ peMsg("Revisa el correo electrónico, no parece válido.",false); return; }
+  if(!g("pe_rgpd").checked){ peMsg("Para enviar tu candidatura necesitas autorizar el tratamiento de tus datos.",false); return; }
+  const row={ ...req, modalidad:g("pe_modalidad").value, empezar:_peEmpezar, carnet:g("pe_carnet").checked, vehiculo:g("pe_vehiculo").checked, sobre_ti:g("pe_sobreti").value.trim(),
+    cv_nombre:_peCV?_peCV.nombre:"", cv_tipo:_peCV?_peCV.tipo:"", cv_data:_peCV?_peCV.data:"", estado:"Nuevo", asignado_a:"", notas:"" };
+  const btn=document.querySelector('#pe_form button[onclick="enviarCandidatura()"]'); if(btn){ btn.disabled=true; btn.textContent="Enviando…"; }
+  try{ await db.insert("candidatos",row); g("pe_form").style.display="none"; document.getElementById("pe_ok").style.display="block"; window.scrollTo(0,0); }
+  catch(e){ peMsg("No se pudo enviar ("+e.message+"). Revisa tu conexión e inténtalo de nuevo.",false); if(btn){ btn.disabled=false; btn.textContent="✈️ Enviar candidatura"; } }
+}
+function resetCandidaturaForm(){ ["pe_nombre","pe_telefono","pe_correo","pe_poblacion","pe_sobreti"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; });
+  ["pe_oficio","pe_experiencia","pe_modalidad"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; });
+  ["pe_carnet","pe_vehiculo","pe_rgpd"].forEach(id=>{ const e=document.getElementById(id); if(e) e.checked=false; });
+  _peCV=null; _peEmpezar=""; const cv=document.getElementById("pe_cv"); if(cv) cv.value="";
+  document.querySelectorAll("#pe_chips .pe-chip").forEach(x=>x.classList.remove("on","bg-sky-600","text-white","border-sky-600"));
+  document.getElementById("pe_upTitle").textContent="Toca para adjuntar tu CV"; document.getElementById("pe_upSub").textContent="PDF, Word, JPG o PNG · hasta 3 MB";
+  const m=document.getElementById("pe_msg"); if(m) m.classList.add("hidden");
+  const btn=document.querySelector('#pe_form button[onclick="enviarCandidatura()"]'); if(btn){ btn.disabled=false; btn.textContent="✈️ Enviar candidatura"; }
+  document.getElementById("pe_ok").style.display="none"; document.getElementById("pe_form").style.display="";
+}
+
 const COL_MAP={ empleado:["empleado","nombre","trabajador","name"],fecha:["fecha","dia","date"],entrada:["entrada","hora entrada","hora de entrada","entry","in"],salida:["salida","hora salida","hora de salida","exit","out"],almuerzo_inicio:["almuerzo inicio","inicio almuerzo","salida almuerzo","almuerzoinicio"],almuerzo_fin:["almuerzo fin","fin almuerzo","regreso almuerzo","almuerzofin"] };
 function pick(o,keys){ const low={}; Object.keys(o).forEach(k=>low[k.toString().trim().toLowerCase()]=o[k]); for(const k of keys){ if(low[k]!==undefined&&low[k]!=="") return low[k]; } return ""; }
 function normFecha(v){ if(v==null||v==="") return ""; if(typeof v==="number"){ const d=XLSX.SSF.parse_date_code(v); if(d) return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`; }
@@ -3025,7 +3218,7 @@ function renderAjustesView(){
 // Cada vista renderiza SOLO su contenido (no reconstruye todas las listas en cada cambio)
 const RENDER_VISTA={
   inicio:renderInicio, empleados:renderEmpleados, bonos:renderBonos, eval:renderEval, evalsup:renderEvalSup,
-  asistencia:renderAsistencia, tareas:renderTareas, asignaciones:renderAsignaciones, nomina:renderNomina,
+  asistencia:renderAsistencia, candidatos:renderCandidatos, tareas:renderTareas, asignaciones:renderAsignaciones, nomina:renderNomina,
   diaslibres:renderDiasLibres, incpersonal:renderIncPersonal,
   piso:function(){ renderSecciones(); renderAsignGondolas(); renderIncidencias(); },
   proveedores:renderProveedores, inventario:renderInventario, ordenes:renderOrdenes,
@@ -3073,14 +3266,18 @@ async function cargarDemo(){
 }
 
 /* ===================== ARRANQUE ===================== */
+function esRutaEmpleo(){ return /^#?empleo/i.test(location.hash||""); }
 (async function(){ const av=document.getElementById("appVersion"); if(av) av.textContent="Hipposupermarket · v"+APP_VERSION; cargarConfig(); await db.init();
   if(!db.list("usuarios").length){ await seedUsuarios(); }
   purgarFotosVencidas(); setInterval(purgarFotosVencidas, 3600000);
+  // Ruta pública: cualquiera con el enlace #empleo ve solo el formulario "Trabaja con nosotros"
+  if(esRutaEmpleo()){ abrirFormularioPublico(); return; }
   const savedId=localStorage.getItem("supergestion_user");
   const u=savedId && db.list("usuarios").find(x=>x.id===savedId && x.activo!==false);
   if(u){ currentUser=u; aplicarPermisos(); iniciarSesion(); pedirPermisoNotif(); show("inicio"); }
   else { mostrarLogin(); }
 })();
+window.addEventListener("hashchange",()=>{ if(esRutaEmpleo()) abrirFormularioPublico(); });
 </script>
 </body>
 </html>
