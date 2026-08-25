@@ -89,16 +89,16 @@
 <!-- ======== FORMULARIO PÚBLICO · TRABAJA CON NOSOTROS ======== -->
 <div id="publicoEmpleo" style="display:none" class="fixed inset-0 z-[70] overflow-y-auto bg-slate-100">
   <div class="max-w-2xl mx-auto px-4 py-6">
-    <div class="rounded-t-3xl text-white p-6" style="background:linear-gradient(135deg,#0b3b6f,#1b5c9c)">
-      <div class="flex items-center gap-3 mb-3"><div class="w-14 h-14 rounded-full bg-white/15 flex items-center justify-center text-3xl">🏗️</div>
-        <div><p class="text-[11px] tracking-widest uppercase text-sky-200 font-bold" id="pe_kicker">Bolsa de empleo</p><h1 class="text-2xl font-extrabold" id="pe_titulo">Trabaja con nosotros</h1></div></div>
-      <p class="text-sky-100 text-sm" id="pe_lema">Buscamos gente que trabaje bien y cumpla los plazos. Déjanos tus datos y tu CV y te tenemos en cuenta.</p>
+    <div id="pe_hero" class="rounded-t-3xl text-white p-6" style="background:linear-gradient(135deg,#0f766e,#0d9488)">
+      <div class="flex items-center gap-3 mb-3"><div class="w-14 h-14 rounded-full bg-white flex items-center justify-center overflow-hidden shrink-0"><img id="pe_logo" alt="Logo" class="w-full h-full object-contain p-0.5"></div>
+        <div><p class="text-[11px] tracking-widest uppercase font-bold" style="color:#99f6e4" id="pe_kicker">Bolsa de empleo</p><h1 class="text-2xl font-extrabold" id="pe_titulo">Trabaja con nosotros</h1></div></div>
+      <p class="text-sm" style="color:#ccfbf1" id="pe_lema">Buscamos gente trabajadora y responsable. Déjanos tus datos y tu currículum y te tomamos en cuenta para nuestras vacantes.</p>
     </div>
     <div class="bg-white rounded-b-3xl p-4 shadow-sm mb-4 grid grid-cols-2 gap-3 text-center">
-      <div><p class="font-bold text-sm">💶 Pago puntual</p><p class="text-xs text-slate-500">Todos los días 1</p></div>
-      <div><p class="font-bold text-sm">📍 Obras cercanas</p><p class="text-xs text-slate-500">Sin dormir fuera</p></div>
-      <div><p class="font-bold text-sm">🛡️ Alta y PRL</p><p class="text-xs text-slate-500">Todo en regla</p></div>
-      <div><p class="font-bold text-sm">📈 Continuidad</p><p class="text-xs text-slate-500">Trabajo estable</p></div>
+      <div><p class="font-bold text-sm">💵 Pago quincenal</p><p class="text-xs text-slate-500">Puntual</p></div>
+      <div><p class="font-bold text-sm">🍽️ Cestaticket</p><p class="text-xs text-slate-500">Beneficio de ley</p></div>
+      <div><p class="font-bold text-sm">🛡️ IVSS y LOPCYMAT</p><p class="text-xs text-slate-500">Todo en regla</p></div>
+      <div><p class="font-bold text-sm">📈 Estabilidad</p><p class="text-xs text-slate-500">Trabajo continuo</p></div>
     </div>
 
     <div class="bg-white rounded-2xl p-5 shadow-sm">
@@ -109,17 +109,22 @@
           <select id="pe_oficio" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white mt-1"><option value="">Elige tu oficio…</option></select></div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="text-xs font-semibold text-slate-600">Nombre y apellidos *</label><input id="pe_nombre" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 mt-1"></div>
-          <div><label class="text-xs font-semibold text-slate-600">Teléfono *</label><input id="pe_telefono" type="tel" placeholder="600 000 000" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 mt-1"></div>
+          <div><label class="text-xs font-semibold text-slate-600">Cédula de identidad *</label><input id="pe_cedula" placeholder="V-12345678" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 mt-1"></div>
         </div>
         <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-semibold text-slate-600">Teléfono *</label><input id="pe_telefono" type="tel" placeholder="0414-1234567" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 mt-1"></div>
           <div><label class="text-xs font-semibold text-slate-600">Correo electrónico *</label><input id="pe_correo" type="email" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 mt-1"></div>
-          <div><label class="text-xs font-semibold text-slate-600">Población donde vives *</label><input id="pe_poblacion" placeholder="Amposta, Tortosa…" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 mt-1"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-semibold text-slate-600">Estado donde vives *</label>
+            <select id="pe_estado" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white mt-1"><option value="">Elige…</option></select></div>
+          <div><label class="text-xs font-semibold text-slate-600">Ciudad / Municipio *</label><input id="pe_poblacion" placeholder="Maracay, Valencia…" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 mt-1"></div>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="text-xs font-semibold text-slate-600">Experiencia en el oficio *</label>
             <select id="pe_experiencia" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white mt-1"><option value="">Elige…</option><option>Menos de 1 año</option><option>1 a 3 años</option><option>3 a 5 años</option><option>5 a 10 años</option><option>Más de 10 años</option></select></div>
           <div><label class="text-xs font-semibold text-slate-600">Cómo prefieres trabajar</label>
-            <select id="pe_modalidad" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white mt-1"><option value="">Elige…</option><option>Por cuenta ajena (contrato)</option><option>Autónomo</option><option>Cualquiera / a convenir</option></select></div>
+            <select id="pe_modalidad" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white mt-1"><option value="">Elige…</option><option>Contratado (nómina)</option><option>Por honorarios</option><option>A convenir</option></select></div>
         </div>
         <div><label class="text-xs font-semibold text-slate-600">Cuándo podrías empezar</label>
           <div id="pe_chips" class="flex flex-wrap gap-2 mt-1">
@@ -128,7 +133,7 @@
             <button type="button" class="pe-chip border border-slate-300 rounded-full px-4 py-2 text-sm font-semibold">En un mes</button>
             <button type="button" class="pe-chip border border-slate-300 rounded-full px-4 py-2 text-sm font-semibold">A consultar</button>
           </div></div>
-        <label class="flex items-center justify-between gap-3 border-t border-slate-100 pt-3"><span><b class="text-sm">Carnet de conducir B</b><br><span class="text-xs text-slate-500">Nos movemos entre obras a diario.</span></span><input type="checkbox" id="pe_carnet" class="w-6 h-6 accent-teal-700"></label>
+        <label class="flex items-center justify-between gap-3 border-t border-slate-100 pt-3"><span><b class="text-sm">Licencia de conducir</b><br><span class="text-xs text-slate-500">Vigente. Nos movemos entre obras.</span></span><input type="checkbox" id="pe_carnet" class="w-6 h-6 accent-teal-700"></label>
         <label class="flex items-center justify-between gap-3 border-t border-slate-100 pt-3"><span><b class="text-sm">Vehículo propio</b><br><span class="text-xs text-slate-500">No es imprescindible, pero suma.</span></span><input type="checkbox" id="pe_vehiculo" class="w-6 h-6 accent-teal-700"></label>
         <div class="border-t border-slate-100 pt-3">
           <label class="text-xs font-semibold text-slate-600">Tu currículum</label>
@@ -138,9 +143,9 @@
           <p class="text-xs text-slate-400 mt-1">Si no tienes el CV a mano, no pasa nada: cuéntanoslo abajo.</p>
         </div>
         <div><label class="text-xs font-semibold text-slate-600">Cuéntanos algo de ti</label><textarea id="pe_sobreti" rows="3" placeholder="Qué sabes hacer, en qué obras has trabajado, qué buscas…" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 mt-1"></textarea></div>
-        <label class="flex items-center justify-between gap-3 border-t border-slate-100 pt-3"><span><b class="text-sm">Autorizo el tratamiento de mis datos *</b><br><span class="text-xs text-slate-500">Usaremos tu CV solo para procesos de selección y lo conservaremos 12 meses.</span></span><input type="checkbox" id="pe_rgpd" class="w-6 h-6 accent-teal-700"></label>
+        <label class="flex items-center justify-between gap-3 border-t border-slate-100 pt-3"><span><b class="text-sm">Autorizo el uso de mis datos *</b><br><span class="text-xs text-slate-500">Autorizo el uso de mis datos personales y mi currículum únicamente para procesos de selección de personal, conforme a la legislación venezolana (Constitución art. 28 y 60).</span></span><input type="checkbox" id="pe_rgpd" class="w-6 h-6 accent-teal-700"></label>
         <p id="pe_msg" class="text-sm font-semibold hidden rounded-xl px-3 py-2"></p>
-        <button type="button" onclick="enviarCandidatura()" class="w-full bg-sky-600 text-white font-bold py-3.5 rounded-xl active:bg-sky-700">✈️ Enviar candidatura</button>
+        <button type="button" onclick="enviarCandidatura()" class="w-full bg-teal-700 text-white font-bold py-3.5 rounded-xl active:bg-teal-800">✈️ Enviar candidatura</button>
       </div>
       <div id="pe_ok" style="display:none" class="text-center py-8">
         <div class="text-5xl mb-2">✅</div><h3 class="text-xl font-bold mb-1">¡Candidatura recibida!</h3>
@@ -589,7 +594,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.36"; // se incrementa con cada mejora
+const APP_VERSION="4.38"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1311,7 +1316,7 @@ function renderCandidatos(){ if(!puede("candidatos")){ return; }
   cont.innerHTML=l.map(c=>{ const est=c.estado||"Nuevo"; const asig=c.asignado_a?nombreUsuario(c.asignado_a):"";
     return `<div onclick="openCandidato('${c.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50">
       <div class="flex items-center justify-between gap-2"><p class="font-semibold truncate">${esc(c.nombre||"—")}</p><span class="text-[10px] px-2 py-0.5 rounded-full ${candEstadoColor(est)} shrink-0">${esc(est)}</span></div>
-      <p class="text-xs text-slate-500 truncate">${esc(c.oficio||"—")}${c.experiencia?" · "+esc(c.experiencia):""}${c.poblacion?" · 📍 "+esc(c.poblacion):""}</p>
+      <p class="text-xs text-slate-500 truncate">${esc(c.oficio||"—")}${c.experiencia?" · "+esc(c.experiencia):""}${(c.poblacion||c.estado_res)?" · 📍 "+esc([c.poblacion,c.estado_res].filter(Boolean).join(", ")):""}</p>
       <div class="flex items-center gap-2 mt-1 flex-wrap text-[11px] text-slate-400">${c.telefono?`<span>📞 ${esc(c.telefono)}</span>`:""}${c.cv_data?`<span class="text-teal-600">📎 CV</span>`:""}${asig?`<span>👤 ${esc(asig)}</span>`:""}<span class="ml-auto">${esc((c.creado||"").slice(0,10))}</span></div></div>`; }).join("");
 }
 function nombreUsuario(idOrName){ const u=db.list("usuarios").find(x=>x.id===idOrName); return u?u.nombre:idOrName; }
@@ -1322,9 +1327,10 @@ function openCandidato(id){ if(!puede("candidatos")){ toast("Sin acceso"); retur
   openModal(`<h3 class="font-bold text-lg mb-0.5">${esc(c.nombre||"—")}</h3>
     <p class="text-xs text-slate-500 mb-3">${esc(c.oficio||"—")}${c.experiencia?" · "+esc(c.experiencia):""} · recibido ${esc((c.creado||"").slice(0,10))}</p>
     <div class="space-y-1 text-sm bg-slate-50 rounded-xl p-3 mb-3">
+      ${c.cedula?`<p>🪪 C.I. <b>${esc(c.cedula)}</b></p>`:""}
       ${c.telefono?`<p>📞 <b>${esc(c.telefono)}</b></p>`:""}
       ${c.correo?`<p>✉️ ${esc(c.correo)}</p>`:""}
-      ${c.poblacion?`<p>📍 ${esc(c.poblacion)}</p>`:""}
+      ${(c.poblacion||c.estado_res)?`<p>📍 ${esc([c.poblacion,c.estado_res].filter(Boolean).join(", "))}</p>`:""}
       ${c.modalidad?`<p>💼 Prefiere: ${esc(c.modalidad)}</p>`:""}
       ${c.empezar?`<p>🗓 Puede empezar: ${esc(c.empezar)}</p>`:""}
       <p>🚗 Carnet B: <b>${c.carnet?"Sí":"No"}</b> · Vehículo propio: <b>${c.vehiculo?"Sí":"No"}</b></p>
@@ -1351,16 +1357,23 @@ async function delCandidato(id){ if(!esGerencia()){ toast("Solo gerencia puede e
 function descargarCV(id){ const c=db.list("candidatos").find(x=>x.id===id); if(!c||!c.cv_data) return;
   const a=document.createElement("a"); a.href=c.cv_data; a.download=c.cv_nombre||("CV_"+(c.nombre||"candidato")); document.body.appendChild(a); a.click(); a.remove(); }
 
-/* ---- Formulario PÚBLICO (Trabaja con nosotros) ---- */
-const OFICIOS=["Albañil","Encofrador","Ferrallista","Peón de obra","Fontanero","Electricista","Pintor","Pladur / Yesero","Alicatador / Solador","Escayolista","Soldador","Carpintero","Gruista / Maquinista","Conductor","Encargado / Jefe de obra","Cajero/a","Reponedor/a","Carnicería","Charcutería","Panadería","Almacén / Logística","Limpieza","Otro"];
+/* ---- Formulario PÚBLICO (Trabaja con nosotros) — Venezuela ---- */
+const OFICIOS=["Albañil","Herrero","Plomero","Electricista","Pintor","Latonero","Carpintero","Obrero de construcción","Ayudante de obra","Maestro de obra","Chofer","Operador de maquinaria","Soldador","Cajero(a)","Reponedor(a)","Carnicería","Charcutería","Panadería / Pastelería","Fruver (frutas y verduras)","Depósito / Almacén","Montacarguista","Limpieza / Mantenimiento","Vigilante / Seguridad","Administración","Otro"];
+const ESTADOS_VE=["Amazonas","Anzoátegui","Apure","Aragua","Barinas","Bolívar","Carabobo","Cojedes","Delta Amacuro","Distrito Capital","Falcón","Guárico","La Guaira","Lara","Mérida","Miranda","Monagas","Nueva Esparta","Portuguesa","Sucre","Táchira","Trujillo","Yaracuy","Zulia"];
 let _peCV=null, _peEmpezar="";
+/* Normaliza la cédula a formato V-12345678 / E-12345678 */
+function normCedula(v){ v=String(v||"").trim().toUpperCase().replace(/[^VE0-9]/g,""); if(!v) return ""; let letra="V", num=v; if(/^[VE]/.test(v)){ letra=v[0]; num=v.slice(1); } num=num.replace(/\D/g,""); return num?letra+"-"+num:""; }
+function cedulaValida(v){ const c=normCedula(v); return /^[VE]-\d{6,9}$/.test(c); }
 function abrirFormularioPublico(){
   const nom=(ajustes&&ajustes.nombre)?ajustes.nombre:"Bolsa de empleo";
   const k=document.getElementById("pe_kicker"); if(k) k.textContent=nom+" · Bolsa de empleo";
   const pie=document.getElementById("pe_pie"); if(pie) pie.textContent=nom+" · Bolsa de empleo";
+  const lg=document.getElementById("pe_logo"); if(lg) lg.src=(ajustes&&ajustes.logo)?ajustes.logo:LOGO_DEFAULT;
   const sel=document.getElementById("pe_oficio"); if(sel && sel.options.length<=1) sel.innerHTML=`<option value="">Elige tu oficio…</option>`+OFICIOS.map(o=>`<option>${o}</option>`).join("");
+  const est=document.getElementById("pe_estado"); if(est && est.options.length<=1) est.innerHTML=`<option value="">Elige…</option>`+ESTADOS_VE.map(e=>`<option>${e}</option>`).join("");
+  const ced=document.getElementById("pe_cedula"); if(ced) ced.onblur=()=>{ const n=normCedula(ced.value); if(n) ced.value=n; };
   // chips
-  document.querySelectorAll("#pe_chips .pe-chip").forEach(ch=>{ ch.onclick=()=>{ const ya=ch.classList.contains("on"); document.querySelectorAll("#pe_chips .pe-chip").forEach(x=>{x.classList.remove("on","bg-sky-600","text-white","border-sky-600");}); if(!ya){ ch.classList.add("on","bg-sky-600","text-white","border-sky-600"); _peEmpezar=ch.textContent.trim(); } else _peEmpezar=""; }; });
+  document.querySelectorAll("#pe_chips .pe-chip").forEach(ch=>{ ch.onclick=()=>{ const ya=ch.classList.contains("on"); document.querySelectorAll("#pe_chips .pe-chip").forEach(x=>{x.classList.remove("on","bg-teal-700","text-white","border-teal-700");}); if(!ya){ ch.classList.add("on","bg-teal-700","text-white","border-teal-700"); _peEmpezar=ch.textContent.trim(); } else _peEmpezar=""; }; });
   // CV
   const cv=document.getElementById("pe_cv"); if(cv) cv.onchange=()=>{ const f=cv.files[0]; if(!f){ _peCV=null; return; }
     if(f.size>3*1024*1024){ alert("El archivo supera los 3 MB. Elige uno más ligero."); cv.value=""; _peCV=null; return; }
@@ -1373,21 +1386,22 @@ function abrirFormularioPublico(){
 function peMsg(txt,ok){ const m=document.getElementById("pe_msg"); if(!m) return; m.textContent=txt; m.className="text-sm font-semibold rounded-xl px-3 py-2 "+(ok?"bg-emerald-50 text-emerald-700":"bg-red-50 text-red-600"); m.classList.remove("hidden"); m.scrollIntoView({behavior:"smooth",block:"center"}); }
 async function enviarCandidatura(){
   const g=id=>document.getElementById(id);
-  const req={ oficio:g("pe_oficio").value, nombre:g("pe_nombre").value.trim(), telefono:g("pe_telefono").value.trim(), correo:g("pe_correo").value.trim(), poblacion:g("pe_poblacion").value.trim(), experiencia:g("pe_experiencia").value };
-  if(!req.oficio||!req.nombre||!req.telefono||!req.correo||!req.poblacion||!req.experiencia){ peMsg("Faltan datos por rellenar (los marcados con *).",false); return; }
+  const req={ oficio:g("pe_oficio").value, nombre:g("pe_nombre").value.trim(), cedula:normCedula(g("pe_cedula").value), telefono:g("pe_telefono").value.trim(), correo:g("pe_correo").value.trim(), estado_res:g("pe_estado").value, poblacion:g("pe_poblacion").value.trim(), experiencia:g("pe_experiencia").value };
+  if(!req.oficio||!req.nombre||!req.cedula||!req.telefono||!req.correo||!req.estado_res||!req.poblacion||!req.experiencia){ peMsg("Faltan datos por rellenar (los marcados con *).",false); return; }
+  if(!cedulaValida(req.cedula)){ peMsg("Revisa la cédula. Ejemplo: V-12345678.",false); return; }
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.correo)){ peMsg("Revisa el correo electrónico, no parece válido.",false); return; }
-  if(!g("pe_rgpd").checked){ peMsg("Para enviar tu candidatura necesitas autorizar el tratamiento de tus datos.",false); return; }
+  if(!g("pe_rgpd").checked){ peMsg("Para enviar tu candidatura necesitas autorizar el uso de tus datos.",false); return; }
   const row={ ...req, modalidad:g("pe_modalidad").value, empezar:_peEmpezar, carnet:g("pe_carnet").checked, vehiculo:g("pe_vehiculo").checked, sobre_ti:g("pe_sobreti").value.trim(),
     cv_nombre:_peCV?_peCV.nombre:"", cv_tipo:_peCV?_peCV.tipo:"", cv_data:_peCV?_peCV.data:"", estado:"Nuevo", asignado_a:"", notas:"" };
   const btn=document.querySelector('#pe_form button[onclick="enviarCandidatura()"]'); if(btn){ btn.disabled=true; btn.textContent="Enviando…"; }
   try{ await db.insert("candidatos",row); g("pe_form").style.display="none"; document.getElementById("pe_ok").style.display="block"; window.scrollTo(0,0); }
   catch(e){ peMsg("No se pudo enviar ("+e.message+"). Revisa tu conexión e inténtalo de nuevo.",false); if(btn){ btn.disabled=false; btn.textContent="✈️ Enviar candidatura"; } }
 }
-function resetCandidaturaForm(){ ["pe_nombre","pe_telefono","pe_correo","pe_poblacion","pe_sobreti"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; });
-  ["pe_oficio","pe_experiencia","pe_modalidad"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; });
+function resetCandidaturaForm(){ ["pe_nombre","pe_cedula","pe_telefono","pe_correo","pe_poblacion","pe_sobreti"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; });
+  ["pe_oficio","pe_estado","pe_experiencia","pe_modalidad"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; });
   ["pe_carnet","pe_vehiculo","pe_rgpd"].forEach(id=>{ const e=document.getElementById(id); if(e) e.checked=false; });
   _peCV=null; _peEmpezar=""; const cv=document.getElementById("pe_cv"); if(cv) cv.value="";
-  document.querySelectorAll("#pe_chips .pe-chip").forEach(x=>x.classList.remove("on","bg-sky-600","text-white","border-sky-600"));
+  document.querySelectorAll("#pe_chips .pe-chip").forEach(x=>x.classList.remove("on","bg-teal-700","text-white","border-teal-700"));
   document.getElementById("pe_upTitle").textContent="Toca para adjuntar tu CV"; document.getElementById("pe_upSub").textContent="PDF, Word, JPG o PNG · hasta 3 MB";
   const m=document.getElementById("pe_msg"); if(m) m.classList.add("hidden");
   const btn=document.querySelector('#pe_form button[onclick="enviarCandidatura()"]'); if(btn){ btn.disabled=false; btn.textContent="✈️ Enviar candidatura"; }
