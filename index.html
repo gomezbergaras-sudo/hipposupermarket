@@ -171,7 +171,7 @@
       <div id="card_inv" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Productos bajo mínimo</p><p id="mBajoMin" class="text-2xl font-bold text-amber-600">0</p></div>
       <div id="card_ordenes" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Órdenes pendientes</p><p id="mOrdenes" class="text-2xl font-bold text-teal-700">0</p></div>
       <div id="card_incid" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Incidencias abiertas</p><p id="mIncid" class="text-2xl font-bold text-amber-600">0</p></div>
-      <div id="card_repo" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Secciones por reponer</p><p id="mRepo" class="text-2xl font-bold text-amber-600">0</p></div>
+      <div id="card_repo" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Pasillos con alerta</p><p id="mRepo" class="text-2xl font-bold text-amber-600">0</p></div>
       <div id="card_quiebre" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">🚨 Quiebres pendientes</p><p id="mQuiebre" class="text-2xl font-bold text-red-600">0</p></div>
       <div id="card_compA" onclick="show('compras')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">🚨 Quiebres en productos A</p><p id="mCompA" class="text-2xl font-bold text-red-600">0</p></div>
       <div id="card_compC" onclick="show('compras')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">Capital detenido en C</p><p id="mCompC" class="text-2xl font-bold text-amber-600">0</p></div>
@@ -413,18 +413,10 @@
 
   <!-- ======== PISO DE VENTA ======== -->
   <section data-view="piso" hidden>
-    <h2 class="text-lg font-bold mb-1">Piso de venta</h2>
-    <p class="text-xs text-slate-500 mb-3">Estado de las góndolas/secciones de sala y registro de incidencias.</p>
-    <div class="flex items-center justify-between mb-2"><p class="text-sm font-semibold text-slate-600">Secciones / góndolas</p>
-      <button onclick="openSeccion()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Sección</button></div>
-    <div id="listaSecciones" class="space-y-2 mb-5"></div>
-    <div class="flex items-center justify-between mb-1 mt-6"><p class="text-sm font-semibold text-slate-600">Asignación de góndolas al personal</p>
-      <button onclick="openDesignarPicker()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">＋ Designar</button></div>
-    <p class="text-[11px] text-slate-400 mb-2">Personal del área «Piso de venta». Usa «Designar» o toca a una persona para asignarle o modificarle sus góndolas.</p>
-    <div id="listaAsignGondolas" class="space-y-2 mb-5"></div>
-    <div class="flex items-center justify-between mb-2"><p class="text-sm font-semibold text-slate-600">Incidencias</p>
-      <button onclick="openIncidencia()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Incidencia</button></div>
-    <div id="listaIncidencias" class="space-y-2"></div>
+    <div class="flex items-center justify-between mb-1"><h2 class="text-lg font-bold">Piso de venta</h2>
+      <button onclick="openPasillo()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Pasillo / Alerta</button></div>
+    <p class="text-xs text-slate-500 mb-3">Supervisores de piso de venta y sus pasillos. Registra alertas de <b>pasillo caído</b> o <b>quiebre de stock</b> con foto antes/después; el supervisor recibe un aviso.</p>
+    <div id="listaPisoVenta" class="space-y-4"></div>
   </section>
 
   <!-- ======== CAJA ======== -->
@@ -594,7 +586,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.38"; // se incrementa con cada mejora
+const APP_VERSION="4.40"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -2302,6 +2294,78 @@ function exportarNominaPDF(){ if(!verSueldos()){ toast("Los sueldos están ocult
   doc.save(`nomina_${per}${slugArea(area)}.pdf`); toast("PDF descargado"+(area?" · "+area:"")); }
 
 /* ===================== PISO DE VENTA ===================== */
+/* ===================== PISO DE VENTA (por supervisor + alertas) ===================== */
+const PASILLO_ESTADOS=["Surtida","Pasillo caído","Quiebre de stock","En proceso","Resuelto"];
+function pasilloColor(e){ return (e==="Surtida"||e==="Resuelto")?"bg-emerald-100 text-emerald-700": e==="Pasillo caído"?"bg-red-100 text-red-700": e==="Quiebre de stock"?"bg-amber-100 text-amber-700":"bg-sky-100 text-sky-700"; }
+function pasilloIcon(e){ return e==="Pasillo caído"?"🔴": e==="Quiebre de stock"?"📦": e==="En proceso"?"🔧":"🟢"; }
+function pasilloActiva(e){ return e==="Pasillo caído"||e==="Quiebre de stock"||e==="En proceso"; }
+function usuarioById(id){ return db.list("usuarios").find(u=>u.id===id); }
+/* Supervisores del área Piso de venta (usuarios de la app) */
+function supervisoresPiso(){ return db.list("usuarios").filter(u=>u.activo!==false && (u.es_supervisor||u.es_asistente) && usuarioAreas(u).some(a=>esPisoVenta(a))).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")); }
+function listaSupsParaSelect(){ let l=supervisoresPiso(); if(!l.length) l=db.list("usuarios").filter(u=>u.activo!==false && (u.es_supervisor||u.es_asistente)); if(!l.length) l=db.list("usuarios").filter(u=>u.activo!==false); return l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")); }
+async function notificarUsuarioId(uid, tipo, titulo, mensaje, refId){ if(!uid) return; if(currentUser && uid===currentUser.id) return; try{ await db.insert("notificaciones",{usuario_id:uid, tipo:tipo||"piso", titulo:titulo||"", mensaje:mensaje||"", ref_id:refId||null, leida:false, creado_por:(currentUser?currentUser.nombre:""), fecha:hoy()}); }catch(e){} }
+async function notificarGerencia(tipo, titulo, mensaje, refId){ const gs=db.list("usuarios").filter(u=>u.es_gerencia && u.activo!==false); for(const u of gs){ if(currentUser && u.id===currentUser.id) continue; try{ await db.insert("notificaciones",{usuario_id:u.id, tipo:tipo||"piso", titulo:titulo||"", mensaje:mensaje||"", ref_id:refId||null, leida:false, creado_por:(currentUser?currentUser.nombre:""), fecha:hoy()}); }catch(e){} } }
+function renderPisoVenta(){ const c=document.getElementById("listaPisoVenta"); if(!c) return;
+  const pasillos=db.list("piso_secciones"); const sups=supervisoresPiso(); const listedIds=new Set(sups.map(u=>u.id));
+  const grupos=sups.map(u=>({id:u.id, nombre:u.nombre, pasillos:pasillos.filter(p=>p.supervisor_id===u.id)}));
+  const otros={}; pasillos.filter(p=>!p.supervisor_id || !listedIds.has(p.supervisor_id)).forEach(p=>{ const k=p.supervisor_id||"__none__"; (otros[k]=otros[k]||[]).push(p); });
+  Object.keys(otros).forEach(k=>{ const u=k!=="__none__"?usuarioById(k):null; grupos.push({id:k, nombre:u?u.nombre:"Sin supervisor asignado", pasillos:otros[k]}); });
+  if(!grupos.length){ c.innerHTML=empty("No hay supervisores con área «Piso de venta». Asígnala en Ajustes → Usuarios. Igual puedes crear un pasillo con «+ Pasillo / Alerta»."); return; }
+  const vacia=`<div class="text-[10px] text-slate-300 flex items-center justify-center border border-dashed border-slate-200 rounded-xl h-20">sin foto</div>`;
+  c.innerHTML=grupos.map(g=>{ const activas=g.pasillos.filter(p=>pasilloActiva(p.estado)).length;
+    const cards=g.pasillos.length? g.pasillos.sort((a,b)=>(pasilloActiva(b.estado)?1:0)-(pasilloActiva(a.estado)?1:0)||(a.nombre||"").localeCompare(b.nombre||"")).map(p=>{
+      const fotos=(p.foto_antes||p.foto_despues)?`<div class="grid grid-cols-2 gap-2 mt-2">${miniFoto(p.foto_antes,p.foto_antes_ts,"Antes")||vacia}${miniFoto(p.foto_despues,p.foto_despues_ts,"Después")||vacia}</div>`:"";
+      return `<div onclick="openPasillo('${p.id}')" class="bg-white rounded-xl p-3 shadow-sm active:bg-slate-50">
+        <div class="flex items-center justify-between gap-2"><p class="font-semibold text-sm truncate">${esc(p.nombre)}</p>
+          <button onclick="cicloEstadoPasillo('${p.id}',event)" class="text-[10px] px-2 py-1 rounded-full ${pasilloColor(p.estado)} font-semibold shrink-0">${pasilloIcon(p.estado)} ${esc(p.estado||"Surtida")} ▸</button></div>
+        ${p.notas?`<p class="text-[11px] text-slate-500 mt-0.5 truncate">${esc(p.notas)}</p>`:""}${p.actualizado?`<p class="text-[10px] text-slate-400">${esc(p.actualizado)}</p>`:""}${fotos}</div>`; }).join("")
+      : `<p class="text-[11px] text-slate-400 px-1 py-2">Sin pasillos asignados</p>`;
+    return `<div>
+      <div class="flex items-center justify-between mb-2"><p class="font-bold text-sm">👤 ${esc(g.nombre)}${activas?` <span class="text-[10px] bg-red-500 text-white rounded-full px-2 py-0.5 align-middle">${activas} alerta${activas===1?"":"s"}</span>`:""}</p>
+        <button onclick="openPasillo('', '${g.id==='__none__'?'':g.id}')" class="text-[10px] bg-teal-700 text-white px-2 py-1 rounded-lg font-semibold shrink-0">+ Pasillo</button></div>
+      <div class="space-y-2">${cards}</div></div>`; }).join("");
+}
+function openPasillo(id, prefillSup){ if(!puede("piso")){ toast("Sin acceso"); return; }
+  const s=id?db.list("piso_secciones").find(x=>x.id===id):{};
+  fotoTmp["pant"]=s.foto_antes||""; fotoTmpTs["pant"]=s.foto_antes_ts||"";
+  fotoTmp["pdes"]=s.foto_despues||""; fotoTmpTs["pdes"]=s.foto_despues_ts||"";
+  const sups=listaSupsParaSelect(); const supSel=s.supervisor_id||prefillSup||"";
+  openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} pasillo</h3><div class="space-y-3">
+    <div><label class="text-xs text-slate-500">Nombre del pasillo</label><input id="pa_nombre" value="${esc(s.nombre||"")}" placeholder="Ej: Pasillo de Harinas" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
+    <div><label class="text-xs text-slate-500">Supervisor de piso de venta</label>
+      <select id="pa_sup" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="">— Sin asignar —</option>${sups.map(u=>`<option value="${u.id}" ${supSel===u.id?"selected":""}>${esc(u.nombre)}</option>`).join("")}</select>
+      <p class="text-[10px] text-slate-400 mt-0.5">Al guardar, el supervisor seleccionado recibe un aviso.</p></div>
+    <div><label class="text-xs text-slate-500">Estado / alerta</label>
+      <select id="pa_estado" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white">${PASILLO_ESTADOS.map(e=>`<option ${((s.estado||"Surtida")===e)?"selected":""}>${e}</option>`).join("")}</select></div>
+    <div><label class="text-xs text-slate-500">Notas</label><textarea id="pa_notas" rows="2" placeholder="Detalle de la alerta o instrucción…" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(s.notas||"")}</textarea></div>
+    <div class="grid grid-cols-2 gap-3">
+      <div><label class="text-xs font-semibold text-slate-600">📷 Foto ANTES</label><div id="prevPantes" class="mt-1"></div><div class="mt-2">${fotoBtn("pant","prevPantes","Antes")}</div></div>
+      <div><label class="text-xs font-semibold text-slate-600">📷 Foto DESPUÉS</label><div id="prevPdespues" class="mt-1"></div><div class="mt-2">${fotoBtn("pdes","prevPdespues","Después")}</div></div></div>
+    <p class="text-[10px] text-slate-400">Las fotos se borran solas a las 48 h (evidencia del trabajo).</p></div>
+    <div class="flex gap-2 mt-5"><button onclick="savePasillo('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar y avisar</button>
+    ${id?`<button onclick="delPasillo('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+  pintarFotoPreview("pant","prevPantes"); pintarFotoPreview("pdes","prevPdespues");
+}
+async function savePasillo(id){ if(!puede("piso")){ toast("Sin acceso"); return; }
+  const nombre=(document.getElementById("pa_nombre").value||"").trim(); if(!nombre){ toast("Falta el nombre del pasillo"); return; }
+  const supervisor_id=document.getElementById("pa_sup").value||""; const estado=document.getElementById("pa_estado").value||"Surtida"; const notas=(document.getElementById("pa_notas").value||"").trim();
+  const r={ nombre, supervisor_id, responsable_id:supervisor_id?(usuarioById(supervisor_id)?.empleado_id||""):"", estado, notas, actualizado:hoy() };
+  r.foto_antes=fotoTmp["pant"]||""; r.foto_antes_ts=r.foto_antes?(fotoTmpTs["pant"]||new Date().toISOString()):null;
+  r.foto_despues=fotoTmp["pdes"]||""; r.foto_despues_ts=r.foto_despues?(fotoTmpTs["pdes"]||new Date().toISOString()):null;
+  try{ let refId=id; if(id){ await db.update("piso_secciones",id,r); } else { const row=await db.insert("piso_secciones",r); refId=row.id; }
+    if(supervisor_id){ await notificarUsuarioId(supervisor_id,"piso", pasilloIcon(estado)+" Pasillo: "+nombre, (currentUser?currentUser.nombre:"Gerencia")+" registró «"+nombre+"» — "+estado+(notas?": "+notas:""), refId); }
+    // Si quien edita NO es gerencia (p.ej. el supervisor sube la foto "después"), avisar a gerencia
+    if(!esGerencia()){ await notificarGerencia("piso", pasilloIcon(estado)+" Pasillo: "+nombre, (currentUser?currentUser.nombre:"El supervisor")+" actualizó «"+nombre+"» — "+estado+(r.foto_despues?" · subió foto DESPUÉS":"")+(notas?": "+notas:""), refId); }
+    closeModal(); render(); toast("Pasillo guardado"+(!esGerencia()?" · gerencia notificada":(supervisor_id?" · supervisor notificado":""))); }
+  catch(e){ toast("Error: "+e.message); } }
+async function delPasillo(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar este pasillo?")){ await db.remove("piso_secciones",id); closeModal(); render(); toast("Pasillo eliminado"); } }
+async function cicloEstadoPasillo(id,ev){ ev.stopPropagation(); if(!puede("piso")){ toast("Sin acceso"); return; } const s=db.list("piso_secciones").find(x=>x.id===id); if(!s) return;
+  const i=PASILLO_ESTADOS.indexOf(s.estado||"Surtida"); const next=PASILLO_ESTADOS[(i+1)%PASILLO_ESTADOS.length];
+  await db.update("piso_secciones",id,{estado:next,actualizado:hoy()});
+  if(s.supervisor_id) await notificarUsuarioId(s.supervisor_id,"piso", pasilloIcon(next)+" Pasillo: "+(s.nombre||""), (currentUser?currentUser.nombre:"Gerencia")+" cambió «"+(s.nombre||"")+"» a "+next, id);
+  if(!esGerencia()) await notificarGerencia("piso", pasilloIcon(next)+" Pasillo: "+(s.nombre||""), (currentUser?currentUser.nombre:"El supervisor")+" cambió «"+(s.nombre||"")+"» a "+next, id);
+  render(); }
 const SEC_ESTADOS=["Surtida","Por reponer","Vacía"];
 function openSeccion(id){ const s=id?db.list("piso_secciones").find(x=>x.id===id):{};
   fotoTmp["sant"]=s.foto_antes||""; fotoTmpTs["sant"]=s.foto_antes_ts||"";
@@ -3204,7 +3268,7 @@ function renderInicio(){
   document.getElementById("mBajoMin").textContent=db.list("productos").filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0)).length;
   document.getElementById("mOrdenes").textContent=db.list("ordenes").filter(o=>o.estado==="Pendiente"||o.estado==="Enviada").length;
   document.getElementById("mIncid").textContent=db.list("piso_incidencias").filter(x=>x.estado!=="Resuelta").length;
-  document.getElementById("mRepo").textContent=db.list("piso_secciones").filter(s=>s.estado!=="Surtida").length;
+  document.getElementById("mRepo").textContent=db.list("piso_secciones").filter(s=>pasilloActiva(s.estado)).length;
   { const mq=document.getElementById("mQuiebre"); if(mq) mq.textContent=db.list("quiebres").filter(q=>(q.status||"Pendiente")!=="Resuelto").length; }
   { const verComp=esGerencia()||puede("compras"); const ca=document.getElementById("card_compA"), cc=document.getElementById("card_compC");
     if(ca) ca.style.display=verComp?"":"none"; if(cc) cc.style.display=verComp?"":"none";
@@ -3234,7 +3298,7 @@ const RENDER_VISTA={
   inicio:renderInicio, empleados:renderEmpleados, bonos:renderBonos, eval:renderEval, evalsup:renderEvalSup,
   asistencia:renderAsistencia, candidatos:renderCandidatos, tareas:renderTareas, asignaciones:renderAsignaciones, nomina:renderNomina,
   diaslibres:renderDiasLibres, incpersonal:renderIncPersonal,
-  piso:function(){ renderSecciones(); renderAsignGondolas(); renderIncidencias(); },
+  piso:renderPisoVenta,
   proveedores:renderProveedores, inventario:renderInventario, ordenes:renderOrdenes,
   recepcion:function(){ renderRecepcion(); renderRecepHistory(); }, merma:renderMerma, quiebre:renderQuiebre,
   rotacion:renderRotacion, compras:renderCompras,
