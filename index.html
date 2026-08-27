@@ -190,7 +190,8 @@
     <h3 id="hFin" class="font-bold text-sm mt-5 mb-2 text-slate-600">Caja y Finanzas</h3>
     <div class="grid grid-cols-3 gap-3" id="tilesFin"></div>
 
-    <button onclick="sincronizarMaestro()" class="w-full mt-6 bg-teal-600 text-white font-semibold py-3 rounded-xl active:bg-teal-700">🔄 Sincronizar</button>
+    <button id="btnReportePDF" onclick="descargarReportePDF()" style="display:none" class="w-full mt-6 bg-slate-800 text-white font-semibold py-3 rounded-xl active:bg-slate-900">📄 Descargar reporte general (PDF)</button>
+    <button onclick="sincronizarMaestro()" class="w-full mt-3 bg-teal-600 text-white font-semibold py-3 rounded-xl active:bg-teal-700">🔄 Sincronizar</button>
     <p id="ultSync" class="text-[11px] text-center mt-1 text-slate-400">Última sincronización: —</p>
     <button onclick="logout()" class="w-full mt-2 bg-white border border-slate-200 text-slate-600 font-semibold py-3 rounded-xl active:bg-slate-50">⎋ Cerrar sesión</button>
   </section>
@@ -586,7 +587,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.41"; // se incrementa con cada mejora
+const APP_VERSION="4.42"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -2293,6 +2294,102 @@ function exportarNominaPDF(){ if(!verSueldos()){ toast("Los sueldos están ocult
   mat.forEach(row=>{ row.forEach((v,i)=>{ let t=String(v); const m=ajustes.moneda; if([3,4,5,7].includes(i)) t=(Number(v)||0).toLocaleString("es-VE")+" "+m; if(i===0) t=t.slice(0,26); if(i===8) t=t.slice(0,22); doc.text(t,xs[i],y); }); y+=6; if(y>195){ doc.addPage(); y=20; } });
   doc.save(`nomina_${per}${slugArea(area)}.pdf`); toast("PDF descargado"+(area?" · "+area:"")); }
 
+/* ===================== REPORTE GENERAL (PDF) ===================== */
+function datosReporteGeneral(){
+  const mes=hoy().slice(0,7);
+  const emps=db.list("empleados").filter(e=>e.estado!=="Inactivo");
+  const porArea={}; emps.forEach(e=>{ const a=(e.area||"Sin área asignada"); if(!porArea[a]) porArea[a]={n:0,nomina:0}; porArea[a].n++; porArea[a].nomina+=(Number(e.salario_base)||0); });
+  const areasArr=Object.keys(porArea).sort().map(a=>({area:a, n:porArea[a].n, nomina:porArea[a].nomina}));
+  const nominaMensual=emps.reduce((s,e)=>s+(Number(e.salario_base)||0),0);
+  // Facturas recibidas
+  const fr=db.list("facturas_rec"); let frBs=0,frUsd=0; fr.forEach(f=>{ const m=Number(f.monto)||0; if(f.moneda==="USD") frUsd+=m; else frBs+=m; });
+  const frPendUsd=facturasRecUsdTot();
+  const frMes=fr.filter(f=>(f.fecha||"").startsWith(mes));
+  // Pagos a proveedores
+  const pagosMes=db.list("pagos_prov").filter(p=>(p.fecha_pago||"").startsWith(mes));
+  const pagosMesUsd=pagosProvUsdTot(p=>(p.fecha_pago||"").startsWith(mes));
+  const pagosTotUsd=pagosProvUsdTot();
+  const deuda=deudaPendienteUsd();
+  // Caja: ingresos del mes (ventas facturadas)
+  const cierres=db.list("cierres_caja").filter(c=>!c.arqueo && (c.fecha||"").startsWith(mes));
+  let ingBs=0, ingUsd=0; cierres.forEach(c=>{ const r=calcCierre(c); ingBs+=r.facturadoBs; ingUsd+=r.facturadoUsd; });
+  const egrUsd=pagosMesUsd+nominaMensual;   // egresos del mes = pagos a proveedores + nómina
+  const balanceUsd=ingUsd-egrUsd;
+  // Inventario
+  const prods=db.list("productos"); const bajoMin=prods.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0)).length;
+  const quiebres=db.list("quiebres").filter(q=>(q.status||"Pendiente")!=="Resuelto").length;
+  // Ventas del mes (unidades y valor por costo)
+  const vtMes=ventasProducto? ventasProducto(31,true):{}; let uVend=0,valVend=0; Object.keys(vtMes).forEach(k=>{ uVend+=vtMes[k].qty; valVend+=vtMes[k].valor; });
+  return { mes, emps:emps.length, areasArr, nominaMensual, fr:fr.length, frBs, frUsd, frPendUsd, frMes:frMes.length,
+    pagosMes:pagosMes.length, pagosMesUsd, pagosTotUsd, deuda, cierres:cierres.length, ingBs, ingUsd, egrUsd, balanceUsd,
+    prods:prods.length, bajoMin, quiebres, uVend, valVend };
+}
+function descargarReportePDF(){ if(!esGerencia()){ toast("Solo gerencia"); return; }
+  const d=datosReporteGeneral(); const { jsPDF }=window.jspdf; const doc=new jsPDF(); const W=210, M=14; const tc=tipoCambio||0;
+  const usd=(n)=>"$"+(Number(n)||0).toLocaleString("es-VE",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const bs=(n)=>(Number(n)||0).toLocaleString("es-VE",{minimumFractionDigits:2,maximumFractionDigits:2})+" Bs";
+  const dual=(u)=> usd(u)+(tc?"  ("+bs((Number(u)||0)*tc)+")":"");
+  const ahora=new Date(); const stamp=ahora.toLocaleString("es-VE");
+  // ---- Cabecera ----
+  doc.setFillColor(15,118,110); doc.rect(0,0,W,34,"F");
+  try{ if(ajustes.logo){ const fmt=/png/i.test(ajustes.logo)?"PNG":"JPEG"; doc.addImage(ajustes.logo,fmt,M,7,20,20); } }catch(e){}
+  doc.setTextColor(255,255,255); doc.setFont(undefined,"bold"); doc.setFontSize(17); doc.text(ajustes.nombre||"Hipposupermarket", M+24, 15);
+  doc.setFont(undefined,"normal"); doc.setFontSize(11); doc.text("Reporte general de gestión", M+24, 22);
+  doc.setFontSize(8.5); doc.text("Período: "+d.mes+"   ·   Generado: "+stamp, M+24, 28);
+  let y=44; doc.setTextColor(30,30,30);
+  // ---- KPIs del mes ----
+  const kbox=(x,w,titulo,valor,color)=>{ doc.setDrawColor(225,229,235); doc.setFillColor(248,250,252); doc.roundedRect(x,y,w,20,2,2,"FD");
+    doc.setFontSize(7.5); doc.setTextColor(110,120,130); doc.text(titulo,x+3,y+6);
+    doc.setFont(undefined,"bold"); doc.setFontSize(11); doc.setTextColor(color[0],color[1],color[2]); doc.text(valor,x+3,y+14); doc.setFont(undefined,"normal"); doc.setTextColor(30,30,30); };
+  const w3=(W-2*M-8)/3;
+  kbox(M,w3,"Ingresos del mes (ventas)",usd(d.ingUsd),[16,120,80]);
+  kbox(M+w3+4,w3,"Egresos del mes",usd(d.egrUsd),[190,50,45]);
+  kbox(M+2*(w3+4),w3,"Balance del mes",usd(d.balanceUsd),d.balanceUsd>=0?[16,120,80]:[190,50,45]);
+  y+=27;
+  // ---- helper de sección ----
+  const seccion=(t)=>{ if(y>262){ doc.addPage(); y=18; } doc.setFillColor(15,118,110); doc.rect(M,y,W-2*M,7,"F"); doc.setTextColor(255,255,255); doc.setFont(undefined,"bold"); doc.setFontSize(10); doc.text(t,M+2,y+5); doc.setTextColor(30,30,30); doc.setFont(undefined,"normal"); y+=11; };
+  const linea=(lbl,val,neg)=>{ if(y>282){ doc.addPage(); y=18; } doc.setFontSize(9.5); doc.setTextColor(70,80,90); doc.text(lbl,M+2,y); doc.setFont(undefined,"bold"); doc.setTextColor(neg?190:30, neg?50:30, neg?45:30); doc.text(String(val),W-M-2,y,{align:"right"}); doc.setFont(undefined,"normal"); doc.setTextColor(30,30,30); y+=6.5; };
+  // ---- Personal y Nómina ----
+  seccion("Personal y Nómina");
+  linea("Empleados activos (total)", d.emps);
+  linea("Gasto de nómina mensual (base)", dual(d.nominaMensual));
+  linea("Gasto de nómina quincenal (base)", dual(d.nominaMensual/2));
+  y+=1; doc.setFontSize(8.5); doc.setFont(undefined,"bold"); doc.setTextColor(110,120,130);
+  doc.text("Área",M+2,y); doc.text("Empleados",W-M-55,y,{align:"right"}); doc.text("Nómina/mes",W-M-2,y,{align:"right"}); doc.setFont(undefined,"normal"); doc.setTextColor(30,30,30); y+=1.5; doc.setDrawColor(225,229,235); doc.line(M,y,W-M,y); y+=5;
+  d.areasArr.forEach(a=>{ if(y>284){ doc.addPage(); y=18; } doc.setFontSize(9); doc.text(String(a.area).slice(0,40),M+2,y); doc.text(String(a.n),W-M-55,y,{align:"right"}); doc.text(usd(a.nomina),W-M-2,y,{align:"right"}); y+=6; });
+  y+=3;
+  // ---- Finanzas ----
+  seccion("Finanzas — Proveedores y Deuda");
+  linea("Facturas recibidas (total registradas)", d.fr+" documento(s)");
+  linea("Facturas recibidas este mes", d.frMes+" documento(s)");
+  linea("Monto facturas recibidas (Bs)", bs(d.frBs));
+  linea("Monto facturas recibidas (USD)", usd(d.frUsd));
+  linea("Saldo pendiente de facturas", dual(d.frPendUsd));
+  linea("Pagos a proveedores este mes ("+d.pagosMes+")", dual(d.pagosMesUsd));
+  linea("Pagos a proveedores (histórico)", dual(d.pagosTotUsd));
+  linea("Deuda pendiente total", dual(d.deuda), d.deuda>0);
+  y+=3;
+  // ---- Resultado del mes ----
+  seccion("Resultado del mes ("+d.mes+")");
+  linea("Ingresos (ventas facturadas · "+d.cierres+" cierres)", dual(d.ingUsd));
+  linea("Egresos (pagos a proveedores + nómina)", dual(d.egrUsd), true);
+  linea("Balance del mes", dual(d.balanceUsd), d.balanceUsd<0);
+  y+=3;
+  // ---- Inventario y ventas ----
+  seccion("Inventario y ventas");
+  linea("Productos en catálogo", d.prods.toLocaleString("es-VE"));
+  linea("Productos bajo mínimo", d.bajoMin, d.bajoMin>0);
+  linea("Quiebres de inventario pendientes", d.quiebres, d.quiebres>0);
+  linea("Unidades vendidas (últimos 30 días)", d.uVend.toLocaleString("es-VE"));
+  linea("Valor de ventas al costo (30 días)", dual(d.valVend));
+  // ---- Pie de página en todas las páginas ----
+  const tot=doc.internal.getNumberOfPages();
+  for(let i=1;i<=tot;i++){ doc.setPage(i); doc.setFontSize(7.5); doc.setTextColor(150,155,160);
+    doc.text("Documento confidencial · uso interno — "+(ajustes.nombre||"")+(tc?"  ·  Tasa: "+bs(tc)+"/$":""), M, 290);
+    doc.text("Página "+i+" de "+tot, W-M, 290, {align:"right"}); }
+  doc.save("reporte_general_"+d.mes+".pdf"); toast("Reporte PDF descargado");
+}
+
 /* ===================== PISO DE VENTA ===================== */
 /* ===================== PISO DE VENTA (por supervisor + alertas) ===================== */
 const PASILLO_ESTADOS=["Surtida","Pasillo caído","Quiebre de stock","En proceso","Resuelto"];
@@ -3275,6 +3372,7 @@ function renderInicio(){
   document.getElementById("mIncid").textContent=db.list("piso_incidencias").filter(x=>x.estado!=="Resuelta").length;
   document.getElementById("mRepo").textContent=db.list("piso_secciones").filter(s=>pasilloActiva(s.estado)).length;
   { const mq=document.getElementById("mQuiebre"); if(mq) mq.textContent=db.list("quiebres").filter(q=>(q.status||"Pendiente")!=="Resuelto").length; }
+  { const rp=document.getElementById("btnReportePDF"); if(rp) rp.style.display=esGerencia()?"":"none"; }
   { const verComp=esGerencia()||puede("compras"); const ca=document.getElementById("card_compA"), cc=document.getElementById("card_compC");
     if(ca) ca.style.display=verComp?"":"none"; if(cc) cc.style.display=verComp?"":"none";
     if(verComp){ const k=comprasKPIs(); const ma=document.getElementById("mCompA"), mc=document.getElementById("mCompC");
