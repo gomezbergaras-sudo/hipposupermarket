@@ -479,7 +479,8 @@
       <button onclick="openPagoProv()" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold">💵 Pago a proveedor</button>
       <button onclick="openReportePagos()" class="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg font-semibold">📊 Reporte de pagos</button>
       <button onclick="openDeuda()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Deuda</button>
-      <button onclick="openImportarFinanzas()" class="text-xs bg-slate-500 text-white px-3 py-1.5 rounded-lg font-semibold">📤 Importar Excel</button></div>
+      <button onclick="openImportarFinanzas()" class="text-xs bg-slate-500 text-white px-3 py-1.5 rounded-lg font-semibold">📤 Importar Excel</button>
+      <button onclick="exportarRespaldoFinanzas()" class="text-xs bg-slate-800 text-white px-3 py-1.5 rounded-lg font-semibold">💾 Respaldo (Excel)</button></div>
     <p class="text-xs text-slate-500 mb-2">Deudas, notas de crédito, pagos y facturas recibidas de proveedores.</p>
     <div class="flex flex-wrap gap-2 mb-3">
       <label class="bg-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelDeudas(event)"></label>
@@ -603,7 +604,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.45"; // se incrementa con cada mejora
+const APP_VERSION="4.46"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -3648,6 +3649,17 @@ function render(){
 
 /* ===================== DATOS / RESPALDO ===================== */
 function exportarJSON(){ const blob=new Blob([JSON.stringify(store,null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="respaldo_supergestion.json"; a.click(); }
+/* Respaldo de FINANZAS a Excel (facturas recibidas, deudas y pagos). Re-importable por «Importar Excel». */
+function exportarRespaldoFinanzas(){ if(!puede("deudas")){ toast("Sin acceso"); return; } if(!window.XLSX){ toast("No se pudo cargar el Excel (revisa tu conexión)."); return; }
+  const wb=XLSX.utils.book_new();
+  const fac=db.list("facturas_rec").map(f=>({Fecha:f.fecha||"","N Factura":f.numero||"",Proveedor:f.proveedor||"",RIF:f.rif||"",Total:Number(f.monto)||0,Moneda:f.moneda||"Bs",Tipo:f.tipo||"",Abonado:Number(f.abonado)||0,Notas:f.notas||""}));
+  const deu=db.list("deudas").map(d=>({Proveedor:d.proveedor||"",RIF:d.rif||"",Tipo:d.tipo||"Deuda",Monto:Number(d.monto)||0,Abonado:Number(d.abonado)||0,Fecha:d.fecha||"",Status:d.status||"",Notas:d.notas||""}));
+  const pag=db.list("pagos_prov").map(p=>({Proveedor:p.proveedor||"",RIF:p.rif||"","Fecha pago":p.fecha_pago||"","Total pagado":Number(p.total_pagado)||0,Moneda:p.moneda||"Bs",Tasa:Number(p.tasa)||0,Banco:p.banco||"",Notas:p.notas||""}));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(fac.length?fac:[{Fecha:"",Proveedor:"",Total:0}]), "Facturas recibidas");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(deu.length?deu:[{Proveedor:"",Monto:0}]), "Deudas");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pag.length?pag:[{Proveedor:"","Total pagado":0}]), "Pagos");
+  XLSX.writeFile(wb, "respaldo_finanzas_"+hoy()+".xlsx");
+  toast("Respaldo de finanzas descargado ("+fac.length+" facturas, "+deu.length+" deudas, "+pag.length+" pagos)"); }
 async function importarJSON(ev){ const file=ev.target.files[0]; if(!file) return; const data=JSON.parse(await file.text());
   TABLES.forEach(t=>{ if(t==="usuarios" && !Array.isArray(data.usuarios)) return; store[t]=data[t]||[]; });
   if(!db.list("usuarios").length){ await seedUsuarios(); }
