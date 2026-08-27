@@ -276,6 +276,20 @@
     <div id="listaCandidatos" class="space-y-2"></div>
   </section>
 
+  <!-- ======== NÓMINA Y BENEFICIOS (VENEZUELA) ======== -->
+  <section data-view="nominave" hidden>
+    <h2 class="text-lg font-bold mb-1">Nómina y Beneficios · Venezuela</h2>
+    <p class="text-xs text-slate-500 mb-2">Cálculo con parámetros legales versionados. Deducciones de ley (IVSS, Paro forzoso, FAOV), ISLR, cestaticket, prestaciones, vacaciones, utilidades y liquidación.</p>
+    <div class="bg-amber-50 text-amber-800 rounded-xl px-3 py-2 text-[11px] mb-3">⚠ Los montos legales son referenciales. Verifícalos contra la Gaceta Oficial vigente y con tu asesor laboral. Los cálculos de beneficios son estimaciones.</div>
+    <div class="flex flex-wrap gap-2 mb-3">
+      <button onclick="openParamsLegales()" class="text-xs bg-slate-700 text-white px-3 py-2 rounded-xl font-semibold">⚖️ Parámetros legales</button>
+      <button onclick="openConceptosNomina()" class="text-xs bg-slate-700 text-white px-3 py-2 rounded-xl font-semibold">🧾 Conceptos de nómina</button>
+    </div>
+    <div id="nomveResumen" class="mb-2"></div>
+    <input id="nomveBuscar" oninput="renderNominaVE()" placeholder="🔎 Empleado, cédula o área" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 text-sm">
+    <div id="listaNominaVE" class="space-y-2"></div>
+  </section>
+
   <!-- ======== TAREAS ======== -->
   <section data-view="tareas" hidden>
     <div class="flex items-center justify-between mb-3"><h2 class="text-lg font-bold">Tareas</h2>
@@ -577,7 +591,7 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos","parametros_legales","conceptos_nomina"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
@@ -587,7 +601,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.43"; // se incrementa con cada mejora
+const APP_VERSION="4.44"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -863,6 +877,7 @@ const MODULES = {
   asistencia:{parent:"rrhh",title:"Asistencia",sub:"Recursos Humanos"},
   candidatos:{parent:"rrhh",title:"Candidatos (Bolsa de empleo)",sub:"Recursos Humanos"},
   nomina:{parent:"rrhh",title:"Nómina",sub:"Recursos Humanos"},
+  nominave:{parent:"rrhh",title:"Nómina y Beneficios (VE)",sub:"Recursos Humanos"},
   tareas:{parent:"supervisores",title:"Tareas",sub:"Supervisores"},
   asignaciones:{parent:"supervisores",title:"Asignaciones de trabajo",sub:"Supervisores"},
   diaslibres:{parent:"supervisores",title:"Días libres",sub:"Supervisores"},
@@ -881,7 +896,7 @@ const MODULES = {
   deudas:{parent:"finanzas",title:"Finanzas",sub:"Caja y Finanzas"},
   conexiones:{parent:"finanzas",title:"Conexiones",sub:"Caja y Finanzas"},
 };
-const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"],["candidatos","📨","Candidatos"]];
+const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["nominave","⚖️","Nómina VE"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"],["candidatos","📨","Candidatos"]];
 const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"],["quiebre","🚨","Quiebre"],["rotacion","🔥","Rotación/ABC"],["compras","🛒","Compras"]];
 const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"],["incpersonal","⏰","Asistencia personal"]];
 const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
@@ -910,14 +925,14 @@ function pintarIdioma(){
 let currentView="inicio";
 
 /* ---------- USUARIOS Y PERMISOS ---------- */
-const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia","candidatos"];
+const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia","candidatos","nominave"];
 const PROD_VIEWS=["proveedores","inventario","ordenes","recepcion","merma","quiebre","rotacion","compras"];
 const SUP_VIEWS=["piso","tareas","asignaciones","diaslibres","incpersonal"];
 const FIN_VIEWS=["caja","tesoreria","deudas","conexiones"];
 // Todas las opciones que gerencia puede otorgar/quitar por usuario (tesoreria es solo gerencia, por eso no está aquí)
 const OPCIONES=[
   ["resumen","Resumen / indicadores del inicio"],
-  ["empleados","Personal"],["empleados_editar","Modificar personal (editar datos de empleados)"],["nomina","Nómina"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],["candidatos","Candidatos / Bolsa de empleo"],
+  ["empleados","Personal"],["empleados_editar","Modificar personal (editar datos de empleados)"],["nomina","Nómina"],["nominave","Nómina y beneficios (Venezuela)"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],["candidatos","Candidatos / Bolsa de empleo"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],["incpersonal","Incidencias de personal (asistencia)"],
   ["proveedores","Proveedores"],["inventario","Inventario"],["inventario_editar","Modificar inventario (crear/editar/eliminar productos y stock)"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],["rotacion","Rotación y clasificación ABC"],["compras","Compras (evaluación e indicadores del encargado)"],
   ["caja","Caja (cierres y arqueos)"],["caja_editar","Modificar cajas con día cerrado (autorizado por gerencia)"],["tesoreria","Tesorería (totales y tasa)"],["deudas","Finanzas (deudas, pagos y facturas recibidas)"],["conexiones","Conexiones (quién se conecta)"]
@@ -1347,6 +1362,181 @@ async function saveCandidato(id){ if(!puede("candidatos")){ toast("Sin acceso");
   const patch={ estado:document.getElementById("cand_estado").value, asignado_a:document.getElementById("cand_asig").value||"", notas:document.getElementById("cand_notas").value||"" };
   try{ await db.update("candidatos",id,patch); closeModal(); render(); toast("Candidato actualizado"); }catch(e){ toast("Error: "+e.message); } }
 async function delCandidato(id){ if(!esGerencia()){ toast("Solo gerencia puede eliminar"); return; } if(confirm("¿Eliminar esta candidatura?")){ await db.remove("candidatos",id); closeModal(); render(); toast("Candidatura eliminada"); } }
+
+/* ===================== NÓMINA Y BENEFICIOS (VENEZUELA) ===================== */
+const PARAM_META=[
+ {k:"salarios_en",lbl:"Moneda del salario base del empleado",tipo:"select",ops:[["0","Dólares ($) — se convierte a Bs con la tasa"],["1","Bolívares (Bs) — ya está en Bs"]],def:0},
+ {k:"tasa_bcv",lbl:"Tasa BCV (Bs por $)",def:0,unit:"Bs/$",nota:"Si es 0, se usa la tasa configurada en la app."},
+ {k:"salario_minimo",lbl:"Salario mínimo mensual",def:130,unit:"Bs"},
+ {k:"cestaticket",lbl:"Cestaticket / Bono de alimentación (mensual)",def:1000,unit:"Bs"},
+ {k:"pct_ivss",lbl:"IVSS (Seguro Social) — % trabajador",def:4,unit:"%"},
+ {k:"pct_paro",lbl:"Paro forzoso (RPE) — % trabajador",def:0.5,unit:"%"},
+ {k:"pct_faov",lbl:"FAOV (Ley de Vivienda) — % trabajador",def:1,unit:"%"},
+ {k:"pct_islr",lbl:"ISLR — % de retención",def:0,unit:"%"},
+ {k:"tope_cot_sm",lbl:"Tope de cotización IVSS/Paro (nº de salarios mínimos)",def:5,unit:"SM"},
+ {k:"dias_utilidades",lbl:"Utilidades / aguinaldos (días al año)",def:30,unit:"días"},
+ {k:"dias_vac_base",lbl:"Vacaciones base (días)",def:15,unit:"días"},
+ {k:"dias_bonovac_base",lbl:"Bono vacacional base (días)",def:15,unit:"días"},
+ {k:"dias_prest_trim",lbl:"Garantía de prestaciones por trimestre (días)",def:15,unit:"días"},
+];
+function paramDef(k){ const m=PARAM_META.find(x=>x.k===k); return m?(typeof m.def==="number"?m.def:0):0; }
+function paramLegal(clave, fecha){ fecha=fecha||hoy();
+  const rows=db.list("parametros_legales").filter(p=>p.clave===clave && String(p.vigencia_desde||"")<=fecha && (!p.vigencia_hasta || String(p.vigencia_hasta)>=fecha)).sort((a,b)=>String(b.vigencia_desde||"").localeCompare(String(a.vigencia_desde||"")));
+  return rows.length? (Number(rows[0].valor)||0) : paramDef(clave); }
+function fechaMenos1(f){ const d=new Date(f+"T00:00:00"); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); }
+async function setParamLegal(clave, valor, desde, nota){ if(!esGerencia()){ toast("Solo gerencia"); return; } desde=desde||hoy();
+  const vig=db.list("parametros_legales").filter(p=>p.clave===clave && !p.vigencia_hasta);
+  for(const v of vig){ if(String(v.vigencia_desde||"")===desde){ await db.remove("parametros_legales",v.id); } else { await db.update("parametros_legales",v.id,{vigencia_hasta:fechaMenos1(desde)}); } }
+  await db.insert("parametros_legales",{clave, valor:Number(valor)||0, moneda:"Bs", vigencia_desde:desde, vigencia_hasta:null, nota:nota||""}); }
+function tasaBCVde(fecha){ const t=paramLegal("tasa_bcv",fecha); return t>0?t:(tipoCambio||0); }
+function salariosEnBs(fecha){ return paramLegal("salarios_en",fecha)===1; }
+function salarioMensualBs(emp, fecha){ const base=Number(emp.salario_base)||0; return salariosEnBs(fecha)? base : base*(tasaBCVde(fecha)||0); }
+
+/* --- Cálculo de nómina venezolana (en Bs) --- */
+function calcNominaVE(emp, per){ const fecha=per+"-15"; const tasa=tasaBCVde(fecha); const sm=paramLegal("salario_minimo",fecha);
+  const salMes=salarioMensualBs(emp,fecha); const salDia=salMes/30;
+  const topeSM=paramLegal("tope_cot_sm",fecha)||0; const topeBs= topeSM>0? topeSM*sm : Infinity; const baseCot=Math.min(salMes, topeBs);
+  const ivss=baseCot*paramLegal("pct_ivss",fecha)/100;
+  const paro=baseCot*paramLegal("pct_paro",fecha)/100;
+  const faov=salMes*paramLegal("pct_faov",fecha)/100;
+  const islr=salMes*paramLegal("pct_islr",fecha)/100;
+  const cn=db.list("conceptos_nomina").filter(c=>c.activo!==false);
+  let asigOtros=0, dedOtros=0; const detAsig=[],detDed=[];
+  cn.forEach(c=>{ const monto=c.forma==="porcentaje"? salMes*(Number(c.valor)||0)/100 : (Number(c.valor)||0);
+    if(c.tipo==="deduccion"){ dedOtros+=monto; detDed.push({nombre:c.nombre,monto}); } else { asigOtros+=monto; detAsig.push({nombre:c.nombre,monto}); } });
+  const cesta=paramLegal("cestaticket",fecha);
+  const retardoBs=descuentoRetardoEmp(emp.id,per)||0;
+  const totalAsig=salMes+asigOtros+cesta; const totalDedLey=ivss+paro+faov+islr; const totalDed=totalDedLey+dedOtros+retardoBs; const neto=totalAsig-totalDed;
+  return {fecha,tasa,sm,salMes,salDia,cesta,ivss,paro,faov,islr,baseCot,asigOtros,dedOtros,detAsig,detDed,retardoBs,totalAsig,totalDedLey,totalDed,neto,netoUsd:tasa>0?neto/tasa:0}; }
+
+/* --- Beneficios (prestaciones, vacaciones, utilidades, liquidación) — ESTIMADO --- */
+function calcBeneficiosVE(emp, fechaCorte){ fechaCorte=fechaCorte||hoy(); const ing=emp.fecha_ingreso; if(!ing) return null;
+  const tasa=tasaBCVde(fechaCorte); const salMes=salarioMensualBs(emp,fechaCorte); const salDia=salMes/30;
+  const d0=new Date(ing+"T00:00:00"), d1=new Date(fechaCorte+"T00:00:00"); if(isNaN(d0)||d1<d0) return null;
+  const dias=Math.floor((d1-d0)/86400000); const aniosEnt=Math.floor(dias/365.25); const mesesTot=Math.floor(dias/30.4375);
+  const diasUtil=paramLegal("dias_utilidades",fechaCorte); const diasBonoVac=paramLegal("dias_bonovac_base",fechaCorte)+Math.max(0,aniosEnt-1);
+  const salIntDia=salDia + salDia*diasUtil/360 + salDia*diasBonoVac/360;
+  const trimestres=Math.floor(dias/91); const diasGarantia=Math.max(0,trimestres-1)*paramLegal("dias_prest_trim",fechaCorte); const diasAdic=Math.max(0,aniosEnt-1)*2;
+  const prestaciones=(diasGarantia+diasAdic)*salIntDia;
+  const diasVac=paramLegal("dias_vac_base",fechaCorte)+Math.max(0,aniosEnt-1); const vacaciones=diasVac*salDia; const bonoVac=diasBonoVac*salDia;
+  const mesesAnioTrab=Math.min(d1.getMonth()+1, mesesTot); const frac=mesesAnioTrab/12;
+  const utilFrac=diasUtil*frac*salDia; const vacFrac=diasVac*frac*salDia; const bonoVacFrac=diasBonoVac*frac*salDia;
+  const liquidacion=prestaciones+vacFrac+bonoVacFrac+utilFrac;
+  return {dias,aniosEnt,mesesTot,salMes,salDia,salIntDia,diasGarantia,diasAdic,prestaciones,diasVac,vacaciones,bonoVac,diasBonoVac,utilFrac,vacFrac,bonoVacFrac,liquidacion,tasa,fechaCorte}; }
+
+/* --- Formatos --- */
+function bsN(n){ return (Number(n)||0).toLocaleString("es-VE",{minimumFractionDigits:2,maximumFractionDigits:2})+" Bs"; }
+function dualBs(n,tasa){ const u=tasa>0?(Number(n)||0)/tasa:0; return bsN(n)+(tasa>0?"  ($"+u.toLocaleString("es-VE",{minimumFractionDigits:2,maximumFractionDigits:2})+")":""); }
+
+/* --- Vista principal --- */
+function renderNominaVE(){ if(!puede("nominave")) return; const c=document.getElementById("listaNominaVE"); if(!c) return;
+  const per=hoy().slice(0,7); const q=(document.getElementById("nomveBuscar")?.value||"").trim().toLowerCase();
+  let emps=db.list("empleados").filter(e=>e.estado!=="Inactivo"); if(q) emps=emps.filter(e=>[e.nombre,e.cedula,e.area,e.cargo].join(" ").toLowerCase().includes(q));
+  emps.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+  const rz=document.getElementById("nomveResumen");
+  if(rz){ const tasa=tasaBCVde(hoy()); let totNeto=0; emps.forEach(e=>{ totNeto+=calcNominaVE(e,per).neto; });
+    rz.innerHTML=`<div class="bg-slate-800 text-white rounded-xl px-3 py-2 text-sm flex items-center justify-between"><span>Nómina ${per} · ${emps.length} empleado(s)</span><span class="font-bold">${verSueldos()?bsN(totNeto):"•••"}</span></div><p class="text-[10px] text-slate-400 mt-1">Tasa usada: ${tasa?bsN(tasa)+"/$":"— configura la tasa BCV"}</p>`; }
+  if(!emps.length){ c.innerHTML=empty("Sin empleados activos."); return; }
+  c.innerHTML=emps.map(e=>{ const n=calcNominaVE(e,per);
+    return `<div onclick="openReciboVE('${e.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50 flex items-center justify-between gap-2">
+      <div class="min-w-0"><p class="font-semibold truncate">${esc(e.nombre)}</p><p class="text-[11px] text-slate-500 truncate">${esc(e.cedula||"—")}${e.area?" · "+esc(e.area):""}</p></div>
+      <div class="text-right shrink-0"><p class="text-sm font-bold text-teal-700">${verSueldos()?bsN(n.neto):"•••"}</p><p class="text-[10px] text-slate-400">neto/mes</p></div></div>`; }).join("");
+}
+function openReciboVE(empId){ if(!puede("nominave")){ toast("Sin acceso"); return; } if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; }
+  const e=empById(empId); if(!e) return; const per=hoy().slice(0,7); const n=calcNominaVE(e,per); const b=calcBeneficiosVE(e);
+  const row=(l,v,neg)=>`<div class="flex items-center justify-between text-sm py-0.5"><span class="text-slate-600">${l}</span><span class="font-semibold ${neg?'text-red-600':''}">${v}</span></div>`;
+  openModal(`<h3 class="font-bold text-lg mb-0.5">Recibo de nómina · ${esc(e.nombre)}</h3>
+    <p class="text-xs text-slate-500 mb-2">${esc(e.cedula||"—")}${e.cargo?" · "+esc(e.cargo):""} · Período ${per} · Tasa ${n.tasa?bsN(n.tasa)+"/$":"—"}</p>
+    <div class="bg-emerald-50 rounded-xl p-2 mb-2"><p class="text-[11px] font-bold text-emerald-700 mb-1">Asignaciones</p>
+      ${row("Salario del mes", bsN(n.salMes))}
+      ${n.detAsig.map(a=>row(esc(a.nombre), bsN(a.monto))).join("")}
+      ${row("Cestaticket / bono alimentación", bsN(n.cesta))}
+      ${row("<b>Total asignaciones</b>", "<b>"+bsN(n.totalAsig)+"</b>")}</div>
+    <div class="bg-red-50 rounded-xl p-2 mb-2"><p class="text-[11px] font-bold text-red-700 mb-1">Deducciones</p>
+      ${row("IVSS (Seguro Social)", bsN(n.ivss), true)}
+      ${row("Paro forzoso (RPE)", bsN(n.paro), true)}
+      ${row("FAOV (Ley de Vivienda)", bsN(n.faov), true)}
+      ${n.islr>0?row("ISLR", bsN(n.islr), true):""}
+      ${n.detDed.map(a=>row(esc(a.nombre), bsN(a.monto), true)).join("")}
+      ${n.retardoBs>0?row("Retardos", bsN(n.retardoBs), true):""}
+      ${row("<b>Total deducciones</b>", "<b>"+bsN(n.totalDed)+"</b>")}</div>
+    <div class="bg-slate-800 text-white rounded-xl px-3 py-2 flex items-center justify-between mb-1"><span class="font-semibold">Neto a pagar</span><span class="font-bold">${dualBs(n.neto,n.tasa)}</span></div>
+    <p class="text-[11px] text-slate-400 mb-3">Quincenal aprox.: ${bsN(n.neto/2)}</p>
+    ${b?`<div class="bg-white border border-slate-200 rounded-xl p-3 mb-3">
+      <p class="text-sm font-bold text-slate-600 mb-1">Beneficios acumulados (estimado)</p>
+      <p class="text-[11px] text-slate-400 mb-2">Antigüedad: ${b.aniosEnt} año(s) · ${b.mesesTot} mes(es) · ingreso ${esc(e.fecha_ingreso||"—")}</p>
+      ${row("Prestaciones sociales ("+b.diasGarantia+"+"+b.diasAdic+" días)", dualBs(b.prestaciones,b.tasa))}
+      ${row("Vacaciones ("+b.diasVac+" días)", dualBs(b.vacaciones,b.tasa))}
+      ${row("Bono vacacional ("+b.diasBonoVac+" días)", dualBs(b.bonoVac,b.tasa))}
+      ${row("Utilidades fraccionadas", dualBs(b.utilFrac,b.tasa))}
+      <div class="border-t border-slate-100 mt-1 pt-1">${row("<b>Liquidación estimada</b>", "<b>"+dualBs(b.liquidacion,b.tasa)+"</b>")}</div>
+      <p class="text-[10px] text-amber-600 mt-1">Estimación referencial. La liquidación real depende del motivo de egreso y debe validarse con tu asesor.</p></div>`
+    : `<p class="text-xs text-amber-600 mb-3">Para calcular beneficios, registra la <b>fecha de ingreso</b> del empleado en Personal.</p>`}
+    <div class="flex gap-2"><button onclick="descargarReciboVE('${e.id}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">📄 Descargar recibo PDF</button>
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
+}
+
+/* --- Parámetros legales (versionados) --- */
+function openParamsLegales(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const hoyF=hoy();
+  const filas=PARAM_META.map(m=>{ const val=paramLegal(m.k,hoyF);
+    const input = m.tipo==="select"
+      ? `<select id="pl_${m.k}" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm bg-white">${m.ops.map(o=>`<option value="${o[0]}" ${String(val)===o[0]?"selected":""}>${o[1]}</option>`).join("")}</select>`
+      : `<input id="pl_${m.k}" type="number" step="any" value="${val}" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm">`;
+    return `<div class="bg-slate-50 rounded-xl p-2"><label class="text-[11px] font-semibold text-slate-600">${m.lbl}${m.unit?` <span class="text-slate-400">(${m.unit})</span>`:""}</label>
+      <div class="flex gap-2 items-center mt-1">${input}</div>${m.nota?`<p class="text-[10px] text-slate-400 mt-0.5">${m.nota}</p>`:""}</div>`; }).join("");
+  openModal(`<h3 class="font-bold text-lg mb-1">⚖️ Parámetros legales</h3>
+    <p class="text-xs text-slate-500 mb-2">Se guardan con <b>fecha de vigencia</b>: al cambiar un valor se crea una versión nueva y la anterior queda archivada (no se sobreescribe).</p>
+    <div class="mb-2"><label class="text-[11px] font-semibold text-slate-600">Vigente desde</label><input id="pl_desde" type="date" value="${hoyF}" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div>
+    <div class="space-y-2 max-h-[52vh] overflow-y-auto">${filas}</div>
+    <div class="flex gap-2 mt-3"><button onclick="guardarParamsLegales()" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar versión</button>
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
+}
+async function guardarParamsLegales(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const desde=document.getElementById("pl_desde").value||hoy();
+  try{ for(const m of PARAM_META){ const el=document.getElementById("pl_"+m.k); if(!el) continue; const nuevo=Number(el.value)||0; const actual=paramLegal(m.k,desde); const existe=db.list("parametros_legales").some(p=>p.clave===m.k);
+      if(nuevo!==actual || !existe){ await setParamLegal(m.k, nuevo, desde, m.lbl); } }
+    closeModal(); render(); toast("Parámetros legales guardados"); }catch(e){ toast("Error: "+e.message); } }
+
+/* --- Conceptos de nómina --- */
+function openConceptosNomina(){ if(!esGerencia()){ toast("Solo gerencia"); return; } renderConceptosNominaModal(); }
+function renderConceptosNominaModal(){ const l=db.list("conceptos_nomina").sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+  const lista=l.length? l.map(c=>`<div class="bg-white border border-slate-100 rounded-lg px-2 py-1.5 flex items-center justify-between gap-2 text-sm"><div class="min-w-0"><p class="font-medium truncate">${esc(c.nombre)} <span class="text-[10px] px-1.5 py-0.5 rounded-full ${c.tipo==="deduccion"?"bg-red-100 text-red-700":"bg-emerald-100 text-emerald-700"}">${c.tipo==="deduccion"?"Deducción":"Asignación"}</span></p><p class="text-[11px] text-slate-500">${c.forma==="porcentaje"?(Number(c.valor)||0)+"% del salario":bsN(c.valor)} · ${c.base==="no_salarial"?"no salarial":"salarial"}</p></div><button onclick="delConceptoNomina('${c.id}')" class="text-red-500 font-bold shrink-0">✕</button></div>`).join("") : `<p class="text-xs text-slate-400 text-center py-3">Sin conceptos. Agrega uno abajo.</p>`;
+  openModal(`<h3 class="font-bold text-lg mb-1">🧾 Conceptos de nómina</h3><p class="text-xs text-slate-500 mb-2">Asignaciones o deducciones que se aplican a todos en el cálculo VE.</p>
+    <div class="space-y-1 max-h-56 overflow-y-auto mb-3">${lista}</div>
+    <div class="bg-slate-50 rounded-xl p-2 space-y-2">
+      <input id="cx_nombre" placeholder="Nombre del concepto" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm">
+      <div class="grid grid-cols-2 gap-2">
+        <select id="cx_tipo" class="px-2 py-2 rounded-lg border border-slate-200 text-sm bg-white"><option value="asignacion">Asignación</option><option value="deduccion">Deducción</option></select>
+        <select id="cx_base" class="px-2 py-2 rounded-lg border border-slate-200 text-sm bg-white"><option value="salarial">Salarial</option><option value="no_salarial">No salarial</option></select></div>
+      <div class="grid grid-cols-2 gap-2">
+        <select id="cx_forma" class="px-2 py-2 rounded-lg border border-slate-200 text-sm bg-white"><option value="monto">Monto fijo (Bs)</option><option value="porcentaje">% del salario</option></select>
+        <input id="cx_valor" type="number" step="any" placeholder="Valor" class="px-2 py-2 rounded-lg border border-slate-200 text-sm"></div>
+      <button onclick="saveConceptoNomina()" class="w-full bg-teal-700 text-white font-semibold py-2 rounded-lg text-sm">+ Agregar concepto</button></div>
+    <button onclick="closeModal()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`);
+}
+async function saveConceptoNomina(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const nombre=(document.getElementById("cx_nombre").value||"").trim(); if(!nombre){ toast("Falta el nombre"); return; }
+  const r={nombre, tipo:document.getElementById("cx_tipo").value, base:document.getElementById("cx_base").value, forma:document.getElementById("cx_forma").value, valor:Number(document.getElementById("cx_valor").value)||0, activo:true};
+  try{ await db.insert("conceptos_nomina",r); renderConceptosNominaModal(); render(); toast("Concepto agregado"); }catch(e){ toast("Error: "+e.message); } }
+async function delConceptoNomina(id){ if(!esGerencia()){ toast("Solo gerencia"); return; } if(confirm("¿Eliminar este concepto?")){ await db.remove("conceptos_nomina",id); renderConceptosNominaModal(); render(); } }
+
+/* --- Recibo VE en PDF --- */
+function descargarReciboVE(empId){ if(!verSueldos()){ toast("Sueldos ocultos"); return; } const e=empById(empId); if(!e){ return; } const per=hoy().slice(0,7); const n=calcNominaVE(e,per); const b=calcBeneficiosVE(e);
+  const { jsPDF }=window.jspdf; const doc=new jsPDF(); const W=210,M=14; let y=0;
+  doc.setFillColor(15,118,110); doc.rect(0,0,W,30,"F");
+  try{ if(ajustes.logo){ const fmt=/png/i.test(ajustes.logo)?"PNG":"JPEG"; doc.addImage(ajustes.logo,fmt,M,5,18,18); } }catch(_){}
+  doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.text(ajustes.nombre||"Hipposupermarket",M+22,12);
+  doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.text("Recibo de pago de nómina",M+22,18);
+  doc.setFontSize(8); doc.text("Período: "+per+"   ·   Tasa: "+(n.tasa?bsN(n.tasa)+"/$":"—"),M+22,24);
+  y=40; doc.setTextColor(30,30,30);
+  doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text(e.nombre||"",M,y); doc.setFont("helvetica","normal"); doc.setFontSize(9);
+  doc.text("C.I.: "+(e.cedula||"—")+(e.cargo?"   ·   "+e.cargo:"")+(e.area?"   ·   "+e.area:""),M,y+5); y+=14;
+  const fila=(l,v,bold)=>{ doc.setFont("helvetica",bold?"bold":"normal"); doc.setFontSize(9.5); doc.text(l,M+2,y); doc.text(v,W-M-2,y,{align:"right"}); doc.setFont("helvetica","normal"); y+=6; };
+  const band=(t)=>{ doc.setFillColor(240,244,247); doc.rect(M,y-4,W-2*M,6,"F"); doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.text(t,M+2,y); doc.setFont("helvetica","normal"); y+=6; };
+  band("ASIGNACIONES"); fila("Salario del mes",bsN(n.salMes)); n.detAsig.forEach(a=>fila(a.nombre,bsN(a.monto))); fila("Cestaticket / bono alimentacion",bsN(n.cesta)); fila("Total asignaciones",bsN(n.totalAsig),true); y+=2;
+  band("DEDUCCIONES"); fila("IVSS (Seguro Social)",bsN(n.ivss)); fila("Paro forzoso (RPE)",bsN(n.paro)); fila("FAOV (Ley de Vivienda)",bsN(n.faov)); if(n.islr>0) fila("ISLR",bsN(n.islr)); n.detDed.forEach(a=>fila(a.nombre,bsN(a.monto))); if(n.retardoBs>0) fila("Retardos",bsN(n.retardoBs)); fila("Total deducciones",bsN(n.totalDed),true); y+=3;
+  doc.setFillColor(15,118,110); doc.rect(M,y-4,W-2*M,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("NETO A PAGAR",M+2,y+2); doc.text(dualBs(n.neto,n.tasa),W-M-2,y+2,{align:"right"}); doc.setTextColor(30,30,30); y+=14;
+  if(b){ band("BENEFICIOS ACUMULADOS (ESTIMADO)"); fila("Antiguedad",b.aniosEnt+" ano(s), "+b.mesesTot+" mes(es)"); fila("Prestaciones sociales",dualBs(b.prestaciones,b.tasa)); fila("Vacaciones ("+b.diasVac+" dias)",dualBs(b.vacaciones,b.tasa)); fila("Bono vacacional",dualBs(b.bonoVac,b.tasa)); fila("Utilidades fraccionadas",dualBs(b.utilFrac,b.tasa)); fila("Liquidacion estimada",dualBs(b.liquidacion,b.tasa),true); }
+  doc.setFontSize(7.5); doc.setTextColor(150,155,160); doc.text("Documento referencial - verifique los parametros legales con la Gaceta Oficial vigente y su asesor laboral. - "+(ajustes.nombre||""),M,289);
+  doc.save("recibo_"+(e.nombre||"empleado").replace(/\s+/g,"_")+"_"+per+".pdf"); toast("Recibo PDF descargado"); }
 function descargarCV(id){ const c=db.list("candidatos").find(x=>x.id===id); if(!c||!c.cv_data) return;
   const a=document.createElement("a"); a.href=c.cv_data; a.download=c.cv_nombre||("CV_"+(c.nombre||"candidato")); document.body.appendChild(a); a.click(); a.remove(); }
 
@@ -3425,7 +3615,7 @@ function renderAjustesView(){
 // Cada vista renderiza SOLO su contenido (no reconstruye todas las listas en cada cambio)
 const RENDER_VISTA={
   inicio:renderInicio, empleados:renderEmpleados, bonos:renderBonos, eval:renderEval, evalsup:renderEvalSup,
-  asistencia:renderAsistencia, candidatos:renderCandidatos, tareas:renderTareas, asignaciones:renderAsignaciones, nomina:renderNomina,
+  asistencia:renderAsistencia, candidatos:renderCandidatos, nominave:renderNominaVE, tareas:renderTareas, asignaciones:renderAsignaciones, nomina:renderNomina,
   diaslibres:renderDiasLibres, incpersonal:renderIncPersonal,
   piso:renderPisoVenta,
   proveedores:renderProveedores, inventario:renderInventario, ordenes:renderOrdenes,
