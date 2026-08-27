@@ -285,6 +285,7 @@
       <button onclick="openParamsLegales()" class="text-xs bg-slate-700 text-white px-3 py-2 rounded-xl font-semibold">⚖️ Parámetros legales</button>
       <button onclick="openConceptosNomina()" class="text-xs bg-slate-700 text-white px-3 py-2 rounded-xl font-semibold">🧾 Conceptos de nómina</button>
     </div>
+    <div id="nomveToggles"></div>
     <div id="nomveResumen" class="mb-2"></div>
     <input id="nomveBuscar" oninput="renderNominaVE()" placeholder="🔎 Empleado, cédula o área" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 text-sm">
     <div id="listaNominaVE" class="space-y-2"></div>
@@ -597,11 +598,12 @@ let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC",
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
 let verCostoCfg=true; // ¿mostrar precio costo al personal? (lo controla gerencia; compartido vía config)
 let verSueldosCfg=true; // ¿mostrar sueldos al personal? (lo controla gerencia)
+let modSueldosCfg=true; // ¿permitir modificar sueldos? (lo controla gerencia)
 let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.44"; // se incrementa con cada mejora
+const APP_VERSION="4.45"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -711,6 +713,7 @@ function cargarConfigCompartida(){ const rows=store.config||[];
   const bk=rows.find(r=>r.id==="bancos"); let bv=bk&&bk.valor; if(typeof bv==="string"){ try{bv=JSON.parse(bv);}catch(e){} } if(Array.isArray(bv)) BANCOS=bv;
   const vc=rows.find(r=>r.id==="ver_costo"); if(vc!==undefined && vc){ const v=vc.valor; verCostoCfg = (v===true||v==="true"||v===1||v==="1"); }
   const vs=rows.find(r=>r.id==="ver_sueldos"); if(vs!==undefined && vs){ const v=vs.valor; verSueldosCfg = (v===true||v==="true"||v===1||v==="1"); }
+  { const ms=rows.find(r=>r.id==="mod_sueldos"); if(ms!==undefined && ms){ const v=ms.valor; modSueldosCfg = (v===true||v==="true"||v===1||v==="1"); } }
   const rt=rows.find(r=>r.id==="retardo_tol"); if(rt) retardoTol=Number(rt.valor)||0;
   const rm=rows.find(r=>r.id==="retardo_bsmin"); if(rm) retardoBsMin=Number(rm.valor)||0;
   const vm=rows.find(r=>r.id==="ver_moneda"); if(vm && (vm.valor==="Bs"||vm.valor==="$")) verMonedaCfg=vm.valor;
@@ -722,6 +725,14 @@ async function toggleVerCosto(el){ if(!esGerencia()){ toast("Solo gerencia"); re
 function verSueldos(){ return !!(esGerencia() || verSueldosCfg); }
 function moneyS(v){ return verSueldos()?money(v):"•••"; }
 async function toggleVerSueldos(el){ if(!esGerencia()){ toast("Solo gerencia"); return; } await setConfig("ver_sueldos", el.checked); render(); toast(el.checked?"Sueldos visibles para el personal":"Sueldos ocultos para el personal"); }
+/* Bloqueo de modificación de sueldos (lo controla gerencia). Cuando está OFF, el salario base no se puede cambiar. */
+function puedeModificarSueldo(){ return !!modSueldosCfg; }
+async function toggleModSueldos(el){ if(!esGerencia()){ toast("Solo gerencia"); return; } await setConfig("mod_sueldos", el.checked); render(); toast(el.checked?"Modificación de sueldos activada":"Modificación de sueldos bloqueada"); }
+/* Panel de interruptores de sueldos (ver / modificar) — se muestra en las dos nóminas, solo a gerencia */
+function togglesSueldosHTML(){ if(!esGerencia()) return ""; return `<div class="bg-white rounded-2xl shadow-sm p-3 mb-2 space-y-2">
+  <label class="flex items-center justify-between gap-2 text-xs"><span class="text-slate-600 font-semibold">👁 Ver sueldos (mostrar al personal)</span><input type="checkbox" ${verSueldosCfg?"checked":""} onchange="toggleVerSueldos(this)" class="w-4 h-4"></label>
+  <label class="flex items-center justify-between gap-2 text-xs border-t border-slate-100 pt-2"><span class="text-slate-600 font-semibold">✏️ Modificar sueldos (permitir editar)</span><input type="checkbox" ${modSueldosCfg?"checked":""} onchange="toggleModSueldos(this)" class="w-4 h-4"></label>
+  <p class="text-[10px] text-slate-400">«Ver» controla quién ve los montos. «Modificar» bloquea o permite cambiar el salario base en Personal.</p></div>`; }
 async function setRetardoCfg(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const tol=Number(document.getElementById("cfgRetTol")?.value)||0; const bsm=Number(document.getElementById("cfgRetBs")?.value)||0; await setConfig("retardo_tol",tol); await setConfig("retardo_bsmin",bsm); render(); toast("Descuento por retardo actualizado"); }
 /* Minutos tarde del periodo (pasada la tolerancia) y su descuento en Bs */
 function minutosTardePeriodo(empId, per){ const e=empById(empId); const nombre=e?e.nombre:""; return db.list("asistencia").filter(a=>(a.fecha||"").startsWith(per) && (a.empleado_id===empId || a.empleado===nombre)).reduce((s,a)=>s+Math.max(0,(Number(a.tardanza)||0)-retardoTol),0); }
@@ -1113,7 +1124,7 @@ function openEmpleado(id){ const e=id?empById(id):{};
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} empleado</h3><div class="space-y-3">
     ${field("nombre","Nombre completo",e.nombre)}${field("cedula","Cédula / ID",e.cedula)}
     <div class="grid grid-cols-2 gap-3">${field("cargo","Cargo",e.cargo)}${selectField("area","Área",AREAS,e.area)}</div>
-    <div class="grid grid-cols-2 gap-3">${verSueldos()?field("salario_base","Salario base",e.salario_base,"number"):`<input type="hidden" id="f_salario_base" value="${esc(e.salario_base??"")}">`}${field("fecha_ingreso","Fecha ingreso",e.fecha_ingreso,"date")}</div>
+    <div class="grid grid-cols-2 gap-3">${verSueldos()?(puedeModificarSueldo()?field("salario_base","Salario base",e.salario_base,"number"):`<div><label class="text-xs text-slate-500">Salario base 🔒</label><input value="${esc(e.salario_base??"")}" disabled class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-100 text-slate-500"><input type="hidden" id="f_salario_base" value="${esc(e.salario_base??"")}"><p class="text-[10px] text-amber-600">Modificación de sueldos bloqueada por gerencia.</p></div>`):`<input type="hidden" id="f_salario_base" value="${esc(e.salario_base??"")}">`}${field("fecha_ingreso","Fecha ingreso",e.fecha_ingreso,"date")}</div>
     <div class="grid grid-cols-2 gap-3">${field("telefono","Teléfono",e.telefono)}${selectField("estado","Estado",["Activo","Inactivo"],e.estado||"Activo")}</div>
     <p class="text-xs font-semibold text-slate-600 pt-1">Horario</p>
     <div class="grid grid-cols-2 gap-3">${field("h_entrada","Entrada",e.h_entrada,"time")}${field("h_salida","Salida",e.h_salida,"time")}</div>
@@ -1126,6 +1137,8 @@ function openEmpleado(id){ const e=id?empById(id):{};
 }
 async function saveEmpleado(id){ if(bloqueoEdicionEmpleado(id)) return; const r=readForm(["nombre","cedula","cargo","area","salario_base","fecha_ingreso","telefono","estado","h_entrada","h_salida","h_almuerzo_ini","h_almuerzo_fin","banco","numero_cuenta"]);
   if(!r.nombre){ toast("El nombre es obligatorio"); return; } r.salario_base=Number(r.salario_base)||0;
+  // Si la modificación de sueldos está bloqueada, no se cambia el salario de un empleado existente
+  if(id && !puedeModificarSueldo()){ const prev=empById(id); if(prev) r.salario_base=Number(prev.salario_base)||0; }
   try{ id?await db.update("empleados",id,r):await db.insert("empleados",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delEmpleado(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar empleado?")){ await db.remove("empleados",id); closeModal(); render(); } }
 function renderDesgloseAreas(empsAll, areaSel){ const c=document.getElementById("desgloseAreas"); if(!c) return;
@@ -1430,6 +1443,7 @@ function dualBs(n,tasa){ const u=tasa>0?(Number(n)||0)/tasa:0; return bsN(n)+(ta
 
 /* --- Vista principal --- */
 function renderNominaVE(){ if(!puede("nominave")) return; const c=document.getElementById("listaNominaVE"); if(!c) return;
+  { const tg=document.getElementById("nomveToggles"); if(tg) tg.innerHTML=togglesSueldosHTML(); }
   const per=hoy().slice(0,7); const q=(document.getElementById("nomveBuscar")?.value||"").trim().toLowerCase();
   let emps=db.list("empleados").filter(e=>e.estado!=="Inactivo"); if(q) emps=emps.filter(e=>[e.nombre,e.cedula,e.area,e.cargo].join(" ").toLowerCase().includes(q));
   emps.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
@@ -2445,7 +2459,8 @@ function renderNomina(){ const el=document.getElementById("nomPeriodo"); if(el&&
   // Panel de gerencia: mostrar/ocultar sueldos, descuento por retardo, conceptos
   const gp=document.getElementById("nomGerencia");
   if(gp){ gp.innerHTML = esGerencia()? `<div class="bg-white rounded-2xl shadow-sm p-3 mb-2 space-y-2">
-    <label class="flex items-center justify-between gap-2 text-xs"><span class="text-slate-600 font-semibold">👁 Mostrar sueldos al personal</span><input type="checkbox" ${verSueldosCfg?"checked":""} onchange="toggleVerSueldos(this)" class="w-4 h-4"></label>
+    <label class="flex items-center justify-between gap-2 text-xs"><span class="text-slate-600 font-semibold">👁 Ver sueldos (mostrar al personal)</span><input type="checkbox" ${verSueldosCfg?"checked":""} onchange="toggleVerSueldos(this)" class="w-4 h-4"></label>
+    <label class="flex items-center justify-between gap-2 text-xs"><span class="text-slate-600 font-semibold">✏️ Modificar sueldos (permitir editar)</span><input type="checkbox" ${modSueldosCfg?"checked":""} onchange="toggleModSueldos(this)" class="w-4 h-4"></label>
     <div class="border-t border-slate-100 pt-2"><p class="text-[11px] font-semibold text-slate-600 mb-1">⏱ Descuento por retardo</p>
       <div class="grid grid-cols-12 gap-1 items-end">
         <div class="col-span-4"><label class="text-[10px] text-slate-400">Tolerancia (min)</label><input id="cfgRetTol" type="number" value="${retardoTol}" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div>
