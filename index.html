@@ -622,7 +622,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.48"; // se incrementa con cada mejora
+const APP_VERSION="4.49"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1535,12 +1535,78 @@ function openReciboVE(empId){ if(!puede("nominave")){ toast("Sin acceso"); retur
       ${row("Vacaciones ("+b.diasVac+" días)", dualBs(b.vacaciones,b.tasa))}
       ${row("Bono vacacional ("+b.diasBonoVac+" días)", dualBs(b.bonoVac,b.tasa))}
       ${row("Utilidades fraccionadas", dualBs(b.utilFrac,b.tasa))}
-      <div class="border-t border-slate-100 mt-1 pt-1">${row("<b>Liquidación estimada</b>", "<b>"+dualBs(b.liquidacion,b.tasa)+"</b>")}</div>
-      <p class="text-[10px] text-amber-600 mt-1">Estimación referencial. La liquidación real depende del motivo de egreso y debe validarse con tu asesor.</p></div>`
+      <p class="text-[10px] text-slate-400 mt-1">Estimación referencial. La liquidación se calcula aparte, según el motivo de egreso.</p></div>`
     : `<p class="text-xs text-amber-600 mb-3">Para calcular beneficios, registra la <b>fecha de ingreso</b> del empleado en Personal.</p>`}
+    ${b?`<button onclick="openLiquidacionVE('${e.id}')" class="w-full mb-2 bg-slate-800 text-white font-semibold py-2.5 rounded-xl">⚖️ Calcular liquidación</button>`:""}
     <div class="flex gap-2"><button onclick="descargarReciboVE('${e.id}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">📄 Descargar recibo PDF</button>
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
 }
+
+/* --- Liquidación (apartado aparte, según motivo de egreso) --- */
+let _liqEmp=null;
+const LIQ_MOTIVOS={renuncia:"Renuncia voluntaria",despido_just:"Despido justificado",despido_injust:"Despido injustificado",fin_contrato:"Fin de contrato",mutuo:"Mutuo acuerdo"};
+function openLiquidacionVE(empId){ if(!puede("nominave")){ toast("Sin acceso"); return; } if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; }
+  const e=empById(empId); if(!e) return; _liqEmp=empId; const hoyF=hoy();
+  openModal(`<h3 class="font-bold text-lg mb-0.5">⚖️ Liquidación · ${esc(e.nombre)}</h3>
+    <p class="text-xs text-slate-500 mb-2">${esc(e.cedula||"—")}${e.cargo?" · "+esc(e.cargo):""} · Ingreso ${esc(e.fecha_ingreso||"—")}</p>
+    <div class="space-y-2 mb-2">
+      <div><label class="text-[11px] font-semibold text-slate-600">Fecha de egreso</label>
+        <input id="liq_fecha" type="date" value="${hoyF}" onchange="renderLiquidacionVE()" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div>
+      <div><label class="text-[11px] font-semibold text-slate-600">Motivo de egreso</label>
+        <select id="liq_motivo" onchange="renderLiquidacionVE()" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm bg-white">
+          ${Object.entries(LIQ_MOTIVOS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}
+        </select></div>
+    </div>
+    <div id="liqResultado"></div>
+    <div class="flex gap-2 mt-3"><button onclick="descargarLiquidacionVE()" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">📄 Descargar liquidación PDF</button>
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
+  renderLiquidacionVE();
+}
+function liqData(){ const e=empById(_liqEmp); if(!e) return null; const fecha=document.getElementById("liq_fecha")?.value||hoy(); const motivo=document.getElementById("liq_motivo")?.value||"renuncia";
+  const b=calcBeneficiosVE(e,fecha); if(!b) return null;
+  const injust = motivo==="despido_injust";
+  const indemniz = injust ? b.prestaciones : 0;   // LOTTT art. 92: indemnización = monto de las prestaciones sociales
+  const total = b.liquidacion + indemniz;
+  return {e,fecha,motivo,b,indemniz,total,injust}; }
+function renderLiquidacionVE(){ const box=document.getElementById("liqResultado"); if(!box) return; const d=liqData();
+  if(!d){ box.innerHTML=`<p class="text-xs text-amber-600">Para calcular la liquidación, registra la <b>fecha de ingreso</b> del empleado en Personal.</p>`; return; }
+  const b=d.b; const row=(l,v,strong)=>`<div class="flex items-center justify-between text-sm py-0.5"><span class="text-slate-600">${l}</span><span class="font-semibold ${strong?'text-slate-900':''}">${v}</span></div>`;
+  box.innerHTML=`<div class="bg-slate-50 rounded-xl p-3">
+      <p class="text-[11px] text-slate-400 mb-2">Antigüedad: ${b.aniosEnt} año(s) · ${b.mesesTot} mes(es) · corte ${esc(d.fecha)} · Tasa ${b.tasa?bsN(b.tasa)+"/$":"—"}</p>
+      ${row("Prestaciones sociales ("+b.diasGarantia+"+"+b.diasAdic+" días)", dualBs(b.prestaciones,b.tasa))}
+      ${row("Vacaciones fraccionadas", dualBs(b.vacFrac,b.tasa))}
+      ${row("Bono vacacional fraccionado", dualBs(b.bonoVacFrac,b.tasa))}
+      ${row("Utilidades fraccionadas", dualBs(b.utilFrac,b.tasa))}
+      ${d.injust?row("Indemnización por despido (art. 92 LOTTT)", dualBs(d.indemniz,b.tasa)):""}
+      <div class="border-t border-slate-200 mt-1 pt-1">${row("<b>Total liquidación</b>","<b>"+dualBs(d.total,b.tasa)+"</b>",true)}</div>
+    </div>
+    <p class="text-[10px] text-slate-400 mt-1">Estimación referencial según el motivo seleccionado. Verifica con tu asesor laboral y la Gaceta Oficial vigente.</p>`;
+}
+function descargarLiquidacionVE(){ if(!verSueldos()){ toast("Sueldos ocultos"); return; } const d=liqData(); if(!d){ toast("Registra la fecha de ingreso del empleado"); return; }
+  const e=d.e, b=d.b; const motivoLbl=LIQ_MOTIVOS[d.motivo]||d.motivo;
+  const { jsPDF }=window.jspdf; const doc=new jsPDF(); const W=210,M=14; let y=0;
+  doc.setFillColor(15,118,110); doc.rect(0,0,W,30,"F");
+  try{ if(ajustes.logo){ const fmt=/png/i.test(ajustes.logo)?"PNG":"JPEG"; doc.addImage(ajustes.logo,fmt,M,5,18,18); } }catch(_){}
+  doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.text(ajustes.nombre||"Hipposupermarket",M+22,12);
+  doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.text("Liquidacion de prestaciones sociales",M+22,18);
+  doc.setFontSize(8); doc.text("Egreso: "+d.fecha+"   ·   Tasa: "+(b.tasa?bsN(b.tasa)+"/$":"—"),M+22,24);
+  y=40; doc.setTextColor(30,30,30);
+  doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text(e.nombre||"",M,y); doc.setFont("helvetica","normal"); doc.setFontSize(9);
+  doc.text("C.I.: "+(e.cedula||"—")+(e.cargo?"   ·   "+e.cargo:"")+(e.area?"   ·   "+e.area:""),M,y+5);
+  doc.text("Ingreso: "+(e.fecha_ingreso||"—")+"   ·   Motivo: "+motivoLbl,M,y+10); y+=19;
+  const fila=(l,v,bold)=>{ doc.setFont("helvetica",bold?"bold":"normal"); doc.setFontSize(9.5); doc.text(l,M+2,y); doc.text(v,W-M-2,y,{align:"right"}); doc.setFont("helvetica","normal"); y+=6; };
+  const band=(t)=>{ doc.setFillColor(240,244,247); doc.rect(M,y-4,W-2*M,6,"F"); doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.text(t,M+2,y); doc.setFont("helvetica","normal"); y+=6; };
+  band("DATOS DE ANTIGUEDAD"); fila("Antiguedad",b.aniosEnt+" ano(s), "+b.mesesTot+" mes(es)"); fila("Salario diario",bsN(b.salDia)); fila("Salario integral diario",bsN(b.salIntDia)); y+=2;
+  band("CONCEPTOS DE LIQUIDACION");
+  fila("Prestaciones sociales ("+b.diasGarantia+"+"+b.diasAdic+" dias)",dualBs(b.prestaciones,b.tasa));
+  fila("Vacaciones fraccionadas",dualBs(b.vacFrac,b.tasa));
+  fila("Bono vacacional fraccionado",dualBs(b.bonoVacFrac,b.tasa));
+  fila("Utilidades fraccionadas",dualBs(b.utilFrac,b.tasa));
+  if(d.injust) fila("Indemnizacion por despido (art. 92 LOTTT)",dualBs(d.indemniz,b.tasa));
+  y+=3;
+  doc.setFillColor(15,118,110); doc.rect(M,y-4,W-2*M,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("TOTAL LIQUIDACION",M+2,y+2); doc.text(dualBs(d.total,b.tasa),W-M-2,y+2,{align:"right"}); doc.setTextColor(30,30,30); y+=14;
+  doc.setFontSize(7.5); doc.setTextColor(150,155,160); doc.text("Documento referencial - verifique los parametros legales con la Gaceta Oficial vigente y su asesor laboral. - "+(ajustes.nombre||""),M,289);
+  doc.save("liquidacion_"+(e.nombre||"empleado").replace(/\s+/g,"_")+"_"+d.fecha+".pdf"); toast("Liquidación PDF descargada"); }
 
 /* --- Parámetros legales (versionados) --- */
 function openParamsLegales(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const hoyF=hoy();
@@ -1600,7 +1666,7 @@ function descargarReciboVE(empId){ if(!verSueldos()){ toast("Sueldos ocultos"); 
   band("ASIGNACIONES"); fila("Salario del mes",bsN(n.salMes)); n.detAsig.forEach(a=>fila(a.nombre,bsN(a.monto))); fila("Cestaticket / bono alimentacion",bsN(n.cesta)); fila("Total asignaciones",bsN(n.totalAsig),true); y+=2;
   band("DEDUCCIONES"); fila("IVSS (Seguro Social)",bsN(n.ivss)); fila("Paro forzoso (RPE)",bsN(n.paro)); fila("FAOV (Ley de Vivienda)",bsN(n.faov)); if(n.islr>0) fila("ISLR",bsN(n.islr)); n.detDed.forEach(a=>fila(a.nombre,bsN(a.monto))); if(n.retardoBs>0) fila("Retardos",bsN(n.retardoBs)); fila("Total deducciones",bsN(n.totalDed),true); y+=3;
   doc.setFillColor(15,118,110); doc.rect(M,y-4,W-2*M,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("NETO A PAGAR",M+2,y+2); doc.text(dualBs(n.neto,n.tasa),W-M-2,y+2,{align:"right"}); doc.setTextColor(30,30,30); y+=14;
-  if(b){ band("BENEFICIOS ACUMULADOS (ESTIMADO)"); fila("Antiguedad",b.aniosEnt+" ano(s), "+b.mesesTot+" mes(es)"); fila("Prestaciones sociales",dualBs(b.prestaciones,b.tasa)); fila("Vacaciones ("+b.diasVac+" dias)",dualBs(b.vacaciones,b.tasa)); fila("Bono vacacional",dualBs(b.bonoVac,b.tasa)); fila("Utilidades fraccionadas",dualBs(b.utilFrac,b.tasa)); fila("Liquidacion estimada",dualBs(b.liquidacion,b.tasa),true); }
+  if(b){ band("BENEFICIOS ACUMULADOS (ESTIMADO)"); fila("Antiguedad",b.aniosEnt+" ano(s), "+b.mesesTot+" mes(es)"); fila("Prestaciones sociales",dualBs(b.prestaciones,b.tasa)); fila("Vacaciones ("+b.diasVac+" dias)",dualBs(b.vacaciones,b.tasa)); fila("Bono vacacional",dualBs(b.bonoVac,b.tasa)); fila("Utilidades fraccionadas",dualBs(b.utilFrac,b.tasa)); }
   doc.setFontSize(7.5); doc.setTextColor(150,155,160); doc.text("Documento referencial - verifique los parametros legales con la Gaceta Oficial vigente y su asesor laboral. - "+(ajustes.nombre||""),M,289);
   doc.save("recibo_"+(e.nombre||"empleado").replace(/\s+/g,"_")+"_"+per+".pdf"); toast("Recibo PDF descargado"); }
 function descargarCV(id){ const c=db.list("candidatos").find(x=>x.id===id); if(!c||!c.cv_data) return;
