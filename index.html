@@ -622,7 +622,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.49"; // se incrementa con cada mejora
+const APP_VERSION="4.50"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -3497,7 +3497,8 @@ function pagoUsd(pg){ const tp=Number(pg.total_pagado)||0; const t=Number(pg.tas
 function coincideProv(x, nombre, rif){ const rn=(rif||"").trim().toLowerCase(), nn=(nombre||"").trim().toLowerCase(); const xr=(x.rif||"").trim().toLowerCase(), xn=(x.proveedor||"").trim().toLowerCase(); if(rn && xr) return xr===rn; return xn===nn && nn!==""; }
 function deudaBaseUsd(fn){ return db.list("deudas").filter(d=>d.tipo!=="Nota de crédito" && d.status!=="Pagado total" && (!fn||fn(d))).reduce((s,d)=>s+((Number(d.monto)||0)-(Number(d.abonado)||0)),0); }
 function facturasRecUsdTot(fn){ return db.list("facturas_rec").filter(f=>!fn||fn(f)).reduce((s,f)=>s+frUsd(f),0); }
-function pagosProvUsdTot(fn){ return db.list("pagos_prov").filter(p=>!fn||fn(p)).reduce((s,p)=>s+pagoUsd(p),0); }
+function pagoLigadoFacturas(p){ return Array.isArray(p.facturas) && p.facturas.some(f=>f&&f.fid); }
+function pagosProvUsdTot(fn){ return db.list("pagos_prov").filter(p=>!pagoLigadoFacturas(p) && (!fn||fn(p))).reduce((s,p)=>s+pagoUsd(p),0); }
 function deudaPendienteUsd(){ return deudaBaseUsd()+facturasRecUsdTot()-pagosProvUsdTot(); }
 function deudaProveedorUsd(nombre,rif){ const f=(x)=>coincideProv(x,nombre,rif); return deudaBaseUsd(f)+facturasRecUsdTot(f)-pagosProvUsdTot(f); }
 function limpiarFiltroDeuda(){ const b=document.getElementById("deudaBuscar"); if(b) b.value=""; const f=document.getElementById("deudaFecha"); if(f) f.value=""; renderDeudas(); }
@@ -3525,22 +3526,44 @@ function renderDeudas(){ const l=db.list("deudas").sort((a,b)=>(b.fecha||"").loc
 
 /* ===================== PAGO A PROVEEDORES (con WhatsApp) ===================== */
 function fmt2(n){ return (Number(n)||0).toLocaleString("es-VE",{maximumFractionDigits:2}); }
-let pagoFacturas=[];
+let pagoFacturas=[]; let _pagoProvCargado="", _pagoEditando=false;
 function renderPagoFacturas(){ const c=document.getElementById("pf_list"); if(!c) return;
-  c.innerHTML = pagoFacturas.length? pagoFacturas.map((f,i)=>`<div class="flex items-center justify-between gap-2 bg-white rounded-lg px-2 py-1 text-sm border border-slate-100"><span class="truncate">N° ${esc(f.numero||"—")} · ${fmt2(f.monto)}</span><button type="button" onclick="pagoFacturas.splice(${i},1);renderPagoFacturas();calcPago()" class="text-red-500 font-bold">✕</button></div>`).join("") : `<p class="text-xs text-slate-400">Sin facturas. Agrega número y monto.</p>`; }
-function addPagoFactura(){ const num=(document.getElementById("pf_num").value||"").trim(); const monto=Number(document.getElementById("pf_monto").value)||0; if(!num && !monto){ toast("Pon número y/o monto"); return; } pagoFacturas.push({numero:num, monto:monto}); document.getElementById("pf_num").value=""; document.getElementById("pf_monto").value=""; renderPagoFacturas(); calcPago(); }
+  c.innerHTML = pagoFacturas.length? pagoFacturas.map((f,i)=>`<div class="flex items-center justify-between gap-2 bg-white rounded-lg px-2 py-1 text-sm border border-slate-100"><span class="truncate">N° ${esc(f.numero||"—")}${f.fecha?` · <span class="text-slate-400">${esc(f.fecha)}</span>`:""} · ${fmt2(f.monto)}${f.moneda&&f.moneda!=="Bs"?" "+esc(f.moneda):""}${f.fid?' <span class="text-[9px] text-emerald-600">•pend.</span>':""}</span><button type="button" onclick="pagoFacturas.splice(${i},1);renderPagoFacturas();calcPago();renderPfPend()" class="text-red-500 font-bold">✕</button></div>`).join("") : `<p class="text-xs text-slate-400">Sin facturas. Agrega número y monto, o elige un proveedor para cargar sus facturas pendientes.</p>`; }
+function addPagoFactura(){ const num=(document.getElementById("pf_num").value||"").trim(); const monto=Number(document.getElementById("pf_monto").value)||0; if(!num && !monto){ toast("Pon número y/o monto"); return; } pagoFacturas.push({numero:num, monto:monto, fecha:"", moneda:document.getElementById("f_moneda")?.value||"Bs"}); document.getElementById("pf_num").value=""; document.getElementById("pf_monto").value=""; renderPagoFacturas(); calcPago(); }
 function calcPago(){ const el=document.getElementById("pp_total"); if(!el) return; const moneda=document.getElementById("f_moneda")?.value||"Bs"; const tasa=Number(document.getElementById("f_tasa")?.value)||tipoCambio; const nc=Number(document.getElementById("f_nota_credito")?.value)||0;
   const totF=pagoFacturas.reduce((s,f)=>s+(Number(f.monto)||0),0); const tot=Math.max(0,totF-nc); let bs,usd; if(moneda==="USD"){ usd=tot; bs=tot*tasa; } else { bs=tot; usd=tasa>0?tot/tasa:0; }
   el.innerHTML=`<p class="text-[11px] text-slate-300">Facturas: ${fmt2(totF)} ${moneda} · Nota crédito: -${fmt2(nc)} ${moneda}</p><p class="text-lg font-bold mt-0.5">TOTAL: ${fmt2(bs)} Bs / $${fmt2(usd)}</p>`; }
-function resolverPagoProv(){ const t=document.getElementById("f_pp_prov_txt"), h=document.getElementById("f_proveedor_id"); if(!t||!h) return; const nq=(t.value||"").trim().toLowerCase(); const p=nq?db.list("proveedores").find(x=>(x.nombre||"").trim().toLowerCase()===nq):null; h.value=p?p.id:""; if(p){ const rif=document.getElementById("f_rif"); if(rif && !rif.value) rif.value=p.rif||""; } }
-function openPagoProv(id){ if(!puede("deudas")){ toast("Sin acceso"); return; } const pg=id?db.list("pagos_prov").find(x=>x.id===id):{}; pagoFacturas = (id&&Array.isArray(pg.facturas))?pg.facturas.map(f=>({...f})):[];
+/* --- Facturas pendientes del proveedor (carga automática en el pago) --- */
+function facturasPendientesProv(provId, nombre){ const nq=(nombre||"").trim().toLowerCase();
+  return db.list("facturas_rec").filter(f=>{ if(frPend(f)<=0.005) return false; if(provId && f.proveedor_id===provId) return true; return nq!=="" && (f.proveedor||"").trim().toLowerCase()===nq; })
+    .sort((a,b)=>String(a.fecha||"").localeCompare(String(b.fecha||""))||String(a.creado||"").localeCompare(String(b.creado||""))); }
+function cargarPendientesPago(auto){ const provId=document.getElementById("f_proveedor_id")?.value||""; const provTxt=(document.getElementById("f_pp_prov_txt")?.value||"").trim();
+  const pend=facturasPendientesProv(provId,provTxt); if(!pend.length){ renderPfPend(); return; }
+  const selMon=document.getElementById("f_moneda"); let mon=selMon?selMon.value:"Bs";
+  if(auto){ const cnt={Bs:0,USD:0}; pend.forEach(f=>{ cnt[esUSDmon(f.moneda)?"USD":"Bs"]++; }); mon=cnt.USD>cnt.Bs?"USD":"Bs"; if(selMon) selMon.value=mon; }
+  const yaFid=new Set(pagoFacturas.map(f=>f.fid).filter(Boolean));
+  pend.filter(f=>(esUSDmon(f.moneda)?"USD":"Bs")===mon && !yaFid.has(f.id)).forEach(f=>{ pagoFacturas.push({numero:String(f.numero||""), monto:frPend(f), fecha:f.fecha||"", fid:f.id, moneda:esUSDmon(f.moneda)?"USD":"Bs"}); });
+  renderPagoFacturas(); calcPago(); renderPfPend(); }
+function agregarPendPago(fid){ const f=db.list("facturas_rec").find(x=>x.id===fid); if(!f) return; if(pagoFacturas.some(x=>x.fid===fid)) return; const fm=esUSDmon(f.moneda)?"USD":"Bs"; const sel=document.getElementById("f_moneda"); if(sel && sel.value!==fm) sel.value=fm; pagoFacturas.push({numero:String(f.numero||""), monto:frPend(f), fecha:f.fecha||"", fid, moneda:fm}); renderPagoFacturas(); calcPago(); renderPfPend(); }
+function renderPfPend(){ const c=document.getElementById("pf_pend"); if(!c) return; const provId=document.getElementById("f_proveedor_id")?.value||""; const provTxt=(document.getElementById("f_pp_prov_txt")?.value||"").trim();
+  if(!provId && !provTxt){ c.innerHTML=""; return; }
+  const pend=facturasPendientesProv(provId,provTxt); if(!pend.length){ c.innerHTML=`<p class="text-[11px] text-slate-400 mt-1">Sin facturas pendientes para este proveedor.</p>`; return; }
+  const mon=document.getElementById("f_moneda")?.value||"Bs"; const yaFid=new Set(pagoFacturas.map(f=>f.fid).filter(Boolean));
+  const totBs=pend.filter(f=>!esUSDmon(f.moneda)).reduce((s,f)=>s+frPend(f),0); const totUsd=pend.filter(f=>esUSDmon(f.moneda)).reduce((s,f)=>s+frPend(f),0);
+  const items=pend.map(f=>{ const fm=esUSDmon(f.moneda)?"USD":"Bs"; const cargada=yaFid.has(f.id); const otra=fm!==mon;
+    return `<div class="flex items-center justify-between gap-2 text-xs ${cargada?'opacity-50':''}"><span class="truncate">N° ${esc(f.numero||"—")}${f.fecha?` · <span class="text-slate-500">${esc(f.fecha)}</span>`:""} · ${fmt2(frPend(f))} ${fm}</span>${cargada?`<span class="text-emerald-700 font-semibold shrink-0">✓ cargada</span>`:(otra?`<span class="text-slate-400 shrink-0">otra moneda</span>`:`<button type="button" onclick="agregarPendPago('${f.id}')" class="text-teal-700 font-semibold shrink-0">＋ agregar</button>`)}</div>`; }).join("");
+  c.innerHTML=`<div class="bg-amber-50 border border-amber-100 rounded-lg p-2 mt-1"><div class="flex items-center justify-between mb-1 gap-2"><p class="text-[11px] font-semibold text-amber-800">📌 Pendientes (${pend.length})${totBs?" · "+fmt2(totBs)+" Bs":""}${totUsd?" · $"+fmt2(totUsd):""}</p><button type="button" onclick="cargarPendientesPago(false)" class="text-[11px] bg-amber-600 text-white px-2 py-0.5 rounded-md font-semibold shrink-0">Cargar todas</button></div><div class="space-y-1">${items}</div></div>`; }
+function resolverPagoProv(){ const t=document.getElementById("f_pp_prov_txt"), h=document.getElementById("f_proveedor_id"); if(!t||!h) return; const nq=(t.value||"").trim().toLowerCase(); const p=nq?db.list("proveedores").find(x=>(x.nombre||"").trim().toLowerCase()===nq):null; h.value=p?p.id:""; if(p){ const rif=document.getElementById("f_rif"); if(rif && !rif.value) rif.value=p.rif||""; }
+  const provKey=p?p.id:(nq||""); if(provKey && provKey!==_pagoProvCargado){ _pagoProvCargado=provKey; if(!_pagoEditando) cargarPendientesPago(true); else renderPfPend(); } else renderPfPend(); }
+function openPagoProv(id){ if(!puede("deudas")){ toast("Sin acceso"); return; } const pg=id?db.list("pagos_prov").find(x=>x.id===id):{}; pagoFacturas = (id&&Array.isArray(pg.facturas))?pg.facturas.map(f=>({...f})):[]; _pagoEditando=!!id; _pagoProvCargado=id?(pg.proveedor_id||(pg.proveedor||"").trim().toLowerCase()||"__ed__"):"";
   const prov = pg.proveedor_id?provById(pg.proveedor_id):null;
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} pago a proveedor</h3><div class="space-y-3">
     <div><label class="text-xs text-slate-500">Proveedor</label><input id="f_pp_prov_txt" list="dlProveedores" value="${esc(prov?prov.nombre:(pg.proveedor||""))}" oninput="resolverPagoProv()" placeholder="🔎 Buscar proveedor…" class="w-full px-3 py-2 rounded-xl border border-slate-200"><input type="hidden" id="f_proveedor_id" value="${esc(pg.proveedor_id||"")}"></div>
     <div class="grid grid-cols-2 gap-3">${field("rif","RIF",pg.rif)}${field("fecha_pago","Fecha de pago",pg.fecha_pago||hoy(),"date")}</div>
     <div><label class="text-xs text-slate-500">Facturas (número y monto)</label>
       <div class="grid grid-cols-12 gap-1 items-end"><input id="pf_num" placeholder="N° factura" class="col-span-5 px-2 py-2 rounded-lg border border-slate-200 text-sm"><input id="pf_monto" type="number" placeholder="Monto" class="col-span-4 px-2 py-2 rounded-lg border border-slate-200 text-sm"><button type="button" onclick="addPagoFactura()" class="col-span-3 bg-teal-700 text-white rounded-lg py-2 text-sm font-semibold">+</button></div>
-      <div id="pf_list" class="space-y-1 mt-1"></div></div>
+      <div id="pf_list" class="space-y-1 mt-1"></div>
+      <div id="pf_pend"></div></div>
     <div><label class="text-xs text-slate-500">Información de factura</label><input id="f_info_factura" value="${esc(pg.info_factura||"")}" placeholder="Ej: mercancía de agosto" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
     <div class="grid grid-cols-2 gap-3">${field("nota_credito","Nota de crédito (deducible)",pg.nota_credito,"number")}${selectField("moneda","Moneda de facturas",["Bs","USD"],pg.moneda||"Bs")}</div>
     <div class="grid grid-cols-2 gap-3">${selectField("banco","Banco desde donde se pagó",["",...BANCOS],pg.banco||"")}${field("tasa","Tasa del día (Bs/$)",pg.tasa||tipoCambio,"number")}</div>
@@ -3551,18 +3574,23 @@ function openPagoProv(id){ if(!puede("deudas")){ toast("Sin acceso"); return; } 
     ${id?`<button onclick="delPagoProv('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
   ["f_nota_credito","f_tasa"].forEach(idf=>{ const el=document.getElementById(idf); if(el) el.addEventListener("input",calcPago); });
-  ["f_moneda"].forEach(idf=>{ const el=document.getElementById(idf); if(el) el.addEventListener("change",calcPago); });
-  renderPagoFacturas(); calcPago(); }
+  ["f_moneda"].forEach(idf=>{ const el=document.getElementById(idf); if(el) el.addEventListener("change",()=>{ calcPago(); renderPfPend(); }); });
+  renderPagoFacturas(); calcPago(); renderPfPend(); }
 async function savePagoProv(id, enviar){ if(!puede("deudas")){ toast("Sin acceso"); return; }
   const provId=document.getElementById("f_proveedor_id").value; const provTxt=(document.getElementById("f_pp_prov_txt").value||"").trim(); if(!provTxt){ toast("Elige el proveedor"); return; } if(!pagoFacturas.length){ toast("Agrega al menos una factura"); return; }
   const prov=provId?provById(provId):null;
   const r=readForm(["rif","fecha_pago","info_factura","nota_credito","moneda","banco","tasa","notas"]);
   r.nota_credito=Number(r.nota_credito)||0; r.tasa=Number(r.tasa)||tipoCambio;
   r.proveedor_id=provId||""; r.proveedor=prov?prov.nombre:provTxt; if(!r.rif) r.rif=prov?(prov.rif||""):""; r.telefono=prov?(prov.telefono||""):"";
-  r.facturas=pagoFacturas.map(f=>({numero:String(f.numero||""), monto:Number(f.monto)||0}));
+  r.facturas=pagoFacturas.map(f=>({numero:String(f.numero||""), monto:Number(f.monto)||0, fecha:f.fecha||"", fid:f.fid||""}));
   r.total_facturas=r.facturas.reduce((s,f)=>s+f.monto,0); r.total_pagado=Math.max(0,r.total_facturas-r.nota_credito);
-  try{ let newId=id; if(id){ await db.update("pagos_prov",id,r); } else { const row=await db.insert("pagos_prov",r); newId=row.id; } closeModal(); render(); toast("Pago guardado"); if(enviar) enviarPagoWhatsApp(newId); }catch(e){ toast("Error: "+e.message); } }
-async function delPagoProv(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar este pago?")){ await db.remove("pagos_prov",id); closeModal(); render(); toast("Pago eliminado"); } }
+  try{ let newId=id; if(id){ await db.update("pagos_prov",id,r); } else { const row=await db.insert("pagos_prov",r); newId=row.id;
+      // marcar como abonadas las facturas pendientes vinculadas (solo al crear el pago)
+      for(const cf of r.facturas){ if(!cf.fid) continue; const fac=db.list("facturas_rec").find(x=>x.id===cf.fid); if(fac){ const cap=Number(fac.monto)||0; const nuevo=Math.min(cap,(Number(fac.abonado)||0)+(Number(cf.monto)||0)); await db.update("facturas_rec",cf.fid,{abonado:nuevo}); } }
+    } closeModal(); render(); toast("Pago guardado"); if(enviar) enviarPagoWhatsApp(newId); }catch(e){ toast("Error: "+e.message); } }
+async function delPagoProv(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar este pago?")){ const pg=db.list("pagos_prov").find(x=>x.id===id);
+    if(pg && pagoLigadoFacturas(pg)){ for(const cf of pg.facturas){ if(!cf||!cf.fid) continue; const fac=db.list("facturas_rec").find(x=>x.id===cf.fid); if(fac){ const nuevo=Math.max(0,(Number(fac.abonado)||0)-(Number(cf.monto)||0)); await db.update("facturas_rec",cf.fid,{abonado:nuevo}); } } }
+    await db.remove("pagos_prov",id); closeModal(); render(); toast("Pago eliminado"); } }
 function mensajePago(pg){ const tasa=Number(pg.tasa)||tipoCambio; const tp=Number(pg.total_pagado)||0; let bs,usd; if(pg.moneda==="USD"){ usd=tp; bs=tp*tasa; } else { bs=tp; usd=tasa>0?tp/tasa:0; }
   const nums=(pg.facturas||[]).map(f=>f.numero).filter(Boolean).join(", ");
   let m=`*PAGO A PROVEEDOR — ${ajustes.nombre||"Hipposupermarket"}*\n`;
