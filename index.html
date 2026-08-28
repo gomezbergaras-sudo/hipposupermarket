@@ -622,7 +622,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.50"; // se incrementa con cada mejora
+const APP_VERSION="4.51"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1508,7 +1508,10 @@ function renderNominaVE(){ if(!puede("nominave")) return; const c=document.getEl
       <div class="min-w-0"><p class="font-semibold truncate">${esc(e.nombre)}</p><p class="text-[11px] text-slate-500 truncate">${esc(e.cedula||"—")}${e.area?" · "+esc(e.area):""}</p></div>
       <div class="text-right shrink-0"><p class="text-sm font-bold text-teal-700">${verSueldos()?bsN(n.neto):"•••"}</p><p class="text-[10px] text-slate-400">neto/mes</p></div></div>`; }).join("");
 }
-function openReciboVE(empId){ if(!puede("nominave")){ toast("Sin acceso"); return; } if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; }
+let _reciboBenef=false;
+function toggleReciboBenef(empId){ _reciboBenef=!_reciboBenef; openReciboVE(empId,true); }
+function openReciboVE(empId, keep){ if(!puede("nominave")){ toast("Sin acceso"); return; } if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; }
+  if(!keep) _reciboBenef=false;
   const e=empById(empId); if(!e) return; const per=hoy().slice(0,7); const n=calcNominaVE(e,per); const b=calcBeneficiosVE(e);
   const row=(l,v,neg)=>`<div class="flex items-center justify-between text-sm py-0.5"><span class="text-slate-600">${l}</span><span class="font-semibold ${neg?'text-red-600':''}">${v}</span></div>`;
   openModal(`<h3 class="font-bold text-lg mb-0.5">Recibo de nómina · ${esc(e.nombre)}</h3>
@@ -1528,14 +1531,15 @@ function openReciboVE(empId){ if(!puede("nominave")){ toast("Sin acceso"); retur
       ${row("<b>Total deducciones</b>", "<b>"+bsN(n.totalDed)+"</b>")}</div>
     <div class="bg-slate-800 text-white rounded-xl px-3 py-2 flex items-center justify-between mb-1"><span class="font-semibold">Neto a pagar</span><span class="font-bold">${dualBs(n.neto,n.tasa)}</span></div>
     <p class="text-[11px] text-slate-400 mb-3">Quincenal aprox.: ${bsN(n.neto/2)}</p>
-    ${b?`<div class="bg-white border border-slate-200 rounded-xl p-3 mb-3">
-      <p class="text-sm font-bold text-slate-600 mb-1">Beneficios acumulados (estimado)</p>
+    ${b?(_reciboBenef?`<div class="bg-white border border-slate-200 rounded-xl p-3 mb-3">
+      <div class="flex items-center justify-between mb-1"><p class="text-sm font-bold text-slate-600">Beneficios acumulados (estimado)</p><button onclick="toggleReciboBenef('${e.id}')" class="text-[11px] text-slate-400 underline shrink-0">ocultar</button></div>
       <p class="text-[11px] text-slate-400 mb-2">Antigüedad: ${b.aniosEnt} año(s) · ${b.mesesTot} mes(es) · ingreso ${esc(e.fecha_ingreso||"—")}</p>
       ${row("Prestaciones sociales ("+b.diasGarantia+"+"+b.diasAdic+" días)", dualBs(b.prestaciones,b.tasa))}
       ${row("Vacaciones ("+b.diasVac+" días)", dualBs(b.vacaciones,b.tasa))}
       ${row("Bono vacacional ("+b.diasBonoVac+" días)", dualBs(b.bonoVac,b.tasa))}
       ${row("Utilidades fraccionadas", dualBs(b.utilFrac,b.tasa))}
-      <p class="text-[10px] text-slate-400 mt-1">Estimación referencial. La liquidación se calcula aparte, según el motivo de egreso.</p></div>`
+      <p class="text-[10px] text-slate-400 mt-1">Estimación referencial. Se incluirá en el PDF. La liquidación se calcula aparte, según el motivo de egreso.</p></div>`
+    : `<button onclick="toggleReciboBenef('${e.id}')" class="w-full mb-3 bg-white border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-xl">➕ Ver beneficios acumulados</button>`)
     : `<p class="text-xs text-amber-600 mb-3">Para calcular beneficios, registra la <b>fecha de ingreso</b> del empleado en Personal.</p>`}
     ${b?`<button onclick="openLiquidacionVE('${e.id}')" class="w-full mb-2 bg-slate-800 text-white font-semibold py-2.5 rounded-xl">⚖️ Calcular liquidación</button>`:""}
     <div class="flex gap-2"><button onclick="descargarReciboVE('${e.id}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">📄 Descargar recibo PDF</button>
@@ -1666,7 +1670,7 @@ function descargarReciboVE(empId){ if(!verSueldos()){ toast("Sueldos ocultos"); 
   band("ASIGNACIONES"); fila("Salario del mes",bsN(n.salMes)); n.detAsig.forEach(a=>fila(a.nombre,bsN(a.monto))); fila("Cestaticket / bono alimentacion",bsN(n.cesta)); fila("Total asignaciones",bsN(n.totalAsig),true); y+=2;
   band("DEDUCCIONES"); fila("IVSS (Seguro Social)",bsN(n.ivss)); fila("Paro forzoso (RPE)",bsN(n.paro)); fila("FAOV (Ley de Vivienda)",bsN(n.faov)); if(n.islr>0) fila("ISLR",bsN(n.islr)); n.detDed.forEach(a=>fila(a.nombre,bsN(a.monto))); if(n.retardoBs>0) fila("Retardos",bsN(n.retardoBs)); fila("Total deducciones",bsN(n.totalDed),true); y+=3;
   doc.setFillColor(15,118,110); doc.rect(M,y-4,W-2*M,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("NETO A PAGAR",M+2,y+2); doc.text(dualBs(n.neto,n.tasa),W-M-2,y+2,{align:"right"}); doc.setTextColor(30,30,30); y+=14;
-  if(b){ band("BENEFICIOS ACUMULADOS (ESTIMADO)"); fila("Antiguedad",b.aniosEnt+" ano(s), "+b.mesesTot+" mes(es)"); fila("Prestaciones sociales",dualBs(b.prestaciones,b.tasa)); fila("Vacaciones ("+b.diasVac+" dias)",dualBs(b.vacaciones,b.tasa)); fila("Bono vacacional",dualBs(b.bonoVac,b.tasa)); fila("Utilidades fraccionadas",dualBs(b.utilFrac,b.tasa)); }
+  if(b && _reciboBenef){ band("BENEFICIOS ACUMULADOS (ESTIMADO)"); fila("Antiguedad",b.aniosEnt+" ano(s), "+b.mesesTot+" mes(es)"); fila("Prestaciones sociales",dualBs(b.prestaciones,b.tasa)); fila("Vacaciones ("+b.diasVac+" dias)",dualBs(b.vacaciones,b.tasa)); fila("Bono vacacional",dualBs(b.bonoVac,b.tasa)); fila("Utilidades fraccionadas",dualBs(b.utilFrac,b.tasa)); }
   doc.setFontSize(7.5); doc.setTextColor(150,155,160); doc.text("Documento referencial - verifique los parametros legales con la Gaceta Oficial vigente y su asesor laboral. - "+(ajustes.nombre||""),M,289);
   doc.save("recibo_"+(e.nombre||"empleado").replace(/\s+/g,"_")+"_"+per+".pdf"); toast("Recibo PDF descargado"); }
 function descargarCV(id){ const c=db.list("candidatos").find(x=>x.id===id); if(!c||!c.cv_data) return;
