@@ -166,14 +166,18 @@
     <div id="resumenBox" class="grid grid-cols-2 gap-3">
       <div id="card_empleados" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Empleados activos</p><p id="mEmpleados" class="text-2xl font-bold text-teal-700">0</p></div>
       <div id="card_nomina" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Nómina base / mes</p><p id="mNomina" class="text-2xl font-bold text-teal-700">0</p></div>
-      <div id="card_tareas" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Tareas pendientes</p><p id="mTareas" class="text-2xl font-bold text-teal-700">0</p></div>
-      <div id="card_eval" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Prom. evaluación</p><p id="mEval" class="text-2xl font-bold text-teal-700">—</p></div>
+      <div id="card_facturas" onclick="show('facturasrec')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">📥 Facturas recibidas</p><p id="mFacturas" class="text-2xl font-bold text-teal-700">0</p><p id="mFacturasUsd" class="text-[11px] text-slate-400">$0.00</p></div>
       <div id="card_inv" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Productos bajo mínimo</p><p id="mBajoMin" class="text-2xl font-bold text-amber-600">0</p></div>
-      <div id="card_ordenes" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Órdenes pendientes</p><p id="mOrdenes" class="text-2xl font-bold text-teal-700">0</p></div>
       <div id="card_incid" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Incidencias abiertas</p><p id="mIncid" class="text-2xl font-bold text-amber-600">0</p></div>
       <div id="card_repo" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Pasillos con alerta</p><p id="mRepo" class="text-2xl font-bold text-amber-600">0</p></div>
       <div id="card_quiebre" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">🚨 Quiebres pendientes</p><p id="mQuiebre" class="text-2xl font-bold text-red-600">0</p></div>
       <div id="card_compA" onclick="show('compras')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">🚨 Quiebres en productos A</p><p id="mCompA" class="text-2xl font-bold text-red-600">0</p></div>
+    </div>
+    <button id="btnMasIndic" onclick="toggleMasIndicadores()" class="w-full mt-2 text-xs font-semibold text-teal-700 bg-white rounded-xl py-2 shadow-sm">📊 Ver más indicadores</button>
+    <div id="masIndicadores" class="grid grid-cols-2 gap-3 mt-2" style="display:none">
+      <div id="card_tareas" onclick="show('tareas')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">Tareas pendientes</p><p id="mTareas" class="text-2xl font-bold text-teal-700">0</p></div>
+      <div id="card_eval" onclick="show('eval')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">Prom. evaluación</p><p id="mEval" class="text-2xl font-bold text-teal-700">—</p></div>
+      <div id="card_ordenes" onclick="show('ordenes')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">Órdenes pendientes</p><p id="mOrdenes" class="text-2xl font-bold text-teal-700">0</p></div>
       <div id="card_compC" onclick="show('compras')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">Capital detenido en C</p><p id="mCompC" class="text-2xl font-bold text-amber-600">0</p></div>
     </div>
     <div id="desgloseAreas" class="mt-3"></div>
@@ -499,6 +503,19 @@
     <div id="listaDeudas" class="space-y-2"></div>
   </section>
 
+  <!-- ======== FACTURAS RECIBIDAS (mosaico propio) ======== -->
+  <section data-view="facturasrec" hidden>
+    <h2 class="text-lg font-bold mb-1">Facturas recibidas</h2>
+    <p class="text-xs text-slate-500 mb-3">Documentos que llegan de proveedores. Su monto pendiente se suma a la deuda pendiente.</p>
+    <div class="flex flex-wrap gap-2 mb-3">
+      <button onclick="openFacturasRec()" class="text-xs bg-teal-700 text-white px-3 py-2 rounded-xl font-semibold">📥 Registrar del día</button>
+      <button onclick="openFacturasProv()" class="text-xs bg-indigo-600 text-white px-3 py-2 rounded-xl font-semibold">🧾 Por proveedor</button>
+    </div>
+    <div id="frvResumen" class="mb-2"></div>
+    <input id="frvBuscar" oninput="renderFacturasRecView()" placeholder="🔎 Proveedor, RIF o N° de factura" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 text-sm">
+    <div id="listaFacturasRec" class="space-y-2"></div>
+  </section>
+
   <!-- ======== CONEXIONES ======== -->
   <section data-view="conexiones" hidden>
     <h2 class="text-lg font-bold mb-1">Conexiones</h2>
@@ -511,6 +528,7 @@
   <!-- ======== AJUSTES ======== -->
   <section data-view="ajustes" hidden>
     <h2 class="text-lg font-bold mb-3">Ajustes</h2>
+    <button onclick="openNavConfig()" class="w-full mb-3 bg-slate-800 text-white text-sm font-semibold py-2.5 rounded-xl">🧭 Configurar barra de navegación (botones de abajo)</button>
     <div class="bg-white rounded-2xl p-4 shadow-sm mb-3">
       <p class="font-semibold text-sm mb-2">Configuración</p>
       <label class="block text-xs text-slate-500 mb-1">Nombre principal (el que quieras mostrar)</label>
@@ -565,11 +583,11 @@
 <!-- Barra inferior -->
 <nav class="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 safe-bottom">
   <div class="max-w-3xl mx-auto flex">
-    <button data-tab="inicio" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">🏠</span><span class="tl">Inicio</span></button>
-    <button data-tab="rrhh" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">👥</span><span class="tl">RRHH</span></button>
-    <button data-tab="supervisores" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">🎖️</span><span class="tl">Superv.</span></button>
-    <button data-tab="productos" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">📦</span><span class="tl">Productos</span></button>
-    <button data-tab="finanzas" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">💵</span><span class="tl">Caja</span></button>
+    <button data-slot="0" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg navic">🏠</span><span class="tl">Inicio</span></button>
+    <button data-slot="1" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg navic">👥</span><span class="tl">RRHH</span></button>
+    <button data-slot="2" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg navic">🎖️</span><span class="tl">Superv.</span></button>
+    <button data-slot="3" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg navic">📦</span><span class="tl">Productos</span></button>
+    <button data-slot="4" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg navic">💵</span><span class="tl">Caja</span></button>
     <button data-tab="ajustes" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg">⚙️</span><span class="tl">Ajustes</span></button>
   </div>
 </nav>
@@ -604,7 +622,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.46"; // se incrementa con cada mejora
+const APP_VERSION="4.48"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -715,6 +733,7 @@ function cargarConfigCompartida(){ const rows=store.config||[];
   const vc=rows.find(r=>r.id==="ver_costo"); if(vc!==undefined && vc){ const v=vc.valor; verCostoCfg = (v===true||v==="true"||v===1||v==="1"); }
   const vs=rows.find(r=>r.id==="ver_sueldos"); if(vs!==undefined && vs){ const v=vs.valor; verSueldosCfg = (v===true||v==="true"||v===1||v==="1"); }
   { const ms=rows.find(r=>r.id==="mod_sueldos"); if(ms!==undefined && ms){ const v=ms.valor; modSueldosCfg = (v===true||v==="true"||v===1||v==="1"); } }
+  { const nt=rows.find(r=>r.id==="nav_tabs"); let v=nt&&nt.valor; if(typeof v==="string"){ try{ v=JSON.parse(v); }catch(e){} } if(Array.isArray(v)&&v.length){ navTabsCfg=v.slice(0,5).map((x,i)=>({icon:x.icon||NAV_DEFAULT[i].icon, label:x.label||NAV_DEFAULT[i].label, target:x.target||NAV_DEFAULT[i].target})); } }
   const rt=rows.find(r=>r.id==="retardo_tol"); if(rt) retardoTol=Number(rt.valor)||0;
   const rm=rows.find(r=>r.id==="retardo_bsmin"); if(rm) retardoBsMin=Number(rm.valor)||0;
   const vm=rows.find(r=>r.id==="ver_moneda"); if(vm && (vm.valor==="Bs"||vm.valor==="$")) verMonedaCfg=vm.valor;
@@ -906,12 +925,13 @@ const MODULES = {
   caja:{parent:"finanzas",title:"Caja",sub:"Caja y Finanzas"},
   tesoreria:{parent:"finanzas",title:"Tesorería",sub:"Caja y Finanzas"},
   deudas:{parent:"finanzas",title:"Finanzas",sub:"Caja y Finanzas"},
+  facturasrec:{parent:"finanzas",title:"Facturas recibidas",sub:"Caja y Finanzas"},
   conexiones:{parent:"finanzas",title:"Conexiones",sub:"Caja y Finanzas"},
 };
 const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["nominave","⚖️","Nómina VE"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"],["candidatos","📨","Candidatos"]];
 const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"],["quiebre","🚨","Quiebre"],["rotacion","🔥","Rotación/ABC"],["compras","🛒","Compras"]];
 const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"],["incpersonal","⏰","Asistencia personal"]];
-const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
+const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["facturasrec","📥","Facturas recibidas"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
 /* ---- Idioma (chino tradicional) — solo textos del menú/etiquetas, NO los datos ---- */
 const DICT_ZH={
   "Inicio":"首頁","RRHH":"人事","Superv.":"主管","Productos":"商品","Caja":"收銀","Ajustes":"設定",
@@ -929,6 +949,37 @@ function t(s){ if(idiomaCfg!=="zh") return s; return DICT_ZH[s]||s; }
 const TABLBL={inicio:"Inicio",rrhh:"RRHH",supervisores:"Superv.",productos:"Productos",finanzas:"Caja",ajustes:"Ajustes"};
 /* El idioma es POR USUARIO: gerencia se lo asigna a cada usuario. Al entrar, se aplica el suyo. */
 function aplicarIdiomaUsuario(){ idiomaCfg = (currentUser && currentUser.idioma==="zh") ? "zh" : "es"; }
+/* ---- Barra inferior configurable (gerencia elige el destino de cada botón) ---- */
+const NAV_DEFAULT=[{icon:"🏠",label:"Inicio",target:"inicio"},{icon:"👥",label:"RRHH",target:"rrhh"},{icon:"🎖️",label:"Superv.",target:"supervisores"},{icon:"📦",label:"Productos",target:"productos"},{icon:"💵",label:"Caja",target:"finanzas"}];
+let navTabsCfg=NAV_DEFAULT.map(x=>({...x}));
+const NAV_TARGETS=[["inicio","🏠 Inicio (lanzador)"],["rrhh","👥 RRHH (lanzador)"],["supervisores","🎖️ Supervisores (lanzador)"],["productos","📦 Productos (lanzador)"],["finanzas","💵 Caja y Finanzas (lanzador)"],
+  ["empleados","Personal"],["nomina","Nómina"],["nominave","Nómina VE"],["asistencia","Asistencia"],["candidatos","Candidatos"],["bonos","Salarios y bonos"],["eval","Evaluación"],
+  ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],
+  ["inventario","Inventario"],["ordenes","Órdenes"],["recepcion","Recepción"],["proveedores","Proveedores"],["rotacion","Rotación/ABC"],["compras","Compras"],["quiebre","Quiebre"],["merma","Merma"],
+  ["caja","Caja"],["tesoreria","Tesorería"],["facturasrec","Facturas recibidas"],["deudas","Finanzas"],["conexiones","Conexiones"]];
+function navPuedeTarget(t){ if(t==="inicio") return true; const g={rrhh:RRHH_VIEWS, productos:PROD_VIEWS, supervisores:SUP_VIEWS, finanzas:FIN_VIEWS}[t]; if(g) return g.some(v=>puede(v)); return puede(t); }
+function pintarNav(){ const btns=document.querySelectorAll('.tab[data-slot]');
+  btns.forEach(b=>{ const i=Number(b.dataset.slot); const cfg=navTabsCfg[i]||NAV_DEFAULT[i]; if(!cfg){ b.style.display="none"; return; }
+    b.dataset.target=cfg.target; const ic=b.querySelector(".navic"); if(ic) ic.textContent=cfg.icon||"•"; const l=b.querySelector(".tl"); if(l) l.textContent=cfg.label||"";
+    b.style.display=navPuedeTarget(cfg.target)?"":"none"; }); }
+function openNavConfig(){ if(!esGerencia()){ toast("Solo gerencia"); return; }
+  const filas=navTabsCfg.map((c,i)=>`<div class="bg-slate-50 rounded-xl p-2"><p class="text-[11px] font-semibold text-slate-500 mb-1">Botón ${i+1}</p>
+    <div class="grid grid-cols-12 gap-2">
+      <input id="nv_ic_${i}" value="${esc(c.icon||"")}" maxlength="2" class="col-span-2 px-2 py-2 rounded-lg border border-slate-200 text-center" placeholder="🏠">
+      <input id="nv_lb_${i}" value="${esc(c.label||"")}" class="col-span-4 px-2 py-2 rounded-lg border border-slate-200 text-sm" placeholder="Nombre">
+      <select id="nv_tg_${i}" class="col-span-6 px-2 py-2 rounded-lg border border-slate-200 text-sm bg-white">${NAV_TARGETS.map(o=>`<option value="${o[0]}" ${c.target===o[0]?"selected":""}>${esc(o[1])}</option>`).join("")}</select>
+    </div></div>`).join("");
+  openModal(`<h3 class="font-bold text-lg mb-1">🧭 Barra de navegación</h3>
+    <p class="text-xs text-slate-500 mb-3">Elige el ícono, el nombre y a qué sección va cada uno de los 5 botones de abajo. (El botón de Ajustes ⚙️ es fijo.)</p>
+    <div class="space-y-2 max-h-[54vh] overflow-y-auto">${filas}</div>
+    <div class="flex gap-2 mt-3"><button onclick="saveNavConfig()" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
+    <button onclick="restaurarNavConfig()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Restaurar</button>
+    <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
+}
+async function saveNavConfig(){ if(!esGerencia()){ toast("Solo gerencia"); return; }
+  const arr=[]; for(let i=0;i<5;i++){ const ic=(document.getElementById("nv_ic_"+i).value||"").trim()||NAV_DEFAULT[i].icon; const lb=(document.getElementById("nv_lb_"+i).value||"").trim()||NAV_DEFAULT[i].label; const tg=document.getElementById("nv_tg_"+i).value||NAV_DEFAULT[i].target; arr.push({icon:ic,label:lb,target:tg}); }
+  navTabsCfg=arr; try{ await setConfig("nav_tabs", JSON.stringify(arr)); closeModal(); render(); toast("Barra de navegación actualizada"); }catch(e){ toast("Error: "+e.message); } }
+async function restaurarNavConfig(){ if(!esGerencia()){ toast("Solo gerencia"); return; } navTabsCfg=NAV_DEFAULT.map(x=>({...x})); try{ await setConfig("nav_tabs", JSON.stringify(navTabsCfg)); closeModal(); render(); toast("Barra restaurada"); }catch(e){ toast("Error: "+e.message); } }
 function pintarIdioma(){
   document.querySelectorAll(".tab").forEach(bt=>{ const l=bt.querySelector(".tl"); if(l && TABLBL[bt.dataset.tab]) l.textContent=t(TABLBL[bt.dataset.tab]); });
   const H={hRRHH:"Personal y RRHH",hSup:"Supervisores",hProd:"Productos y Compras",hFin:"Caja y Finanzas"};
@@ -940,7 +991,7 @@ let currentView="inicio";
 const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia","candidatos","nominave"];
 const PROD_VIEWS=["proveedores","inventario","ordenes","recepcion","merma","quiebre","rotacion","compras"];
 const SUP_VIEWS=["piso","tareas","asignaciones","diaslibres","incpersonal"];
-const FIN_VIEWS=["caja","tesoreria","deudas","conexiones"];
+const FIN_VIEWS=["caja","tesoreria","facturasrec","deudas","conexiones"];
 // Todas las opciones que gerencia puede otorgar/quitar por usuario (tesoreria es solo gerencia, por eso no está aquí)
 const OPCIONES=[
   ["resumen","Resumen / indicadores del inicio"],
@@ -952,7 +1003,7 @@ const OPCIONES=[
 const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma","quiebre"];
 const OP_PERM=["tareas","asignaciones","asistencia","piso","quiebre"];
 let currentUser=null;
-function puede(view){ if(!currentUser) return false; if(view==="inicio") return true; if(currentUser.es_gerencia) return true; if(view==="ajustes") return false; return (currentUser.permisos||[]).includes(view); }
+function puede(view){ if(!currentUser) return false; if(view==="inicio") return true; if(view==="facturasrec") view="deudas"; if(currentUser.es_gerencia) return true; if(view==="ajustes") return false; return (currentUser.permisos||[]).includes(view); }
 async function seedUsuarios(){
   await db.insert("usuarios",{nombre:"Gerencia",clave:"123456",es_gerencia:true,permisos:[],activo:true});
   await db.insert("usuarios",{nombre:"Supervisor",clave:"111111",es_gerencia:false,permisos:SUP_PERM,activo:true});
@@ -999,7 +1050,7 @@ function renderConexiones(){ const el=document.getElementById("conexFecha"); if(
 function aplicarPermisos(){
   const any=(arr)=> arr.some(v=>puede(v));
   const showTab=(name,vis)=>{ const b=document.querySelector('.tab[data-tab="'+name+'"]'); if(b) b.style.display=vis?"":"none"; };
-  showTab("inicio",true); showTab("rrhh",any(RRHH_VIEWS)); showTab("productos",any(PROD_VIEWS)); showTab("supervisores",any(SUP_VIEWS)); showTab("finanzas",any(FIN_VIEWS)); showTab("ajustes",puede("ajustes")||(currentUser&&currentUser.es_gerencia));
+  pintarNav(); showTab("ajustes",puede("ajustes")||(currentUser&&currentUser.es_gerencia));
   const rb=document.getElementById("rolBadge"); if(rb) rb.textContent=(currentUser?currentUser.nombre:"")+" ⎋";
   aplicarIdiomaUsuario(); pintarCampana(); pintarIdioma();
 }
@@ -1086,11 +1137,11 @@ function show(view){
   document.getElementById("hSub").textContent = mod? t(mod.sub) : (view==="piso"?t("Sala de ventas"):t("Gestión de supermercado"));
   // resaltar pestaña base
   const base = mod? mod.parent : view;
-  document.querySelectorAll(".tab").forEach(b=>{ const on=b.dataset.tab===base; b.classList.toggle("text-teal-700",on); b.classList.toggle("text-slate-400",!on); });
+  document.querySelectorAll(".tab").forEach(b=>{ const dest=b.dataset.target||b.dataset.tab; const on=(dest===base||dest===currentView); b.classList.toggle("text-teal-700",on); b.classList.toggle("text-slate-400",!on); });
   render(); window.scrollTo(0,0);
 }
 function goBack(){ const mod=MODULES[currentView]; show(mod? "inicio":"inicio"); }
-document.querySelectorAll(".tab").forEach(b=> b.onclick=()=>show(b.dataset.tab));
+document.querySelectorAll(".tab").forEach(b=> b.onclick=()=>show(b.dataset.target||b.dataset.tab));
 
 function renderTiles(){
   const t=(arr)=>arr.filter(([v])=>puede(v)).map(([v,ic,l])=>`<button onclick="show('${v}')" class="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1 active:scale-95 transition"><span class="text-2xl">${ic}</span><span class="text-[11px] font-semibold text-slate-600">${window.t?window.t(l):l}</span></button>`).join("");
@@ -3498,6 +3549,25 @@ async function addFacturaRec(){ if(!puede("deudas")){ toast("Sin acceso"); retur
   try{ await db.insert("facturas_rec", r); renderFacturasRecModal(); render(); toast("Documento registrado"); }catch(e){ toast("Error: "+e.message); } }
 async function delFacturaRec(id){ if(!puede("deudas")){ return; } if(confirm("¿Eliminar este documento?")){ await db.remove("facturas_rec",id); renderFacturasRecModal(); render(); } }
 
+/* --- Vista propia de Facturas recibidas (mosaico de Caja y Finanzas) --- */
+function renderFacturasRecView(){ if(!puede("deudas")) return; const c=document.getElementById("listaFacturasRec"); if(!c) return;
+  const all=db.list("facturas_rec"); const T=totalesFacturasRec(all); const pendUsd=facturasRecUsdTot(); const deuda=deudaPendienteUsd();
+  const rz=document.getElementById("frvResumen");
+  if(rz){ rz.innerHTML=`<div class="bg-slate-800 text-white rounded-2xl p-3 mb-1"><div class="flex items-center justify-between"><span class="text-xs text-slate-300">Total facturas recibidas (${all.length})</span><span class="font-bold">${fmt2(T.bs)} Bs${T.usd?" · $"+fmt2(T.usd):""}</span></div>
+    <div class="flex items-center justify-between mt-1 pt-1 border-t border-white/10"><span class="text-xs text-slate-300">Pendiente (se suma a la deuda)</span><span class="font-semibold text-amber-300">${money(pendUsd)}</span></div></div>
+    <div onclick="show('deudas')" class="bg-white rounded-xl px-3 py-2 shadow-sm flex items-center justify-between active:bg-slate-50 mb-1"><span class="text-xs text-slate-500">📊 Deuda pendiente total (incluye estas facturas)</span><span class="font-bold ${deuda>0?'text-red-600':'text-emerald-600'}">${money(deuda)} ›</span></div>`; }
+  const q=(document.getElementById("frvBuscar")?.value||"").trim().toLowerCase();
+  let l=all.slice().sort((a,b)=>String(b.fecha||"").localeCompare(String(a.fecha||""))||String(b.creado||"").localeCompare(String(a.creado||"")));
+  if(q) l=l.filter(f=>[f.proveedor,f.rif,f.numero].join(" ").toLowerCase().includes(q));
+  if(!l.length){ c.innerHTML=empty(all.length?"Sin coincidencias.":"Sin facturas recibidas. Toca «Registrar del día»."); return; }
+  c.innerHTML=l.slice(0,400).map(f=>{ const mon=Number(f.monto)||0, ab=Number(f.abonado)||0, pend=Math.max(0,mon-ab); const pagada=pend<=0.001&&mon>0;
+    return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center justify-between gap-2">
+      <div class="min-w-0"><p class="font-semibold truncate">${esc(f.proveedor||"—")} <span class="text-[10px] text-slate-400">${esc(f.tipo||"")}${f.fecha?" · "+esc(f.fecha):""}</span></p>
+        <p class="text-[11px] text-slate-500 truncate">${f.numero?"N° "+esc(f.numero)+" · ":""}${fmt2(f.monto)} ${esc(f.moneda||"Bs")}${ab?` · abonado ${fmt2(ab)}`:""} · <b class="${pagada?'text-emerald-600':'text-red-600'}">${pagada?"PAGADA ✓":"pend "+fmt2(pend)+" "+esc(f.moneda||"Bs")}</b></p></div>
+      <div class="flex items-center gap-1 shrink-0">${pagada?"":`<button onclick="openAbonoFactura('${f.id}')" class="text-[11px] bg-emerald-600 text-white font-semibold px-2 py-1.5 rounded-lg">Abonar</button>`}<button onclick="delFacturaRec('${f.id}')" class="text-red-500 font-bold px-1">✕</button></div></div>`; }).join("")
+    + (l.length>400?`<p class="text-[11px] text-amber-600 mt-1">Mostrando 400 de ${l.length}. Usa el buscador.</p>`:"");
+}
+
 /* -------- Facturas recibidas AGRUPADAS POR PROVEEDOR + abonos por factura -------- */
 let _fpBuscar="";
 function openFacturasProv(){ if(!puede("deudas")){ toast("Sin acceso"); return; } _fpBuscar=""; renderFacturasProv(); }
@@ -3588,6 +3658,7 @@ function actualizarDatalists(){
   if(np!==_dlCache.prov){ const dp=document.getElementById("dlProveedores"); if(dp) dp.innerHTML=db.list("proveedores").map(p=>`<option value="${esc(p.nombre)}">`).join(""); _dlCache.prov=np; }
   if(npr!==_dlCache.prod){ const dpr=document.getElementById("dlProductos"); if(dpr) dpr.innerHTML=db.list("productos").map(p=>`<option value="${esc(p.nombre)}">`).join(""); _dlCache.prod=npr; }
 }
+function toggleMasIndicadores(){ const mi=document.getElementById("masIndicadores"), bm=document.getElementById("btnMasIndic"); if(!mi) return; const abrir=mi.style.display==="none"; mi.style.display=abrir?"grid":"none"; if(bm) bm.textContent=abrir?"▲ Ocultar indicadores":"📊 Ver más indicadores"; }
 function renderInicio(){
   renderTiles();
   const empsAll=db.list("empleados").filter(e=>e.estado!=="Inactivo");
@@ -3600,6 +3671,10 @@ function renderInicio(){
   document.getElementById("mTareas").textContent=db.list("tareas").filter(t=>(t.estado||"Pendiente")!=="Hecha").length;
   const evs=db.list("evaluaciones"); document.getElementById("mEval").textContent=evs.length?(evs.reduce((s,v)=>s+(v.promedio||0),0)/evs.length).toFixed(1):"—";
   document.getElementById("mBajoMin").textContent=db.list("productos").filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0)).length;
+  { const fr=db.list("facturas_rec"); const mf=document.getElementById("mFacturas"); if(mf) mf.textContent=fr.length.toLocaleString("es-VE");
+    const grossUsd=fr.reduce((s,f)=>{ const m=Number(f.monto)||0; return s+(esUSDmon(f.moneda)?m:(tipoCambio>0?m/tipoCambio:0)); },0);
+    const mu=document.getElementById("mFacturasUsd"); if(mu) mu.textContent="$"+grossUsd.toLocaleString("es-VE",{minimumFractionDigits:2,maximumFractionDigits:2});
+    const cf=document.getElementById("card_facturas"); if(cf) cf.style.display=(esGerencia()||puede("deudas"))?"":"none"; }
   document.getElementById("mOrdenes").textContent=db.list("ordenes").filter(o=>o.estado==="Pendiente"||o.estado==="Enviada").length;
   document.getElementById("mIncid").textContent=db.list("piso_incidencias").filter(x=>x.estado!=="Resuelta").length;
   document.getElementById("mRepo").textContent=db.list("piso_secciones").filter(s=>pasilloActiva(s.estado)).length;
@@ -3613,6 +3688,7 @@ function renderInicio(){
   const verResumen=puede("resumen");
   const rbx=document.getElementById("resumenBox"), hR=document.getElementById("hResumen");
   if(rbx) rbx.style.display=verResumen?"":"none"; if(hR) hR.style.display=verResumen?"":"none";
+  { const bm=document.getElementById("btnMasIndic"), mi=document.getElementById("masIndicadores"); if(bm) bm.style.display=verResumen?"":"none"; if(mi && !verResumen) mi.style.display="none"; }
   if(verResumen){ const showCard=(cid,view)=>{ const el=document.getElementById(cid); if(el) el.style.display=puede(view)?"":"none"; };
     showCard("card_empleados","empleados"); showCard("card_nomina","nomina"); showCard("card_tareas","tareas"); showCard("card_eval","eval");
     showCard("card_inv","inventario"); showCard("card_ordenes","ordenes"); showCard("card_incid","piso"); showCard("card_repo","piso"); showCard("card_quiebre","quiebre"); }
@@ -3637,13 +3713,13 @@ const RENDER_VISTA={
   proveedores:renderProveedores, inventario:renderInventario, ordenes:renderOrdenes,
   recepcion:function(){ renderRecepcion(); renderRecepHistory(); }, merma:renderMerma, quiebre:renderQuiebre,
   rotacion:renderRotacion, compras:renderCompras,
-  caja:renderCaja, tesoreria:renderTesoreria, deudas:renderDeudas, conexiones:renderConexiones,
+  caja:renderCaja, tesoreria:renderTesoreria, deudas:renderDeudas, facturasrec:renderFacturasRecView, conexiones:renderConexiones,
   ajustes:renderAjustesView
 };
 function render(){
   pintarUltSync(); pintarMarca(); actualizarDatalists();
   const badge=document.getElementById("modeBadge"); if(badge){ badge.textContent=USE_CLOUD?"compartido ☁":"local"; badge.className="text-[10px] font-semibold px-2 py-1 rounded-full "+(USE_CLOUD?"bg-emerald-400/30":"bg-white/15"); }
-  pintarCampana(); pintarMoneda(); pintarIdioma();
+  pintarCampana(); pintarMoneda(); pintarIdioma(); pintarNav();
   const fn=RENDER_VISTA[currentView]; if(fn) fn();
 }
 
