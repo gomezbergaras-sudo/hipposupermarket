@@ -622,7 +622,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.51"; // se incrementa con cada mejora
+const APP_VERSION="4.52"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -3574,6 +3574,7 @@ function openPagoProv(id){ if(!puede("deudas")){ toast("Sin acceso"); return; } 
     <div id="pp_total" class="bg-slate-800 text-white rounded-xl p-3"></div>
     <div><label class="text-xs text-slate-500">Notas / detalles</label><textarea id="f_notas" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(pg.notas||"")}</textarea></div></div>
     <div class="flex flex-wrap gap-2 mt-4"><button onclick="savePagoProv('${id||""}',true)" class="flex-1 bg-emerald-600 text-white font-semibold py-2.5 rounded-xl">💬 Guardar y enviar WhatsApp</button>
+    <button onclick="savePagoProv('${id||""}','wc')" class="flex-1 text-white font-semibold py-2.5 rounded-xl" style="background:#07C160">💚 Guardar y enviar WeChat</button>
     <button onclick="savePagoProv('${id||""}',false)" class="px-4 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
     ${id?`<button onclick="delPagoProv('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
@@ -3591,7 +3592,7 @@ async function savePagoProv(id, enviar){ if(!puede("deudas")){ toast("Sin acceso
   try{ let newId=id; if(id){ await db.update("pagos_prov",id,r); } else { const row=await db.insert("pagos_prov",r); newId=row.id;
       // marcar como abonadas las facturas pendientes vinculadas (solo al crear el pago)
       for(const cf of r.facturas){ if(!cf.fid) continue; const fac=db.list("facturas_rec").find(x=>x.id===cf.fid); if(fac){ const cap=Number(fac.monto)||0; const nuevo=Math.min(cap,(Number(fac.abonado)||0)+(Number(cf.monto)||0)); await db.update("facturas_rec",cf.fid,{abonado:nuevo}); } }
-    } closeModal(); render(); toast("Pago guardado"); if(enviar) enviarPagoWhatsApp(newId); }catch(e){ toast("Error: "+e.message); } }
+    } closeModal(); render(); toast("Pago guardado"); if(enviar==='wc') enviarPagoWeChat(newId); else if(enviar) enviarPagoWhatsApp(newId); }catch(e){ toast("Error: "+e.message); } }
 async function delPagoProv(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar este pago?")){ const pg=db.list("pagos_prov").find(x=>x.id===id);
     if(pg && pagoLigadoFacturas(pg)){ for(const cf of pg.facturas){ if(!cf||!cf.fid) continue; const fac=db.list("facturas_rec").find(x=>x.id===cf.fid); if(fac){ const nuevo=Math.max(0,(Number(fac.abonado)||0)-(Number(cf.monto)||0)); await db.update("facturas_rec",cf.fid,{abonado:nuevo}); } } }
     await db.remove("pagos_prov",id); closeModal(); render(); toast("Pago eliminado"); } }
@@ -3611,10 +3612,13 @@ function mensajePago(pg){ const tasa=Number(pg.tasa)||tipoCambio; const tp=Numbe
   if(pg.notas) m+=`\nNotas: ${pg.notas}\n`;
   return m; }
 function enviarPagoWhatsApp(id){ const pg=db.list("pagos_prov").find(x=>x.id===id); if(!pg){ toast("No encontrado"); return; } const tel=String(pg.telefono||"").replace(/\D/g,""); const txt=encodeURIComponent(mensajePago(pg)); const url=tel?`https://wa.me/${tel}?text=${txt}`:`https://wa.me/?text=${txt}`; window.open(url,"_blank"); }
+function enviarPagoWeChat(id){ const pg=db.list("pagos_prov").find(x=>x.id===id); if(!pg){ toast("No encontrado"); return; } const msg=mensajePago(pg);
+  const ok=()=>{ toast("📋 Mensaje copiado — ábrelo en WeChat y pégalo en el chat del proveedor"); try{ window.open("weixin://","_blank"); }catch(_){} };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(msg).then(ok).catch(()=>{ fallbackCopiar(msg); ok(); }); } else { fallbackCopiar(msg); ok(); } }
 function renderPagosProv(){ const c=document.getElementById("pagosProvBox"); if(!c) return; const l=db.list("pagos_prov").sort((a,b)=>String(b.creado||b.fecha_pago||"").localeCompare(String(a.creado||a.fecha_pago||""))).slice(0,40);
   if(!l.length){ c.innerHTML=""; return; }
   c.innerHTML=`<p class="text-xs font-semibold text-slate-600 mb-1">💵 Pagos a proveedores</p><div class="space-y-2">${l.map(pg=>{ const tasa=Number(pg.tasa)||tipoCambio; const tp=Number(pg.total_pagado)||0; const bs=pg.moneda==="USD"?tp*tasa:tp; const usd=pg.moneda==="USD"?tp:(tasa>0?tp/tasa:0);
-    return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center justify-between gap-2"><div class="min-w-0" onclick="openPagoProv('${pg.id}')"><p class="font-semibold truncate">${esc(pg.proveedor||"—")}</p><p class="text-[11px] text-slate-500 truncate">${esc(pg.fecha_pago||"")} · ${fmt2(bs)} Bs / $${fmt2(usd)}${pg.banco?" · "+esc(pg.banco):""}</p></div><button onclick="enviarPagoWhatsApp('${pg.id}')" class="text-[11px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-semibold shrink-0">💬 WhatsApp</button></div>`; }).join("")}</div>`;
+    return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center justify-between gap-2"><div class="min-w-0" onclick="openPagoProv('${pg.id}')"><p class="font-semibold truncate">${esc(pg.proveedor||"—")}</p><p class="text-[11px] text-slate-500 truncate">${esc(pg.fecha_pago||"")} · ${fmt2(bs)} Bs / $${fmt2(usd)}${pg.banco?" · "+esc(pg.banco):""}</p></div><div class="flex flex-col gap-1 shrink-0"><button onclick="enviarPagoWhatsApp('${pg.id}')" class="text-[11px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-semibold">💬 WhatsApp</button><button onclick="enviarPagoWeChat('${pg.id}')" class="text-[11px] px-2 py-1 rounded-lg font-semibold text-white" style="background:#07C160">💚 WeChat</button></div></div>`; }).join("")}</div>`;
 }
 /* -------- Facturas / notas de entrega recibidas (cuadro diario) -------- */
 let _frFecha=null, _frTodas=false;
