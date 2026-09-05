@@ -498,7 +498,6 @@
       <button onclick="openFacturasRec()" class="text-xs bg-slate-700 text-white px-3 py-1.5 rounded-lg font-semibold">📥 Facturas recibidas</button>
       <button onclick="openFacturasProv()" class="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-semibold">🧾 Facturas por proveedor</button>
       <button onclick="openPagoProv()" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold">💵 Pago a proveedor</button>
-      <button onclick="openGastos()" class="text-xs bg-rose-600 text-white px-3 py-1.5 rounded-lg font-semibold">🧾 Gastos</button>
       <button onclick="openReportePagos()" class="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg font-semibold">📊 Reporte de pagos</button>
       <button onclick="openDeuda()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Deuda</button>
       <button onclick="openImportarFinanzas()" class="text-xs bg-slate-500 text-white px-3 py-1.5 rounded-lg font-semibold">📤 Importar Excel</button>
@@ -511,7 +510,6 @@
     <p id="deudaMsg" class="text-xs mb-2"></p>
     <div id="deudaResumen" class="mb-3"></div>
     <div id="facturasRecBox" class="mb-3"></div>
-    <div id="gastosBox" class="mb-3"></div>
     <div id="pagosProvBox" class="mb-3"></div>
     <p class="text-xs font-semibold text-slate-600 mb-1">Deudas por proveedor</p>
     <div class="flex flex-wrap gap-2 mb-2">
@@ -641,7 +639,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.55"; // se incrementa con cada mejora
+const APP_VERSION="4.56"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -977,7 +975,7 @@ const MODULES = {
 const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["nominave","⚖️","Nómina VE"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"],["candidatos","📨","Candidatos"]];
 const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"],["quiebre","🚨","Quiebre"],["rotacion","🔥","Rotación/ABC"],["compras","🛒","Compras"]];
 const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"],["incpersonal","⏰","Asistencia personal"]];
-const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["facturasrec","📥","Facturas recibidas"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
+const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["facturasrec","📥","Facturas recibidas"],["gastos","🧾","Gastos"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
 /* ---- Idioma (chino tradicional) — solo textos del menú/etiquetas, NO los datos ---- */
 const DICT_ZH={
   "Inicio":"首頁","RRHH":"人事","Superv.":"主管","Productos":"商品","Caja":"收銀","Ajustes":"設定",
@@ -1049,7 +1047,7 @@ const OPCIONES=[
 const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma","quiebre"];
 const OP_PERM=["tareas","asignaciones","asistencia","piso","quiebre"];
 let currentUser=null;
-function puede(view){ if(!currentUser) return false; if(view==="inicio") return true; if(view==="facturasrec") view="deudas"; if(currentUser.es_gerencia) return true; if(view==="ajustes") return false; return (currentUser.permisos||[]).includes(view); }
+function puede(view){ if(!currentUser) return false; if(view==="inicio") return true; if(view==="facturasrec"||view==="gastos") view="deudas"; if(currentUser.es_gerencia) return true; if(view==="ajustes") return false; return (currentUser.permisos||[]).includes(view); }
 async function seedUsuarios(){
   await db.insert("usuarios",{nombre:"Gerencia",clave:"123456",es_gerencia:true,permisos:[],activo:true});
   await db.insert("usuarios",{nombre:"Supervisor",clave:"111111",es_gerencia:false,permisos:SUP_PERM,activo:true});
@@ -1192,7 +1190,8 @@ function goBack(){ const mod=MODULES[currentView]; show(mod? "inicio":"inicio");
 document.querySelectorAll(".tab").forEach(b=> b.onclick=()=>show(b.dataset.target||b.dataset.tab));
 
 function renderTiles(){
-  const t=(arr)=>arr.filter(([v])=>puede(v)).map(([v,ic,l])=>`<button onclick="show('${v}')" class="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1 active:scale-95 transition"><span class="text-2xl">${ic}</span><span class="text-[11px] font-semibold text-slate-600">${window.t?window.t(l):l}</span></button>`).join("");
+  const ACC={gastos:"openGastos()"}; // tiles que abren una acción en vez de navegar a una vista
+  const t=(arr)=>arr.filter(([v])=>puede(v)).map(([v,ic,l])=>`<button onclick="${ACC[v]||("show('"+v+"')")}" class="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1 active:scale-95 transition"><span class="text-2xl">${ic}</span><span class="text-[11px] font-semibold text-slate-600">${window.t?window.t(l):l}</span></button>`).join("");
   const grp=(idTiles,idHead,arr)=>{ const html=t(arr); document.getElementById(idTiles).innerHTML=html; const h=document.getElementById(idHead); const g=document.getElementById(idTiles); const vis=!!html; if(h) h.style.display=vis?"":"none"; if(g) g.style.display=vis?"":"none"; };
   grp("tilesRRHH","hRRHH",TILES_RRHH);
   grp("tilesProd","hProd",TILES_PROD);
@@ -3562,7 +3561,7 @@ function renderDeudas(){ const l=db.list("deudas").sort((a,b)=>(b.fecha||"").loc
   const notas=l.filter(d=>d.tipo==="Nota de crédito").reduce((s,d)=>s+(Number(d.monto)||0),0);
   if(res) res.innerHTML=`<div class="bg-white rounded-2xl p-3 shadow-sm mb-2"><div class="flex items-center justify-between"><p class="text-[11px] text-slate-500">Deuda pendiente</p><p class="text-lg font-bold text-red-600">${money(pend)}</p></div><p class="text-[10px] text-slate-400">Base ${money(base)} + Facturas recibidas ${money(frt)} − Pagos ${money(pgt)}</p></div>
     <div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Notas de crédito</p><p class="text-lg font-bold text-emerald-600">${money(notas)}</p></div>`;
-  renderFacturasRecBox(); renderGastosBox(); renderPagosProv();
+  renderFacturasRecBox(); renderPagosProv();
   if(!l.length){ c.innerHTML=empty("Sin deudas. Agrega o carga por Excel."); return; }
   // Filtro: no mostrar todas al inicio; solo al buscar proveedor o elegir fecha
   const q=(document.getElementById("deudaBuscar")?.value||"").trim().toLowerCase();
