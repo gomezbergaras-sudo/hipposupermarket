@@ -498,6 +498,7 @@
       <button onclick="openFacturasRec()" class="text-xs bg-slate-700 text-white px-3 py-1.5 rounded-lg font-semibold">📥 Facturas recibidas</button>
       <button onclick="openFacturasProv()" class="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-semibold">🧾 Facturas por proveedor</button>
       <button onclick="openPagoProv()" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold">💵 Pago a proveedor</button>
+      <button onclick="openGastos()" class="text-xs bg-rose-600 text-white px-3 py-1.5 rounded-lg font-semibold">🧾 Gastos</button>
       <button onclick="openReportePagos()" class="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg font-semibold">📊 Reporte de pagos</button>
       <button onclick="openDeuda()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Deuda</button>
       <button onclick="openImportarFinanzas()" class="text-xs bg-slate-500 text-white px-3 py-1.5 rounded-lg font-semibold">📤 Importar Excel</button>
@@ -510,6 +511,7 @@
     <p id="deudaMsg" class="text-xs mb-2"></p>
     <div id="deudaResumen" class="mb-3"></div>
     <div id="facturasRecBox" class="mb-3"></div>
+    <div id="gastosBox" class="mb-3"></div>
     <div id="pagosProvBox" class="mb-3"></div>
     <p class="text-xs font-semibold text-slate-600 mb-1">Deudas por proveedor</p>
     <div class="flex flex-wrap gap-2 mb-2">
@@ -628,7 +630,7 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos","parametros_legales","conceptos_nomina"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos","parametros_legales","conceptos_nomina","gastos"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
@@ -639,7 +641,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.54"; // se incrementa con cada mejora
+const APP_VERSION="4.55"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -3560,7 +3562,7 @@ function renderDeudas(){ const l=db.list("deudas").sort((a,b)=>(b.fecha||"").loc
   const notas=l.filter(d=>d.tipo==="Nota de crédito").reduce((s,d)=>s+(Number(d.monto)||0),0);
   if(res) res.innerHTML=`<div class="bg-white rounded-2xl p-3 shadow-sm mb-2"><div class="flex items-center justify-between"><p class="text-[11px] text-slate-500">Deuda pendiente</p><p class="text-lg font-bold text-red-600">${money(pend)}</p></div><p class="text-[10px] text-slate-400">Base ${money(base)} + Facturas recibidas ${money(frt)} − Pagos ${money(pgt)}</p></div>
     <div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Notas de crédito</p><p class="text-lg font-bold text-emerald-600">${money(notas)}</p></div>`;
-  renderFacturasRecBox(); renderPagosProv();
+  renderFacturasRecBox(); renderGastosBox(); renderPagosProv();
   if(!l.length){ c.innerHTML=empty("Sin deudas. Agrega o carga por Excel."); return; }
   // Filtro: no mostrar todas al inicio; solo al buscar proveedor o elegir fecha
   const q=(document.getElementById("deudaBuscar")?.value||"").trim().toLowerCase();
@@ -3699,6 +3701,69 @@ async function addFacturaRec(){ if(!puede("deudas")){ toast("Sin acceso"); retur
   const r={ proveedor_id:provId||"", proveedor:prov?prov.nombre:provTxt, rif:(document.getElementById("fr_rif").value||"")||(prov?prov.rif:""), fecha:_frFecha, tipo:document.getElementById("fr_tipo").value, numero, monto, moneda:document.getElementById("fr_moneda").value, notas:(document.getElementById("fr_notas").value||"") };
   try{ await db.insert("facturas_rec", r); renderFacturasRecModal(); render(); toast("Documento registrado"); }catch(e){ toast("Error: "+e.message); } }
 async function delFacturaRec(id){ if(!puede("deudas")){ return; } if(confirm("¿Eliminar este documento?")){ await db.remove("facturas_rec",id); renderFacturasRecModal(); render(); } }
+
+/* ================= GASTOS (fijos y variables) ================= */
+let _gtFecha=null, _gtTodas=false;
+const GASTO_CATS=["Alquiler","Servicios (luz/agua/aseo)","Internet / Teléfono","Sueldos / Nómina","Mantenimiento","Limpieza","Seguridad","Papelería","Transporte / Flete","Impuestos / Tasas","Publicidad","Bolsas / Empaque","Otros"];
+function gastoMontos(g){ const tasa=Number(g.tasa)||tipoCambio; const monto=Number(g.monto)||0; const mon=String(g.moneda||"Bs").toUpperCase();
+  if(mon==="USDT"){ const tu=Number(g.tasa_alt)||tasa; return {bs:monto*tu, usd:monto, tasaUsada:tu}; }
+  if(esUSDmon(mon)){ return {bs:monto*tasa, usd:monto, tasaUsada:tasa}; }
+  return {bs:monto, usd:tasa>0?monto/tasa:0, tasaUsada:tasa}; }
+function totalesGastos(l){ let bs=0,usd=0,fijoBs=0,varBs=0; l.forEach(g=>{ const m=gastoMontos(g); bs+=m.bs; usd+=m.usd; if((g.tipo||"")==="Fijo") fijoBs+=m.bs; else varBs+=m.bs; }); return {bs,usd,fijoBs,varBs}; }
+function renderGastosBox(){ const c=document.getElementById("gastosBox"); if(!c) return; const hoyF=hoy(); const l=db.list("gastos").filter(g=>g.fecha===hoyF); if(!l.length){ c.innerHTML=""; return; } const T=totalesGastos(l);
+  c.innerHTML=`<div onclick="openGastos()" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50 flex items-center justify-between"><div><p class="text-[11px] text-slate-500">🧾 Gastos de hoy</p><p class="font-bold">${l.length} gasto(s)</p></div><p class="text-sm font-semibold text-slate-700">${fmt2(T.bs)} Bs · $${fmt2(T.usd)}</p></div>`; }
+function openGastos(){ if(!puede("deudas")){ toast("Sin acceso"); return; } _gtFecha=_gtFecha||hoy(); renderGastosModal(); }
+function gastoFormUI(){ const mon=(document.getElementById("gx_moneda")?.value||"Bs").toUpperCase(); const forma=(document.getElementById("gx_forma")?.value||"Banco");
+  const ba=document.getElementById("gx_bancoWrap"); if(ba) ba.style.display=forma==="Efectivo"?"none":"";
+  const ta=document.getElementById("gx_tasaaltWrap"); if(ta) ta.style.display=(mon==="USDT")?"":"none";
+  gastoCalc(); }
+function gastoCalc(){ const el=document.getElementById("gx_total"); if(!el) return;
+  const g={ monto:Number(document.getElementById("gx_monto")?.value)||0, moneda:document.getElementById("gx_moneda")?.value||"Bs", tasa:Number(document.getElementById("gx_tasa")?.value)||tipoCambio, tasa_alt:Number(document.getElementById("gx_tasaalt")?.value)||0 };
+  const m=gastoMontos(g); const unidad=String(g.moneda).toUpperCase()==="USDT"?"USDT":"$";
+  el.innerHTML=`<p class="text-[11px] text-slate-300">Tasa usada: ${fmt2(m.tasaUsada)} Bs/${unidad}</p><p class="text-lg font-bold mt-0.5">${fmt2(m.bs)} Bs / $${fmt2(m.usd)}</p>`; }
+function renderGastosModal(){ const fecha=_gtFecha; const todasList=db.list("gastos");
+  const l=(_gtTodas? todasList.slice() : todasList.filter(g=>g.fecha===fecha)).sort((a,b)=> _gtTodas ? (String(b.fecha||"").localeCompare(String(a.fecha||""))||String(b.creado||"").localeCompare(String(a.creado||""))) : String(b.creado||"").localeCompare(String(a.creado||"")));
+  const T=totalesGastos(l); const otras=todasList.filter(g=>g.fecha!==fecha).length;
+  const tab=(on,txt,val)=>`<button onclick="_gtTodas=${val};renderGastosModal()" class="flex-1 text-xs font-semibold py-2 rounded-lg ${on?"bg-teal-600 text-white":"bg-slate-200 text-slate-600"}">${txt}</button>`;
+  const bancoOpts=["",...BANCOS].map(o=>`<option>${esc(o)}</option>`).join("");
+  openModal(`<h3 class="font-bold text-lg mb-1">🧾 Gastos (fijos y variables)</h3><p class="text-xs text-slate-500 mb-2">Registra gastos del negocio: por banco o en efectivo, con la tasa del día. Si pagas en USDT, usa la tasa alterna.</p>
+    <div class="flex gap-2 mb-2">${tab(!_gtTodas,"📅 Esta fecha",false)}${tab(_gtTodas,"🗂 Todas ("+todasList.length+")",true)}</div>
+    <input type="date" id="gtFechaSel" value="${fecha}" ${_gtTodas?"disabled":""} onchange="_gtFecha=this.value;renderGastosModal()" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 text-sm ${_gtTodas?"opacity-50":""}">
+    ${(!_gtTodas && otras>0)?`<div class="bg-amber-50 text-amber-800 rounded-xl px-3 py-2 text-xs mb-2 flex items-center justify-between gap-2"><span>Hay <b>${otras}</b> gasto(s) en otras fechas.</span><button onclick="_gtTodas=true;renderGastosModal()" class="font-semibold underline shrink-0">Ver todos</button></div>`:""}
+    <div class="bg-slate-50 rounded-xl p-2 space-y-2 mb-2">
+      <div class="grid grid-cols-2 gap-2">
+        <select id="gx_tipo" class="px-2 py-2 rounded-lg border border-slate-200 text-sm bg-white"><option value="Fijo">Gasto fijo</option><option value="Variable" selected>Gasto variable</option></select>
+        <input id="gx_cat" list="dlGastoCat" placeholder="Categoría" class="px-2 py-2 rounded-lg border border-slate-200 text-sm">
+      </div>
+      <datalist id="dlGastoCat">${GASTO_CATS.map(c=>`<option value="${esc(c)}">`).join("")}</datalist>
+      <input id="gx_desc" placeholder="Descripción (ej: pago de luz de agosto)" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm">
+      <div class="grid grid-cols-3 gap-2">
+        <input id="gx_monto" type="number" step="any" placeholder="Monto" oninput="gastoCalc()" class="px-2 py-2 rounded-lg border border-slate-200 text-sm">
+        <select id="gx_moneda" onchange="gastoFormUI()" class="px-2 py-2 rounded-lg border border-slate-200 text-sm bg-white"><option>Bs</option><option>USD</option><option>USDT</option></select>
+        <select id="gx_forma" onchange="gastoFormUI()" class="px-2 py-2 rounded-lg border border-slate-200 text-sm bg-white"><option>Banco</option><option>Efectivo</option></select>
+      </div>
+      <div id="gx_bancoWrap"><label class="text-[11px] text-slate-500">Banco desde donde se pagó</label><select id="gx_banco" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm bg-white">${bancoOpts}</select></div>
+      <div class="grid grid-cols-2 gap-2">
+        <div><label class="text-[11px] text-slate-500">Tasa del día (Bs/$)</label><input id="gx_tasa" type="number" step="any" value="${tipoCambio||""}" oninput="gastoCalc()" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"></div>
+        <div id="gx_tasaaltWrap" style="display:none"><label class="text-[11px] text-slate-500">Tasa alterna USDT (Bs/USDT)</label><input id="gx_tasaalt" type="number" step="any" value="${tipoCambio||""}" oninput="gastoCalc()" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm"></div>
+      </div>
+      <input id="gx_notas" placeholder="Notas (opcional)" class="w-full px-2 py-2 rounded-lg border border-slate-200 text-sm">
+      <div id="gx_total" class="bg-slate-800 text-white rounded-lg px-3 py-2"></div>
+      <button onclick="addGasto()" class="w-full bg-teal-700 text-white font-semibold py-2 rounded-lg text-sm">+ Agregar gasto</button>
+    </div>
+    <div class="bg-slate-800 text-white rounded-xl px-3 py-2 mb-2 text-sm"><div class="flex items-center justify-between"><span>${l.length} gasto(s) ${_gtTodas?"(todas las fechas)":"el "+fecha}</span><span class="font-bold">${fmt2(T.bs)} Bs · $${fmt2(T.usd)}</span></div><div class="flex items-center justify-between mt-1 pt-1 border-t border-white/10 text-[11px] text-slate-300"><span>Fijos: ${fmt2(T.fijoBs)} Bs</span><span>Variables: ${fmt2(T.varBs)} Bs</span></div></div>
+    <div class="space-y-1 max-h-64 overflow-y-auto">${l.length?l.map(g=>{ const m=gastoMontos(g); const badge=(g.tipo==="Fijo")?'<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Fijo</span>':'<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Variable</span>';
+      const pago=g.forma_pago==="Efectivo"?"💵 Efectivo":("🏦 "+(g.banco?esc(g.banco):"Banco"));
+      return `<div class="bg-white border border-slate-100 rounded-lg px-2 py-1.5 flex items-center justify-between gap-2 text-sm"><div class="min-w-0"><p class="font-medium truncate">${esc(g.categoria||g.descripcion||"Gasto")} ${badge}</p><p class="text-[11px] text-slate-500 truncate">${(g.descripcion&&g.categoria)?esc(g.descripcion)+" · ":""}${fmt2(g.monto)} ${esc(g.moneda||"Bs")} · ${pago}${_gtTodas&&g.fecha?" · "+esc(g.fecha):""}</p></div><div class="text-right shrink-0"><p class="font-semibold">${fmt2(m.bs)} Bs</p><button onclick="delGasto('${g.id}')" class="text-red-500 font-bold text-[11px]">✕ quitar</button></div></div>`; }).join(""):`<p class="text-xs text-slate-400 text-center py-4">${_gtTodas?"No hay gastos registrados.":"Sin gastos en la fecha. Toca «🗂 Todas» para ver otras fechas."}</p>`}</div>
+    <button onclick="closeModal()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`);
+  gastoFormUI(); }
+async function addGasto(){ if(!puede("deudas")){ toast("Sin acceso"); return; }
+  const monto=Number(document.getElementById("gx_monto").value)||0; const cat=(document.getElementById("gx_cat").value||"").trim(); const desc=(document.getElementById("gx_desc").value||"").trim();
+  if(!monto){ toast("Pon el monto del gasto"); return; } if(!cat && !desc){ toast("Pon la categoría o la descripción"); return; }
+  const forma=document.getElementById("gx_forma").value; const mon=document.getElementById("gx_moneda").value;
+  const r={ tipo:document.getElementById("gx_tipo").value, categoria:cat, descripcion:desc, monto, moneda:mon, forma_pago:forma, banco:forma==="Efectivo"?"":(document.getElementById("gx_banco").value||""), tasa:Number(document.getElementById("gx_tasa").value)||tipoCambio, tasa_alt:(String(mon).toUpperCase()==="USDT")?(Number(document.getElementById("gx_tasaalt").value)||0):0, fecha:_gtFecha, notas:(document.getElementById("gx_notas").value||"") };
+  try{ await db.insert("gastos", r); renderGastosModal(); render(); toast("Gasto registrado"); }catch(e){ toast("Error: "+e.message); } }
+async function delGasto(id){ if(!puede("deudas")){ return; } if(confirm("¿Eliminar este gasto?")){ await db.remove("gastos",id); renderGastosModal(); render(); } }
 
 /* --- Vista propia de Facturas recibidas (mosaico de Caja y Finanzas) --- */
 function renderFacturasRecView(){ if(!puede("deudas")) return; const c=document.getElementById("listaFacturasRec"); if(!c) return;
@@ -3882,11 +3947,13 @@ function exportarRespaldoFinanzas(){ if(!puede("deudas")){ toast("Sin acceso"); 
   const fac=db.list("facturas_rec").map(f=>({Fecha:f.fecha||"","N Factura":f.numero||"",Proveedor:f.proveedor||"",RIF:f.rif||"",Total:Number(f.monto)||0,Moneda:f.moneda||"Bs",Tipo:f.tipo||"",Abonado:Number(f.abonado)||0,Notas:f.notas||""}));
   const deu=db.list("deudas").map(d=>({Proveedor:d.proveedor||"",RIF:d.rif||"",Tipo:d.tipo||"Deuda",Monto:Number(d.monto)||0,Abonado:Number(d.abonado)||0,Fecha:d.fecha||"",Status:d.status||"",Notas:d.notas||""}));
   const pag=db.list("pagos_prov").map(p=>({Proveedor:p.proveedor||"",RIF:p.rif||"","Fecha pago":p.fecha_pago||"","Total pagado":Number(p.total_pagado)||0,Moneda:p.moneda||"Bs",Tasa:Number(p.tasa)||0,Banco:p.banco||"",Notas:p.notas||""}));
+  const gas=db.list("gastos").map(g=>{ const m=gastoMontos(g); return {Fecha:g.fecha||"",Tipo:g.tipo||"",Categoria:g.categoria||"",Descripcion:g.descripcion||"",Monto:Number(g.monto)||0,Moneda:g.moneda||"Bs","Forma de pago":g.forma_pago||"",Banco:g.banco||"",Tasa:Number(g.tasa)||0,"Tasa USDT":Number(g.tasa_alt)||0,"Total Bs":Math.round(m.bs*100)/100,"Total $":Math.round(m.usd*100)/100,Notas:g.notas||""}; });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(fac.length?fac:[{Fecha:"",Proveedor:"",Total:0}]), "Facturas recibidas");
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(deu.length?deu:[{Proveedor:"",Monto:0}]), "Deudas");
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pag.length?pag:[{Proveedor:"","Total pagado":0}]), "Pagos");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gas.length?gas:[{Fecha:"",Tipo:"",Monto:0}]), "Gastos");
   XLSX.writeFile(wb, "respaldo_finanzas_"+hoy()+".xlsx");
-  toast("Respaldo de finanzas descargado ("+fac.length+" facturas, "+deu.length+" deudas, "+pag.length+" pagos)"); }
+  toast("Respaldo de finanzas descargado ("+fac.length+" facturas, "+deu.length+" deudas, "+pag.length+" pagos, "+gas.length+" gastos)"); }
 async function importarJSON(ev){ const file=ev.target.files[0]; if(!file) return; const data=JSON.parse(await file.text());
   TABLES.forEach(t=>{ if(t==="usuarios" && !Array.isArray(data.usuarios)) return; store[t]=data[t]||[]; });
   if(!db.list("usuarios").length){ await seedUsuarios(); }
