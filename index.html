@@ -28,10 +28,27 @@
   ::-webkit-scrollbar-thumb{ background:#cbd5e1; border-radius:8px; }
   .safe-bottom{ padding-bottom: env(safe-area-inset-bottom); }
   input,select,textarea{ font-size:16px; }
+  /* ---- Zona de carga (logo + barra) ---- */
+  #loadingZone{ position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center; flex-direction:column; gap:18px;
+    background:rgba(248,250,252,.86); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
+  #loadingZone.on{ display:flex; }
+  #loadingZone .lz-logo{ width:76px; height:76px; border-radius:20px; object-fit:contain; background:#fff; padding:6px; box-shadow:0 8px 24px rgba(13,148,136,.22); animation:lzpulse 1.1s ease-in-out infinite; }
+  #loadingZone .lz-bar{ width:170px; height:7px; border-radius:99px; background:#d7e3e1; overflow:hidden; position:relative; }
+  #loadingZone .lz-bar span{ position:absolute; left:0; top:0; bottom:0; width:40%; border-radius:99px; background:linear-gradient(90deg,#0d9488,#14b8a6); animation:lzslide 1.05s ease-in-out infinite; }
+  #loadingZone .lz-txt{ font-size:12px; font-weight:600; color:#0f766e; letter-spacing:.02em; }
+  @keyframes lzslide{ 0%{ left:-45%; } 100%{ left:105%; } }
+  @keyframes lzpulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.06); } }
+  @media (prefers-reduced-motion: reduce){ #loadingZone .lz-logo,#loadingZone .lz-bar span{ animation-duration:.01ms; } }
+  /* feedback inmediato al tocar botones */
+  button{ -webkit-tap-highlight-color: transparent; }
+  button:active{ opacity:.85; }
 </style>
 </head>
 
 <body class="bg-slate-100 text-slate-800 antialiased">
+
+<!-- Zona de carga con logo y barra de progreso -->
+<div id="loadingZone" aria-hidden="true"><img id="lzLogo" class="lz-logo" alt=""><div class="lz-bar"><span></span></div><div id="lzTxt" class="lz-txt">Cargando…</div></div>
 
 <!-- ===================== CONFIGURACIÓN ===================== -->
 <!-- Para BASE DE DATOS COMPARTIDA pon aquí tu URL y clave pública de Supabase.
@@ -622,7 +639,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.53"; // se incrementa con cada mejora
+const APP_VERSION="4.54"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -863,6 +880,15 @@ function pintarMoneda(){ const b=document.getElementById("btnMoneda"); if(b) b.t
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.style.opacity=1; setTimeout(()=>t.style.opacity=0,1800); }
 function openModal(h){ document.getElementById("modalContent").innerHTML=h; document.getElementById("modal").classList.remove("hidden"); }
 function closeModal(){ document.getElementById("modal").classList.add("hidden"); }
+/* ---- Zona de carga: logo + barra mientras se dibuja una vista o corre una tarea pesada ---- */
+let _lzTimer=null, _lzShownAt=0;
+function showLoader(txt){ const z=document.getElementById("loadingZone"); if(!z) return; const lg=document.getElementById("lzLogo");
+  if(lg){ const src=(typeof ajustes!=="undefined"&&ajustes.logo)?ajustes.logo:(typeof LOGO_DEFAULT!=="undefined"?LOGO_DEFAULT:""); if(src && lg.src!==src) lg.src=src; }
+  const tx=document.getElementById("lzTxt"); if(tx) tx.textContent=txt||"Cargando…"; clearTimeout(_lzTimer); z.classList.add("on"); _lzShownAt=Date.now(); }
+function hideLoader(){ const z=document.getElementById("loadingZone"); if(!z) return; const min=300, el=Date.now()-_lzShownAt, go=()=>z.classList.remove("on");
+  if(el>=min) go(); else { clearTimeout(_lzTimer); _lzTimer=setTimeout(go, min-el); } }
+/* Ejecuta una tarea pesada mostrando el cargador; deja que el navegador pinte antes de bloquear */
+function withLoader(txt, fn){ showLoader(txt); return new Promise(res=>{ requestAnimationFrame(()=>requestAnimationFrame(async()=>{ let r; try{ r=await fn(); }catch(e){ toast("Error: "+((e&&e.message)||e)); } finally{ hideLoader(); } res(r); })); }); }
 function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 /* Bloqueo de edición: solo gerencia modifica/borra lo ya guardado */
 function esGerencia(){ return !!(currentUser && currentUser.es_gerencia); }
@@ -1156,7 +1182,9 @@ function show(view){
   // resaltar pestaña base
   const base = mod? mod.parent : view;
   document.querySelectorAll(".tab").forEach(b=>{ const dest=b.dataset.target||b.dataset.tab; const on=(dest===base||dest===currentView); b.classList.toggle("text-teal-700",on); b.classList.toggle("text-slate-400",!on); });
-  render(); window.scrollTo(0,0);
+  // Mostrar la zona de carga y dibujar la vista tras el primer pintado (evita la sensación de "pegado")
+  showLoader(); const _v=view;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{ if(currentView!==_v){ hideLoader(); return; } try{ render(); } finally { window.scrollTo(0,0); hideLoader(); } }));
 }
 function goBack(){ const mod=MODULES[currentView]; show(mod? "inicio":"inicio"); }
 document.querySelectorAll(".tab").forEach(b=> b.onclick=()=>show(b.dataset.target||b.dataset.tab));
@@ -1604,7 +1632,8 @@ function renderLiquidacionVE(){ const box=document.getElementById("liqResultado"
     </div>
     <p class="text-[10px] text-slate-400 mt-1">Estimación referencial según el motivo seleccionado. Verifica con tu asesor laboral y la Gaceta Oficial vigente.</p>`;
 }
-function descargarLiquidacionVE(){ if(!verSueldos()){ toast("Sueldos ocultos"); return; } const d=liqData(); if(!d){ toast("Registra la fecha de ingreso del empleado"); return; }
+function descargarLiquidacionVE(){ if(!verSueldos()){ toast("Sueldos ocultos"); return; } if(!liqData()){ toast("Registra la fecha de ingreso del empleado"); return; } if(!window.jspdf){ toast("Abre la app publicada para generar el PDF"); return; } return withLoader("Generando liquidación…", _descargarLiquidacionVE); }
+function _descargarLiquidacionVE(){ const d=liqData(); if(!d){ return; }
   const e=d.e, b=d.b; const motivoLbl=LIQ_MOTIVOS[d.motivo]||d.motivo;
   const { jsPDF }=window.jspdf; const doc=new jsPDF(); const W=210,M=14; let y=0;
   doc.setFillColor(15,118,110); doc.rect(0,0,W,30,"F");
@@ -1673,7 +1702,8 @@ async function saveConceptoNomina(){ if(!esGerencia()){ toast("Solo gerencia"); 
 async function delConceptoNomina(id){ if(!esGerencia()){ toast("Solo gerencia"); return; } if(confirm("¿Eliminar este concepto?")){ await db.remove("conceptos_nomina",id); renderConceptosNominaModal(); render(); } }
 
 /* --- Recibo VE en PDF --- */
-function descargarReciboVE(empId){ if(!verSueldos()){ toast("Sueldos ocultos"); return; } const e=empById(empId); if(!e){ return; } const per=hoy().slice(0,7); const n=calcNominaVE(e,per); const b=calcBeneficiosVE(e);
+function descargarReciboVE(empId){ if(!verSueldos()){ toast("Sueldos ocultos"); return; } if(!window.jspdf){ toast("Abre la app publicada para generar el PDF"); return; } return withLoader("Generando recibo…", ()=>_descargarReciboVE(empId)); }
+function _descargarReciboVE(empId){ const e=empById(empId); if(!e){ return; } const per=hoy().slice(0,7); const n=calcNominaVE(e,per); const b=calcBeneficiosVE(e);
   const { jsPDF }=window.jspdf; const doc=new jsPDF(); const W=210,M=14; let y=0;
   doc.setFillColor(15,118,110); doc.rect(0,0,W,30,"F");
   try{ if(ajustes.logo){ const fmt=/png/i.test(ajustes.logo)?"PNG":"JPEG"; doc.addImage(ajustes.logo,fmt,M,5,18,18); } }catch(_){}
@@ -2685,7 +2715,8 @@ function datosReporteGeneral(){
     pagosMes:pagosMes.length, pagosMesUsd, pagosTotUsd, deuda, cierres:cierres.length, ingBs, ingUsd, egrUsd, balanceUsd,
     prods:prods.length, bajoMin, quiebres, uVend, valVend };
 }
-function descargarReportePDF(){ if(!esGerencia()){ toast("Solo gerencia"); return; }
+function descargarReportePDF(){ if(!esGerencia()){ toast("Solo gerencia"); return; } if(!window.jspdf){ toast("Abre la app publicada para generar el PDF"); return; } return withLoader("Generando reporte…", _descargarReportePDF); }
+function _descargarReportePDF(){
   const d=datosReporteGeneral(); const { jsPDF }=window.jspdf; const doc=new jsPDF(); const W=210, M=14; const tc=tipoCambio||0;
   // Fuente china (subconjunto) para el texto en chino tradicional
   let TCok=false; try{ doc.addFileToVFS("NotoTC.ttf", FONT_TC_B64); doc.addFont("NotoTC.ttf","NotoTC","normal"); TCok=true; }catch(e){}
@@ -3887,15 +3918,15 @@ async function cargarDemo(){
 
 /* ===================== ARRANQUE ===================== */
 function esRutaEmpleo(){ return /^#?empleo/i.test(location.hash||""); }
-(async function(){ const av=document.getElementById("appVersion"); if(av) av.textContent="Hipposupermarket · v"+APP_VERSION; cargarConfig(); aplicarIconosApp(); await db.init(); aplicarIconosApp();
+(async function(){ const av=document.getElementById("appVersion"); if(av) av.textContent="Hipposupermarket · v"+APP_VERSION; cargarConfig(); aplicarIconosApp(); showLoader("Cargando datos…"); await db.init(); aplicarIconosApp();
   if(!db.list("usuarios").length){ await seedUsuarios(); }
   purgarFotosVencidas(); setInterval(purgarFotosVencidas, 3600000);
   // Ruta pública: cualquiera con el enlace #empleo ve solo el formulario "Trabaja con nosotros"
-  if(esRutaEmpleo()){ abrirFormularioPublico(); return; }
+  if(esRutaEmpleo()){ hideLoader(); abrirFormularioPublico(); return; }
   const savedId=localStorage.getItem("supergestion_user");
   const u=savedId && db.list("usuarios").find(x=>x.id===savedId && x.activo!==false);
   if(u){ currentUser=u; aplicarPermisos(); iniciarSesion(); pedirPermisoNotif(); show("inicio"); }
-  else { mostrarLogin(); }
+  else { hideLoader(); mostrarLogin(); }
 })();
 window.addEventListener("hashchange",()=>{ if(esRutaEmpleo()) abrirFormularioPublico(); });
 </script>
