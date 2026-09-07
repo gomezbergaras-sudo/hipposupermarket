@@ -42,6 +42,70 @@
   /* feedback inmediato al tocar botones */
   button{ -webkit-tap-highlight-color: transparent; }
   button:active{ opacity:.85; }
+  /* accesos de finanzas */
+  .fin-acc{ display:flex; flex-direction:column; align-items:center; gap:3px; background:#f8fafc; border:1px solid #eef2f7; border-radius:14px; padding:11px 6px; font-size:20px; transition:transform .08s; }
+  .fin-acc span{ font-size:10px; font-weight:600; color:#475569; text-align:center; line-height:1.15; }
+  .fin-acc:active{ transform:scale(.95); }
+  .fin-card{ background:#fff; border-radius:18px; padding:14px; box-shadow:0 1px 2px rgba(15,23,42,.05); }
+  .fin-badge{ font-size:10px; font-weight:700; padding:2px 7px; border-radius:99px; }
+  /* ---- Dashboard de Finanzas: distribución tipo panel (barra lateral + contenido) ---- */
+  main.fin-wide{ max-width:1180px; }
+  .fin-shell{ display:flex; gap:18px; align-items:flex-start; }
+  .fin-side{ display:none; }
+  .fin-main{ flex:1; min-width:0; }
+  .fin-chips{ display:flex; gap:6px; overflow-x:auto; padding-bottom:6px; margin-bottom:10px; -webkit-overflow-scrolling:touch; }
+  .fin-chips button{ white-space:nowrap; font-size:11px; font-weight:600; padding:6px 11px; border-radius:99px; background:#fff; border:1px solid #e2e8f0; color:#334155; }
+  .fin-chips button.on{ background:#0d9488; border-color:#0d9488; color:#fff; }
+  @media (min-width:900px){
+    .fin-side{ display:flex; flex-direction:column; width:212px; flex-shrink:0; position:sticky; top:76px; background:linear-gradient(180deg,#134e4a 0%,#0f3d3a 100%); border-radius:22px; padding:16px 12px 18px; color:#fff; min-height:calc(100vh - 130px); box-shadow:0 10px 30px rgba(15,61,58,.25); }
+    .fin-chips{ display:none; }
+    .fin-cards4{ grid-template-columns:repeat(4,minmax(0,1fr)); }
+  }
+  .fin-side .brand{ display:flex; align-items:center; gap:8px; padding:4px 6px 12px; }
+  .fin-side .brand img{ width:30px; height:30px; border-radius:9px; background:#fff; object-fit:contain; padding:2px; }
+  .fin-side .brand b{ font-size:15px; letter-spacing:.2px; }
+  .fin-side .empresa{ display:flex; align-items:center; gap:6px; font-size:11px; color:rgba(255,255,255,.75); background:rgba(255,255,255,.08); border-radius:10px; padding:7px 10px; margin-bottom:14px; }
+  .fin-side .nav{ display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:12px; font-size:12.5px; color:rgba(255,255,255,.72); width:100%; text-align:left; transition:background .12s; background:transparent; border:0; font-family:inherit; cursor:pointer; }
+  .fin-plus,.fin-alert .go,.fin-bubble,.fin-chips button,.fin-acc{ border:0; font-family:inherit; cursor:pointer; }
+  .fin-chips button{ border:1px solid #e2e8f0; }
+  .fin-side .nav .ic{ width:18px; text-align:center; font-size:13px; opacity:.9; }
+  .fin-side .nav.on{ background:#14b8a6; color:#fff; font-weight:600; box-shadow:0 4px 12px rgba(20,184,166,.35); }
+  .fin-side .nav:hover{ background:rgba(255,255,255,.08); color:#fff; }
+  .fin-plus{ width:36px; height:36px; border-radius:99px; background:#0f172a; color:#fff; font-size:20px; line-height:1; display:grid; place-items:center; box-shadow:0 6px 16px rgba(15,23,42,.25); }
+  .fin-sel{ padding:7px 26px 7px 10px; border-radius:10px; border:1px solid #e2e8f0; background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2364748b' stroke-width='1.5' fill='none'/%3E%3C/svg%3E") no-repeat right 9px center; font-size:13px; -webkit-appearance:none; appearance:none; }
+  .fin-pill{ display:inline-flex; align-items:center; gap:8px; background:#fff; border-radius:99px; padding:7px 14px; font-size:12px; color:#64748b; box-shadow:0 1px 3px rgba(15,23,42,.08); }
+  .fin-alert{ border-radius:18px; padding:16px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .fin-alert.rojo{ background:#fff1f2; border:1px solid #fecdd3; }
+  .fin-alert.verde{ background:#ecfdf5; border:1px solid #a7f3d0; }
+  .fin-alert .ico{ width:44px; height:44px; border-radius:99px; display:grid; place-items:center; font-size:20px; flex-shrink:0; }
+  .fin-alert.rojo .ico{ background:#ffe4e6; } .fin-alert.verde .ico{ background:#d1fae5; }
+  .fin-alert .k{ font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+  .fin-alert .v{ font-size:26px; font-weight:800; line-height:1.1; }
+  .fin-alert.rojo .k,.fin-alert.rojo .v{ color:#e11d48; } .fin-alert.verde .k,.fin-alert.verde .v{ color:#059669; }
+  .fin-alert .s{ font-size:11px; color:#fb7185; } .fin-alert.verde .s{ color:#34d399; }
+  .fin-alert .go{ font-size:11px; font-weight:700; color:#fff; padding:8px 14px; border-radius:99px; white-space:nowrap; }
+  .fin-alert.rojo .go{ background:#e11d48; } .fin-alert.verde .go{ background:#059669; }
+  .fin-metric{ background:#fff; border-radius:18px; padding:16px; box-shadow:0 1px 3px rgba(15,23,42,.06); }
+  .fin-metric .ico{ width:38px; height:38px; border-radius:99px; display:grid; place-items:center; font-size:17px; }
+  .fin-metric .lbl{ font-size:10px; font-weight:800; letter-spacing:.08em; color:#94a3b8; text-transform:uppercase; margin-top:14px; }
+  .fin-metric .val{ font-size:22px; font-weight:800; color:#0f172a; margin-top:2px; }
+  .fin-cuentas{ background:#fff; border-radius:18px; padding:16px 18px; box-shadow:0 1px 3px rgba(15,23,42,.06); }
+  .fin-cuentas .row{ display:flex; align-items:center; justify-content:space-between; padding:8px 0; font-size:14px; }
+  .fin-cuentas .dot{ width:8px; height:8px; border-radius:99px; background:#10b981; display:inline-block; margin-right:10px; }
+  .fin-cuentas .tot{ display:flex; align-items:center; justify-content:space-between; border-top:1px solid #f1f5f9; margin-top:6px; padding-top:12px; font-weight:800; font-size:14px; }
+  .fin-bubble{ position:fixed; right:16px; bottom:92px; z-index:35; display:flex; align-items:center; gap:8px; background:linear-gradient(135deg,#14b8a6,#0d9488); color:#fff; border-radius:99px; padding:8px 16px 8px 8px; box-shadow:0 10px 24px rgba(13,148,136,.35); }
+  .fin-bubble img{ width:32px; height:32px; border-radius:99px; background:#fff; object-fit:contain; padding:2px; }
+  .fin-bubble b{ font-size:12px; display:block; line-height:1.1; } .fin-bubble small{ font-size:9px; opacity:.9; display:flex; align-items:center; gap:4px; }
+  .fin-bubble small i{ width:6px; height:6px; border-radius:99px; background:#86efac; display:inline-block; }
+  /* gráficos */
+  .fin-chart{ background:#fff; border-radius:18px; padding:14px 16px; box-shadow:0 1px 3px rgba(15,23,42,.06); }
+  .fin-grid2{ display:grid; grid-template-columns:1fr; gap:12px; }
+  @media (min-width:900px){ .fin-grid2{ grid-template-columns:1fr 1fr; } }
+  .fin-svg{ width:100%; height:auto; display:block; font-family:inherit; }
+  .fin-svg path[onmousemove],.fin-svg rect[onmousemove],.fin-svg circle[onmousemove]{ cursor:pointer; }
+  .fin-leg{ display:flex; gap:10px; font-size:10px; color:#64748b; white-space:nowrap; }
+  .fin-leg i{ width:9px; height:9px; border-radius:99px; display:inline-block; margin-right:4px; vertical-align:middle; }
+  .fin-tip{ position:fixed; z-index:80; background:#0f172a; color:#fff; font-size:11px; padding:6px 9px; border-radius:8px; pointer-events:none; display:none; box-shadow:0 6px 16px rgba(0,0,0,.25); line-height:1.35; }
 </style>
 </head>
 
@@ -488,36 +552,51 @@
       <button id="btnTesMes" onclick="tesPeriodo='mes';renderTesoreria()" class="flex-1 text-sm font-semibold py-2 rounded-xl bg-slate-200">Mensual</button>
     </div>
     <input id="tesFecha" type="date" onchange="renderTesoreria()" class="w-full mb-3 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" />
+    <div id="tesBancos" class="mb-3"></div>
     <div id="tesoreriaCont"></div>
   </section>
 
   <!-- ======== FINANZAS (DEUDAS) ======== -->
   <section data-view="deudas" hidden>
-    <div class="mb-1"><h2 class="text-lg font-bold">Finanzas</h2></div>
-    <div class="flex flex-wrap gap-2 mb-2">
-      <button onclick="openFacturasRec()" class="text-xs bg-slate-700 text-white px-3 py-1.5 rounded-lg font-semibold">📥 Facturas recibidas</button>
-      <button onclick="openFacturasProv()" class="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-semibold">🧾 Facturas por proveedor</button>
-      <button onclick="openPagoProv()" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold">💵 Pago a proveedor</button>
-      <button onclick="openReportePagos()" class="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg font-semibold">📊 Reporte de pagos</button>
-      <button onclick="openDeuda()" class="text-xs bg-teal-700 text-white px-3 py-1.5 rounded-lg font-semibold">+ Deuda</button>
-      <button onclick="openImportarFinanzas()" class="text-xs bg-slate-500 text-white px-3 py-1.5 rounded-lg font-semibold">📤 Importar Excel</button>
-      <button onclick="exportarRespaldoFinanzas()" class="text-xs bg-slate-800 text-white px-3 py-1.5 rounded-lg font-semibold">💾 Respaldo (Excel)</button></div>
-    <p class="text-xs text-slate-500 mb-2">Deudas, notas de crédito, pagos y facturas recibidas de proveedores.</p>
-    <div class="flex flex-wrap gap-2 mb-3">
-      <label class="bg-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelDeudas(event)"></label>
-      <button onclick="plantillaDeudas()" class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl">⬇ Plantilla</button>
+    <div class="fin-shell">
+      <aside id="finSide" class="fin-side"></aside>
+      <div class="fin-main">
+        <div id="finChips" class="fin-chips"></div>
+        <div id="finHeader" class="mb-3"></div>
+        <div id="finAlert" class="mb-3"></div>
+        <div id="finCards" class="grid grid-cols-2 gap-3 mb-3 fin-cards4"></div>
+        <div id="finCharts" class="mb-3"></div>
+        <div class="bg-white rounded-2xl p-3 shadow-sm mb-3">
+          <p class="text-xs font-semibold text-slate-600 mb-2">Gestión de finanzas</p>
+          <div class="grid grid-cols-3 gap-2">
+            <button onclick="openFacturasRec()" class="fin-acc">📥<span>Facturas recibidas</span></button>
+            <button onclick="openPagoProv()" class="fin-acc">💵<span>Pago a proveedor</span></button>
+            <button onclick="openFacturasProv()" class="fin-acc">📄<span>Facturas por proveedor</span></button>
+            <button onclick="openReportePagos()" class="fin-acc">📊<span>Reporte de pagos</span></button>
+            <button onclick="openDeuda()" class="fin-acc">➕<span>Nueva deuda</span></button>
+          </div>
+          <div class="flex flex-wrap gap-2 mt-2">
+            <button onclick="openImportarFinanzas()" class="text-[11px] bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg font-semibold">📤 Importar Excel</button>
+            <label class="text-[11px] bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg font-semibold cursor-pointer">⬆ Cargar deudas<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelDeudas(event)"></label>
+            <button onclick="plantillaDeudas()" class="text-[11px] bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg font-semibold">⬇ Plantilla</button>
+            <button onclick="exportarRespaldoFinanzas()" class="text-[11px] bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg font-semibold">💾 Respaldo (Excel)</button>
+          </div>
+          <p id="deudaMsg" class="text-xs mt-2"></p>
+        </div>
+        <div id="facturasRecBox" class="mb-3"></div>
+        <div id="pagosProvBox" class="mb-3"></div>
+        <div class="bg-white rounded-2xl p-3 shadow-sm">
+          <p class="text-xs font-semibold text-slate-600 mb-2">📊 Deudas por proveedor</p>
+          <div class="flex flex-wrap gap-2 mb-2">
+            <input id="deudaBuscar" oninput="renderDeudas()" placeholder="🔎 Proveedor o RIF" class="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-slate-200 text-sm">
+            <input id="deudaFecha" type="date" onchange="renderDeudas()" class="px-3 py-2 rounded-xl border border-slate-200 text-sm">
+            <button onclick="limpiarFiltroDeuda()" class="text-xs bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-xl">Limpiar</button>
+          </div>
+          <div id="listaDeudas" class="space-y-2"></div>
+        </div>
+      </div>
     </div>
-    <p id="deudaMsg" class="text-xs mb-2"></p>
-    <div id="deudaResumen" class="mb-3"></div>
-    <div id="facturasRecBox" class="mb-3"></div>
-    <div id="pagosProvBox" class="mb-3"></div>
-    <p class="text-xs font-semibold text-slate-600 mb-1">Deudas por proveedor</p>
-    <div class="flex flex-wrap gap-2 mb-2">
-      <input id="deudaBuscar" oninput="renderDeudas()" placeholder="🔎 Proveedor o RIF" class="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-slate-200 text-sm">
-      <input id="deudaFecha" type="date" onchange="renderDeudas()" class="px-3 py-2 rounded-xl border border-slate-200 text-sm">
-      <button onclick="limpiarFiltroDeuda()" class="text-xs bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-xl">Limpiar</button>
-    </div>
-    <div id="listaDeudas" class="space-y-2"></div>
+    <button id="finBubble" onclick="openFinQuick()" class="fin-bubble"><img id="finBubbleImg" alt=""><span><b>Hippo</b><small><i></i>En línea</small></span></button>
   </section>
 
   <!-- ======== FACTURAS RECIBIDAS (mosaico propio) ======== -->
@@ -639,7 +718,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.56"; // se incrementa con cada mejora
+const APP_VERSION="4.59"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1175,6 +1254,7 @@ function show(view){
   if(!puede(view)){ toast("No tienes acceso a esta sección"); view="inicio"; }
   currentView=view;
   document.querySelectorAll("[data-view]").forEach(s=> s.hidden = s.dataset.view!==view);
+  { const mn=document.querySelector("main"); if(mn) mn.classList.toggle("fin-wide", view==="deudas"); }
   const mod=MODULES[view];
   document.getElementById("btnBack").classList.toggle("hidden", !mod);
   document.getElementById("hTitle").textContent = mod? t(mod.title) : (view==="ajustes"?t("Ajustes"):view==="piso"?t("Piso de venta"):ajustes.nombre||"SuperGestión");
@@ -3418,6 +3498,7 @@ function renderTesoreria(){ const el=document.getElementById("tesFecha"); if(el&
   if(tesPeriodo==="dia") cierres=cierres.filter(c=>c.fecha===fecha);
   else { const mes=fecha.slice(0,7); cierres=cierres.filter(c=>(c.fecha||"").startsWith(mes) && (c.fecha||"")<=fecha); }
   const cont=document.getElementById("tesoreriaCont"); if(!cont) return;
+  { const tb=document.getElementById("tesBancos"); if(tb) tb.innerHTML=htmlEgresosPorCuenta(fecha.slice(0,7)); }
   let cdBanner="";
   if(tesPeriodo==="dia"){ const cd=cierreDiaDe(fecha);
     cdBanner = cd
@@ -3556,11 +3637,141 @@ function pagosProvUsdTot(fn){ return db.list("pagos_prov").filter(p=>!pagoLigado
 function deudaPendienteUsd(){ return deudaBaseUsd()+facturasRecUsdTot()-pagosProvUsdTot(); }
 function deudaProveedorUsd(nombre,rif){ const f=(x)=>coincideProv(x,nombre,rif); return deudaBaseUsd(f)+facturasRecUsdTot(f)-pagosProvUsdTot(f); }
 function limpiarFiltroDeuda(){ const b=document.getElementById("deudaBuscar"); if(b) b.value=""; const f=document.getElementById("deudaFecha"); if(f) f.value=""; renderDeudas(); }
-function renderDeudas(){ const l=db.list("deudas").sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||"")); const c=document.getElementById("listaDeudas"); if(!c) return; const res=document.getElementById("deudaResumen");
-  const base=deudaBaseUsd(), frt=facturasRecUsdTot(), pgt=pagosProvUsdTot(); const pend=base+frt-pgt;
-  const notas=l.filter(d=>d.tipo==="Nota de crédito").reduce((s,d)=>s+(Number(d.monto)||0),0);
-  if(res) res.innerHTML=`<div class="bg-white rounded-2xl p-3 shadow-sm mb-2"><div class="flex items-center justify-between"><p class="text-[11px] text-slate-500">Deuda pendiente</p><p class="text-lg font-bold text-red-600">${money(pend)}</p></div><p class="text-[10px] text-slate-400">Base ${money(base)} + Facturas recibidas ${money(frt)} − Pagos ${money(pgt)}</p></div>
-    <div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Notas de crédito</p><p class="text-lg font-bold text-emerald-600">${money(notas)}</p></div>`;
+/* ---- Dashboard de Finanzas ---- */
+const MES_NOMBRES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+let _finMes=null;
+function mesAnteriorYM(ym){ const p=String(ym||"").split("-"); const y=Number(p[0]), m=Number(p[1]); const d=new Date(y,m-2,1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
+function finMetrics(mes){
+  const cierres=db.list("cierres_caja").filter(c=>!c.arqueo && (c.fecha||"").startsWith(mes));
+  let ingUsd=0; cierres.forEach(c=>{ try{ ingUsd+=(calcCierre(c).facturadoUsd||0); }catch(_){}} );
+  const gs=db.list("gastos").filter(g=>(g.fecha||"").startsWith(mes)); let gastUsd=0; gs.forEach(g=>{ gastUsd+=gastoMontos(g).usd; });
+  const pagos=db.list("pagos_prov").filter(p=>(p.fecha_pago||"").startsWith(mes)); let pagUsd=0; pagos.forEach(p=>{ pagUsd+=pagoUsd(p); });
+  const egrUsd=gastUsd+pagUsd; const neto=ingUsd-egrUsd;
+  const frMes=db.list("facturas_rec").filter(f=>(f.fecha||"").startsWith(mes)).length;
+  const tx=cierres.length+gs.length+pagos.length+frMes;
+  return {mes,ingUsd,gastUsd,pagUsd,egrUsd,neto,tx,nCierres:cierres.length,nGastos:gs.length,nPagos:pagos.length,frMes}; }
+function cambiarFinPeriodo(){ const m=document.getElementById("finMesSel")?.value, y=document.getElementById("finAnioSel")?.value; if(m&&y){ _finMes=y+"-"+m; renderDeudas(); } }
+function finBadge(cur,prev,goodUp){ if(prev===0||prev===undefined||prev===null){ return `<span class="fin-badge bg-slate-100 text-slate-400">—</span>`; }
+  const p=(cur-prev)/Math.abs(prev)*100; const up=p>=0; const bueno = goodUp?up:!up; const col=bueno?"bg-emerald-100 text-emerald-700":"bg-rose-100 text-rose-600";
+  return `<span class="fin-badge ${col}">${up?"↗":"↘"} ${Math.abs(p).toFixed(1)}%</span>`; }
+function finLogoSrc(){ return (ajustes&&ajustes.logo)?ajustes.logo:(typeof LOGO_DEFAULT!=="undefined"?LOGO_DEFAULT:""); }
+function finFechaLarga(){ try{ const s=new Date().toLocaleDateString("es-VE",{weekday:"long",day:"numeric",month:"long",year:"numeric"}); return s.charAt(0).toUpperCase()+s.slice(1); }catch(_){ return hoy(); } }
+const FIN_NAV=[
+  ["dash","📊","Dashboard","document.getElementById('finHeader').scrollIntoView({behavior:'smooth',block:'start'})"],
+  ["fac","📥","Facturas recibidas","openFacturasRec()"],
+  ["fpr","📄","Facturas por proveedor","openFacturasProv()"],
+  ["pag","💵","Pago a proveedor","openPagoProv()"],
+  ["rep","📈","Reporte de pagos","openReportePagos()"],
+  ["deu","➕","Nueva deuda","openDeuda()"],
+  ["cxp","📋","Deudas por proveedor","document.getElementById('listaDeudas').scrollIntoView({behavior:'smooth',block:'center'})"],
+  ["imp","📤","Importar Excel","openImportarFinanzas()"],
+  ["res","💾","Respaldo (Excel)","exportarRespaldoFinanzas()"]];
+function openFinQuick(){ openModal(`<h3 class="font-bold text-lg mb-1">➕ Registrar</h3><p class="text-xs text-slate-500 mb-3">¿Qué quieres cargar?</p><div class="grid grid-cols-3 gap-2">
+    <button onclick="closeModal();openPagoProv()" class="fin-acc">💵<span>Pago a proveedor</span></button>
+    <button onclick="closeModal();openFacturasRec()" class="fin-acc">📥<span>Factura recibida</span></button>
+    <button onclick="closeModal();openDeuda()" class="fin-acc">📊<span>Deuda</span></button></div>
+  <button onclick="closeModal()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`); }
+function renderFinDashboard(){ if(!_finMes) _finMes=hoy().slice(0,7); const mes=_finMes, prev=mesAnteriorYM(mes); const M=finMetrics(mes), P=finMetrics(prev);
+  const yy=mes.slice(0,4), mm=mes.slice(5,7); const anioAct=new Date().getFullYear(); const anios=[]; for(let a=anioAct-2;a<=anioAct+1;a++) anios.push(a);
+  const logo=finLogoSrc(); const empresa=esc(ajustes.nombre||"Hipposupermarket");
+  // ---- Barra lateral (escritorio) y chips (móvil) ----
+  const side=document.getElementById("finSide");
+  if(side) side.innerHTML=`<div class="brand"><img src="${logo}" alt=""><b>Hippo</b></div>
+    <div class="empresa">🏬 <span class="truncate">${empresa}</span> <span style="margin-left:auto;opacity:.6">⌄</span></div>
+    ${FIN_NAV.map(([k,ic,l,fn])=>`<button class="nav ${k==="dash"?"on":""}" onclick="${fn.replace(/"/g,"&quot;")}"><span class="ic">${ic}</span><span>${l}</span></button>`).join("")}`;
+  const chips=document.getElementById("finChips");
+  if(chips) chips.innerHTML=FIN_NAV.map(([k,ic,l,fn])=>`<button class="${k==="dash"?"on":""}" onclick="${fn.replace(/"/g,"&quot;")}">${ic} ${l}</button>`).join("");
+  const bi=document.getElementById("finBubbleImg"); if(bi && logo && bi.src!==logo) bi.src=logo;
+  // ---- Encabezado: empresa + fecha, "+" y período ----
+  const fh=document.getElementById("finHeader");
+  if(fh) fh.innerHTML=`<div class="flex items-start justify-between gap-3 flex-wrap">
+      <div><h2 class="text-xl font-extrabold leading-tight text-slate-900">${empresa}</h2><p class="text-[11px] text-slate-400 mt-0.5">${finFechaLarga()}</p></div>
+      <div class="flex items-center gap-2">
+        <button onclick="openFinQuick()" class="fin-plus" title="Registrar">+</button>
+        <select id="finMesSel" onchange="cambiarFinPeriodo()" class="fin-sel">${MES_NOMBRES.map((n,i)=>{const v=String(i+1).padStart(2,"0");return `<option value="${v}" ${v===mm?"selected":""}>${n}</option>`;}).join("")}</select>
+        <select id="finAnioSel" onchange="cambiarFinPeriodo()" class="fin-sel">${anios.map(a=>`<option ${String(a)===yy?"selected":""}>${a}</option>`).join("")}</select>
+      </div></div>
+    <div class="flex justify-center mt-4"><span class="fin-pill"><span>${MES_NOMBRES[Number(mm)-1]} ${yy}</span><span style="opacity:.35">|</span><span>📅 Balance General</span><b class="${M.neto>=0?'text-slate-900':'text-rose-600'}">${money(M.neto)}</b></span></div>`;
+  // ---- Alerta de cuentas por pagar ----
+  const porPagar=deudaPendienteUsd(); const nPend=db.list("deudas").filter(d=>d.tipo!=="Nota de crédito" && d.status!=="Pagado total").length + db.list("facturas_rec").filter(f=>frPend(f)>0.005).length;
+  const hoyF=hoy(); const nVenc=db.list("deudas").filter(d=>d.tipo!=="Nota de crédito" && d.status!=="Pagado total" && String(d.fecha||"")<hoyF).length + db.list("facturas_rec").filter(f=>frPend(f)>0.005 && String(f.fecha||"")<hoyF).length;
+  const fa=document.getElementById("finAlert");
+  if(fa){ const hay=porPagar>0.005; fa.innerHTML=`<div class="fin-alert ${hay?'rojo':'verde'}">
+      <div class="flex items-center gap-3 min-w-0"><div class="ico">${hay?'⚠️':'✓'}</div>
+        <div class="min-w-0"><p class="k">${hay?nVenc+" cuentas vencidas":"Sin cuentas vencidas"}</p><p class="v truncate">${money(Math.max(0,porPagar))}</p><p class="s">${nPend} por pagar</p></div></div>
+      <button onclick="document.getElementById('listaDeudas').scrollIntoView({behavior:'smooth',block:'center'})" class="go">${hay?"Ver cuentas vencidas ↗":"Ver cuentas ↗"}</button></div>`; }
+  // ---- Tarjetas de métricas ----
+  const fc=document.getElementById("finCards");
+  if(fc){ const card=(ic,bg,fg,label,val,badge,sub)=>`<div class="fin-metric"><div class="flex items-start justify-between"><div class="ico" style="background:${bg};color:${fg}">${ic}</div>${badge}</div><p class="lbl">${label}</p><p class="val">${val}</p>${sub||""}</div>`;
+    const subNeto = (P.neto!==0)?`<p class="text-[10px] font-semibold ${M.neto>=P.neto?'text-emerald-600':'text-rose-600'} mt-1">${M.neto>=P.neto?'↑':'↓'} ${Math.abs((M.neto-P.neto)/Math.abs(P.neto)*100).toFixed(1)}% vs. mes anterior</p>`:`<p class="text-[10px] text-slate-400 mt-1">Ingresos − gastos del mes</p>`;
+    fc.innerHTML =
+      card("📈","#dcfce7","#059669","Ingresos",money(M.ingUsd),finBadge(M.ingUsd,P.ingUsd,true))+
+      card("📉","#ffe4e6","#e11d48","Gastos",money(M.egrUsd),finBadge(M.egrUsd,P.egrUsd,false))+
+      card("💲","#e0e7ff","#4f46e5","Saldo neto",money(M.neto),finBadge(M.neto,P.neto,true),subNeto)+
+      card("📊","#f3e8ff","#7c3aed","Transacciones",String(M.tx),finBadge(M.tx,P.tx,true)); }
+  // ---- Gráficos del dashboard ----
+  const fch=document.getElementById("finCharts");
+  if(fch){ const meses=finUltimosMeses(6); const serie=meses.map(m=>finMetrics(m));
+    const datos=serie.map(x=>({ing:x.ingUsd,gas:x.egrUsd})); const netos=serie.map(x=>x.neto);
+    const comp={}; db.list("gastos").filter(g=>(g.fecha||"").startsWith(mes)).forEach(g=>{ const k=g.categoria||g.descripcion||"Otros"; comp[k]=(comp[k]||0)+gastoMontos(g).usd; });
+    if(M.pagUsd>0.005) comp["Pagos a proveedores"]=(comp["Pagos a proveedores"]||0)+M.pagUsd;
+    let items=Object.keys(comp).map(k=>({k,v:comp[k]})).filter(x=>x.v>0.005).sort((a,b)=>b.v-a.v); if(items.length>7){ const rest=items.slice(7).reduce((s,x)=>s+x.v,0); items=items.slice(0,7); items.push({k:"Otros",v:rest}); }
+    const leg=`<div class="fin-leg"><span><i style="background:${FIN_COL.ing}"></i>Ingresos</span><span><i style="background:${FIN_COL.gas}"></i>Gastos</span></div>`;
+    fch.innerHTML=`<div class="fin-grid2">
+      <div class="fin-chart"><div class="flex items-center justify-between mb-1 gap-2"><p class="font-bold text-slate-800 text-sm">📊 Ingresos vs Gastos · últimos 6 meses</p>${leg}</div>${svgBarrasIngGas(meses,datos)}</div>
+      <div class="fin-chart"><p class="font-bold text-slate-800 text-sm mb-1">📈 Saldo neto · últimos 6 meses</p>${svgLineaNeto(meses,netos)}</div></div>
+      <div class="fin-chart mt-3"><p class="font-bold text-slate-800 text-sm mb-1">🧮 Composición de egresos · ${MES_NOMBRES[Number(mm)-1]} ${yy}</p>${items.length?svgBarrasH(items):'<p class="text-xs text-slate-400 text-center py-4">Sin egresos registrados en el mes.</p>'}</div>`; }
+}
+/* ---- Egresos por cuenta (banco / efectivo) — se muestra en Tesorería ---- */
+function htmlEgresosPorCuenta(mes){ const cuentas={};
+  db.list("gastos").filter(g=>(g.fecha||"").startsWith(mes)).forEach(g=>{ const k=g.forma_pago==="Efectivo"?"Efectivo":(g.banco||"Sin banco"); cuentas[k]=(cuentas[k]||0)+gastoMontos(g).usd; });
+  db.list("pagos_prov").filter(p=>(p.fecha_pago||"").startsWith(mes)).forEach(p=>{ const k=(p.banco||"Sin banco"); cuentas[k]=(cuentas[k]||0)+pagoUsd(p); });
+  const arr=Object.keys(cuentas).map(k=>({k,v:cuentas[k]})).filter(x=>x.v>0.005).sort((a,b)=>b.v-a.v); const tot=arr.reduce((s,x)=>s+x.v,0);
+  const nombreMes=MES_NOMBRES[Number(mes.slice(5,7))-1]+" "+mes.slice(0,4);
+  return `<div class="fin-cuentas"><div class="flex items-center justify-between mb-1"><p class="font-bold text-slate-800 text-sm">🏦 Egresos por Cuenta · ${nombreMes}</p></div>
+    ${arr.length? arr.map(x=>`<div class="row"><span class="flex items-center min-w-0"><span class="dot"></span><span class="truncate text-slate-800">${esc(x.k)}</span></span><span class="shrink-0"><b>${money(x.v)}</b> <span class="text-[11px] text-slate-400 ml-1">${tot>0?(x.v/tot*100).toFixed(1):0}%</span></span></div>`).join("")
+      : `<p class="text-xs text-slate-400 text-center py-4">Sin egresos por banco o efectivo en ${nombreMes}.</p>`}
+    <div class="tot"><span>Total en todas las cuentas</span><span>${money(tot)}</span></div></div>`; }
+/* ---- Gráficos SVG del dashboard (sin librerías externas) ---- */
+const FIN_COL={ing:"#0d9488", gas:"#ea580c", grid:"#e2e8f0", ink:"#0f172a", muted:"#64748b"};
+function finQ(s){ return esc(String(s)).replace(/\\/g,"\\\\").replace(/'/g,"\\'"); }
+function finVal(v){ return verMonedaCfg==="Bs"? (Number(v)||0)*(tipoCambio||0) : (Number(v)||0); }
+function finAbbr(v){ v=finVal(v); const a=Math.abs(v); const sg=v<0?"-":""; if(a>=1e6) return sg+(a/1e6).toFixed(1).replace(/\.0$/,"")+"M"; if(a>=1e3) return sg+(a/1e3).toFixed(a>=1e4?0:1).replace(/\.0$/,"")+"k"; return sg+Math.round(a); }
+function niceMax(v){ if(v<=0) return 1; const p=Math.pow(10,Math.floor(Math.log10(v))); const f=v/p; const n=f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10; return n*p; }
+function finUltimosMeses(n){ const y=Number(_finMes.slice(0,4)), m=Number(_finMes.slice(5,7)); const out=[]; for(let i=n-1;i>=0;i--){ const d=new Date(y,m-1-i,1); out.push(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")); } return out; }
+function finMesCorto(ym){ return MES_NOMBRES[Number(ym.slice(5,7))-1].slice(0,3)+" "+ym.slice(2,4); }
+function finTip(ev,html){ let t=document.getElementById("finTip"); if(!t){ t=document.createElement("div"); t.id="finTip"; t.className="fin-tip"; document.body.appendChild(t); } t.innerHTML=html; t.style.display="block"; const x=ev.clientX, y=ev.clientY; t.style.left=Math.max(6,Math.min(window.innerWidth-t.offsetWidth-8, x+12))+"px"; t.style.top=Math.max(8,y-t.offsetHeight-12)+"px"; }
+function finTipHide(){ const t=document.getElementById("finTip"); if(t) t.style.display="none"; }
+function svgBarrasIngGas(meses, datos){ const W=560,H=220,P={l:46,r:12,t:14,b:30}; const iw=W-P.l-P.r, ih=H-P.t-P.b;
+  const max=Math.max(1,...datos.flatMap(d=>[d.ing,d.gas])); const nice=niceMax(max); const gw=iw/meses.length; const bw=Math.min(22, gw*0.32); const y=(v)=>P.t+ih-(v/nice)*ih;
+  let s=`<svg viewBox="0 0 ${W} ${H}" class="fin-svg" role="img" aria-label="Ingresos y gastos por mes">`;
+  for(let i=0;i<=4;i++){ const v=nice*i/4; const yy=y(v); s+=`<line x1="${P.l}" x2="${W-P.r}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="${FIN_COL.grid}"/><text x="${P.l-6}" y="${(yy+3).toFixed(1)}" text-anchor="end" font-size="9" fill="${FIN_COL.muted}">${finAbbr(v)}</text>`; }
+  meses.forEach((m,i)=>{ const cx=P.l+gw*i+gw/2; const d=datos[i]; const hi=ih*(d.ing/nice), hg=ih*(d.gas/nice); const base=P.t+ih;
+    const bar=(x,h,col,tip)=>{ const top=base-h; const r=Math.min(4,h/2); return h<=0?"":`<path d="M${x} ${base} V${(top+r).toFixed(1)} Q${x} ${top.toFixed(1)} ${(x+r).toFixed(1)} ${top.toFixed(1)} H${(x+bw-r).toFixed(1)} Q${(x+bw).toFixed(1)} ${top.toFixed(1)} ${(x+bw).toFixed(1)} ${(top+r).toFixed(1)} V${base} Z" fill="${col}" onmousemove="finTip(event,'${tip}')" onmouseleave="finTipHide()"/>`; };
+    s+=bar(cx-bw-1,hi,FIN_COL.ing,`<b>${finMesCorto(m)}</b><br>Ingresos: ${finQ(money(d.ing))}`);
+    s+=bar(cx+1,hg,FIN_COL.gas,`<b>${finMesCorto(m)}</b><br>Gastos: ${finQ(money(d.gas))}`);
+    s+=`<text x="${cx.toFixed(1)}" y="${H-P.b+16}" text-anchor="middle" font-size="10" fill="${FIN_COL.muted}">${finMesCorto(m)}</text>`; });
+  s+=`<line x1="${P.l}" x2="${W-P.r}" y1="${P.t+ih}" y2="${P.t+ih}" stroke="#cbd5e1"/></svg>`; return s; }
+function svgLineaNeto(meses, vals){ const W=560,H=200,P={l:46,r:14,t:14,b:30}; const iw=W-P.l-P.r, ih=H-P.t-P.b;
+  const mx=Math.max(...vals,0), mn=Math.min(...vals,0); const top=niceMax(Math.max(Math.abs(mx),Math.abs(mn),1)); const lo=mn<0?-top:0, hi=top;
+  const y=(v)=>P.t+ih-((v-lo)/(hi-lo))*ih; const x=(i)=>P.l+iw*(meses.length===1?0.5:i/(meses.length-1));
+  let s=`<svg viewBox="0 0 ${W} ${H}" class="fin-svg" role="img" aria-label="Saldo neto por mes">`;
+  for(let i=0;i<=4;i++){ const v=lo+(hi-lo)*i/4; const yy=y(v); s+=`<line x1="${P.l}" x2="${W-P.r}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="${FIN_COL.grid}"/><text x="${P.l-6}" y="${(yy+3).toFixed(1)}" text-anchor="end" font-size="9" fill="${FIN_COL.muted}">${finAbbr(v)}</text>`; }
+  if(lo<0){ const y0=y(0); s+=`<line x1="${P.l}" x2="${W-P.r}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" stroke="#94a3b8" stroke-dasharray="3 3"/>`; }
+  const pts=vals.map((v,i)=>[x(i),y(v)]); const path=pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");
+  const y0=y(Math.max(lo,0)).toFixed(1); const area=path+` L${pts[pts.length-1][0].toFixed(1)} ${y0} L${pts[0][0].toFixed(1)} ${y0} Z`;
+  s+=`<path d="${area}" fill="${FIN_COL.ing}" opacity=".12"/><path d="${path}" fill="none" stroke="${FIN_COL.ing}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  pts.forEach((p,i)=>{ s+=`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4" fill="#fff" stroke="${FIN_COL.ing}" stroke-width="2" onmousemove="finTip(event,'<b>${finMesCorto(meses[i])}</b><br>Saldo neto: ${finQ(money(vals[i]))}')" onmouseleave="finTipHide()"/><text x="${p[0].toFixed(1)}" y="${H-P.b+16}" text-anchor="middle" font-size="10" fill="${FIN_COL.muted}">${finMesCorto(meses[i])}</text>`; });
+  s+=`</svg>`; return s; }
+function svgBarrasH(items){ const W=560, rowH=26, P={l:160,r:70,t:6,b:6}; const H=P.t+P.b+rowH*items.length; const iw=W-P.l-P.r; const max=Math.max(1,...items.map(i=>i.v));
+  let s=`<svg viewBox="0 0 ${W} ${H}" class="fin-svg" role="img" aria-label="Composición de egresos">`;
+  items.forEach((it,i)=>{ const yy=P.t+rowH*i; const w=iw*(it.v/max); const lbl=it.k.length>24?it.k.slice(0,23)+"…":it.k;
+    s+=`<text x="${P.l-8}" y="${yy+rowH/2+4}" text-anchor="end" font-size="11" fill="${FIN_COL.ink}">${esc(lbl)}</text>`;
+    s+=`<rect x="${P.l}" y="${yy+6}" width="${Math.max(2,w).toFixed(1)}" height="${rowH-12}" rx="4" fill="${FIN_COL.ing}" onmousemove="finTip(event,'<b>${finQ(it.k)}</b><br>${finQ(money(it.v))}')" onmouseleave="finTipHide()"/>`;
+    s+=`<text x="${(P.l+w+6).toFixed(1)}" y="${yy+rowH/2+4}" font-size="10" fill="${FIN_COL.muted}">${money(it.v)}</text>`; });
+  s+=`</svg>`; return s; }
+function renderDeudas(){ const l=db.list("deudas").sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||"")); const c=document.getElementById("listaDeudas"); if(!c) return;
+  renderFinDashboard();
   renderFacturasRecBox(); renderPagosProv();
   if(!l.length){ c.innerHTML=empty("Sin deudas. Agrega o carga por Excel."); return; }
   // Filtro: no mostrar todas al inicio; solo al buscar proveedor o elegir fecha
