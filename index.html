@@ -718,7 +718,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.59"; // se incrementa con cada mejora
+const APP_VERSION="4.60"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -3692,14 +3692,18 @@ function renderFinDashboard(){ if(!_finMes) _finMes=hoy().slice(0,7); const mes=
         <select id="finAnioSel" onchange="cambiarFinPeriodo()" class="fin-sel">${anios.map(a=>`<option ${String(a)===yy?"selected":""}>${a}</option>`).join("")}</select>
       </div></div>
     <div class="flex justify-center mt-4"><span class="fin-pill"><span>${MES_NOMBRES[Number(mm)-1]} ${yy}</span><span style="opacity:.35">|</span><span>📅 Balance General</span><b class="${M.neto>=0?'text-slate-900':'text-rose-600'}">${money(M.neto)}</b></span></div>`;
-  // ---- Alerta de cuentas por pagar ----
-  const porPagar=deudaPendienteUsd(); const nPend=db.list("deudas").filter(d=>d.tipo!=="Nota de crédito" && d.status!=="Pagado total").length + db.list("facturas_rec").filter(f=>frPend(f)>0.005).length;
-  const hoyF=hoy(); const nVenc=db.list("deudas").filter(d=>d.tipo!=="Nota de crédito" && d.status!=="Pagado total" && String(d.fecha||"")<hoyF).length + db.list("facturas_rec").filter(f=>frPend(f)>0.005 && String(f.fecha||"")<hoyF).length;
+  // ---- Deuda a proveedores (mismo cálculo que tenía Finanzas: Base + Facturas recibidas − Pagos) ----
+  const base=deudaBaseUsd(), frt=facturasRecUsdTot(), pgt=pagosProvUsdTot(); const deuda=base+frt-pgt;
+  const dl=db.list("deudas"); const notas=dl.filter(d=>d.tipo==="Nota de crédito").reduce((s,d)=>s+(Number(d.monto)||0),0);
+  const provSet=new Set(); dl.filter(d=>d.tipo!=="Nota de crédito" && d.status!=="Pagado total").forEach(d=>provSet.add((d.proveedor||"").trim().toLowerCase()||"?")); db.list("facturas_rec").filter(f=>frPend(f)>0.005).forEach(f=>provSet.add((f.proveedor||"").trim().toLowerCase()||"?"));
+  const hoyF=hoy(); const nVenc=dl.filter(d=>d.tipo!=="Nota de crédito" && d.status!=="Pagado total" && String(d.fecha||"")<hoyF).length + db.list("facturas_rec").filter(f=>frPend(f)>0.005 && String(f.fecha||"")<hoyF).length;
   const fa=document.getElementById("finAlert");
-  if(fa){ const hay=porPagar>0.005; fa.innerHTML=`<div class="fin-alert ${hay?'rojo':'verde'}">
+  if(fa){ const hay=deuda>0.005; fa.innerHTML=`<div class="fin-alert ${hay?'rojo':'verde'}">
       <div class="flex items-center gap-3 min-w-0"><div class="ico">${hay?'⚠️':'✓'}</div>
-        <div class="min-w-0"><p class="k">${hay?nVenc+" cuentas vencidas":"Sin cuentas vencidas"}</p><p class="v truncate">${money(Math.max(0,porPagar))}</p><p class="s">${nPend} por pagar</p></div></div>
-      <button onclick="document.getElementById('listaDeudas').scrollIntoView({behavior:'smooth',block:'center'})" class="go">${hay?"Ver cuentas vencidas ↗":"Ver cuentas ↗"}</button></div>`; }
+        <div class="min-w-0"><p class="k">Deuda a proveedores</p><p class="v truncate">${money(deuda)}</p>
+          <p class="s">Base ${money(base)} + Facturas recibidas ${money(frt)} − Pagos ${money(pgt)}</p>
+          <p class="s">${provSet.size} proveedor(es) con deuda${nVenc?" · "+nVenc+" vencida(s)":""}${notas>0.005?" · Notas de crédito "+money(notas):""}</p></div></div>
+      <button onclick="document.getElementById('listaDeudas').scrollIntoView({behavior:'smooth',block:'center'})" class="go">Ver deudas ↗</button></div>`; }
   // ---- Tarjetas de métricas ----
   const fc=document.getElementById("finCards");
   if(fc){ const card=(ic,bg,fg,label,val,badge,sub)=>`<div class="fin-metric"><div class="flex items-start justify-between"><div class="ico" style="background:${bg};color:${fg}">${ic}</div>${badge}</div><p class="lbl">${label}</p><p class="val">${val}</p>${sub||""}</div>`;
