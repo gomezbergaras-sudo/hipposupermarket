@@ -586,12 +586,19 @@
         <div id="facturasRecBox" class="mb-3"></div>
         <div id="pagosProvBox" class="mb-3"></div>
         <div class="bg-white rounded-2xl p-3 shadow-sm">
-          <p class="text-xs font-semibold text-slate-600 mb-2">📊 Deudas por proveedor</p>
+          <div class="flex items-center justify-between gap-2 mb-2 flex-wrap">
+            <p class="text-xs font-semibold text-slate-600">📊 Deudas por proveedor</p>
+            <div class="flex gap-1">
+              <button id="dpTotal" onclick="_dpModo='total';renderDeudas()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg">Deuda total</button>
+              <button id="dpMes" onclick="_dpModo='mes';renderDeudas()" class="text-[11px] font-semibold px-3 py-1.5 rounded-lg">Por mes</button>
+            </div>
+          </div>
           <div class="flex flex-wrap gap-2 mb-2">
             <input id="deudaBuscar" oninput="renderDeudas()" placeholder="🔎 Proveedor o RIF" class="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-slate-200 text-sm">
-            <input id="deudaFecha" type="date" onchange="renderDeudas()" class="px-3 py-2 rounded-xl border border-slate-200 text-sm">
+            <input id="deudaMes" type="month" onchange="renderDeudas()" class="px-3 py-2 rounded-xl border border-slate-200 text-sm">
             <button onclick="limpiarFiltroDeuda()" class="text-xs bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-xl">Limpiar</button>
           </div>
+          <div id="deudaProvResumen" class="mb-2"></div>
           <div id="listaDeudas" class="space-y-2"></div>
         </div>
       </div>
@@ -666,7 +673,7 @@
       <p class="font-semibold text-sm mb-2">Datos</p>
       <div class="flex flex-wrap gap-2">
         <button onclick="exportarJSON()" class="bg-slate-200 text-slate-700 text-sm font-semibold px-3 py-2 rounded-xl">⬇ Respaldar</button>
-        <label class="bg-slate-200 text-slate-700 text-sm font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Restaurar<input type="file" accept=".json" class="hidden" onchange="importarJSON(event)"></label>
+        <label class="bg-slate-200 text-slate-700 text-sm font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Restaurar (agrega lo que falte)<input type="file" accept=".json" class="hidden" onchange="importarJSON(event)"></label>
         <button onclick="cargarDemo()" class="bg-slate-200 text-slate-700 text-sm font-semibold px-3 py-2 rounded-xl">✨ Datos de ejemplo</button>
         <button onclick="borrarTodo()" class="bg-red-100 text-red-700 text-sm font-semibold px-3 py-2 rounded-xl">🗑 Borrar todo</button>
       </div>
@@ -718,7 +725,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.60"; // se incrementa con cada mejora
+const APP_VERSION="4.62"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -3636,7 +3643,6 @@ function pagoLigadoFacturas(p){ return Array.isArray(p.facturas) && p.facturas.s
 function pagosProvUsdTot(fn){ return db.list("pagos_prov").filter(p=>!pagoLigadoFacturas(p) && (!fn||fn(p))).reduce((s,p)=>s+pagoUsd(p),0); }
 function deudaPendienteUsd(){ return deudaBaseUsd()+facturasRecUsdTot()-pagosProvUsdTot(); }
 function deudaProveedorUsd(nombre,rif){ const f=(x)=>coincideProv(x,nombre,rif); return deudaBaseUsd(f)+facturasRecUsdTot(f)-pagosProvUsdTot(f); }
-function limpiarFiltroDeuda(){ const b=document.getElementById("deudaBuscar"); if(b) b.value=""; const f=document.getElementById("deudaFecha"); if(f) f.value=""; renderDeudas(); }
 /* ---- Dashboard de Finanzas ---- */
 const MES_NOMBRES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 let _finMes=null;
@@ -3774,23 +3780,39 @@ function svgBarrasH(items){ const W=560, rowH=26, P={l:160,r:70,t:6,b:6}; const 
     s+=`<rect x="${P.l}" y="${yy+6}" width="${Math.max(2,w).toFixed(1)}" height="${rowH-12}" rx="4" fill="${FIN_COL.ing}" onmousemove="finTip(event,'<b>${finQ(it.k)}</b><br>${finQ(money(it.v))}')" onmouseleave="finTipHide()"/>`;
     s+=`<text x="${(P.l+w+6).toFixed(1)}" y="${yy+rowH/2+4}" font-size="10" fill="${FIN_COL.muted}">${money(it.v)}</text>`; });
   s+=`</svg>`; return s; }
-function renderDeudas(){ const l=db.list("deudas").sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||"")); const c=document.getElementById("listaDeudas"); if(!c) return;
+function limpiarFiltroDeuda(){ const b=document.getElementById("deudaBuscar"); if(b) b.value=""; const m=document.getElementById("deudaMes"); if(m) m.value=""; _dpModo="total"; renderDeudas(); }
+/* ---- Deuda por proveedor calculada desde TODAS las fuentes: facturas pendientes + deudas manuales − pagos sueltos ---- */
+let _dpModo="total";
+function deudasPorProveedor(mes){
+  const provs=db.list("proveedores"); const norm=(v)=>String(v||"").replace(/[^a-z0-9]/gi,"").toLowerCase(); const nomN=(v)=>String(v||"").trim().toLowerCase();
+  const byId={}, byRif={}, byNom={}; provs.forEach(z=>{ byId[z.id]=z; const r=norm(z.rif); if(r && !byRif[r]) byRif[r]=z; const n=nomN(z.nombre); if(n && !byNom[n]) byNom[n]=z; });
+  const keyDe=(x)=>{ let pz=x.proveedor_id?byId[x.proveedor_id]:null; const r=norm(x.rif); if(!pz && r) pz=byRif[r]; const n=nomN(x.proveedor); if(!pz && n) pz=byNom[n]; return pz? ["id:"+pz.id, pz.nombre, pz.rif||x.rif||""] : (r? ["rif:"+r, x.proveedor||"—", x.rif||""] : ["nom:"+n, x.proveedor||"—", x.rif||""]); };
+  const enMes=(f)=>!mes || String(f||"").startsWith(mes);
+  const map={}; const get=(x)=>{ const [k,nombre,rif]=keyDe(x); if(!map[k]) map[k]={k, proveedor:nombre||"—", rif:rif||"", base:0, fact:0, pagos:0, nFact:0, nDeudas:0, nPagos:0, desde:""}; return map[k]; };
+  const tocaDesde=(m,f)=>{ if(f && (!m.desde || f<m.desde)) m.desde=f; };
+  db.list("deudas").forEach(d=>{ if(d.tipo==="Nota de crédito"||d.status==="Pagado total") return; if(!enMes(d.fecha)) return; const m=get(d); m.base+=(Number(d.monto)||0)-(Number(d.abonado)||0); m.nDeudas++; tocaDesde(m,d.fecha); });
+  db.list("facturas_rec").forEach(f=>{ if(frPend(f)<=0.005) return; if(!enMes(f.fecha)) return; const m=get(f); m.fact+=frUsd(f); m.nFact++; tocaDesde(m,f.fecha); });
+  db.list("pagos_prov").forEach(p=>{ if(pagoLigadoFacturas(p)) return; if(!enMes(p.fecha_pago)) return; const m=get(p); m.pagos+=pagoUsd(p); m.nPagos++; });
+  return Object.values(map).map(m=>({...m, deuda:m.base+m.fact-m.pagos})).filter(m=>Math.abs(m.deuda)>0.005 || m.nFact>0 || m.nDeudas>0); }
+function abrirProveedorDeuda(nombre){ _fpBuscar=nombre||""; renderFacturasProv(); }
+function renderDeudas(){ const c=document.getElementById("listaDeudas"); if(!c) return;
   renderFinDashboard();
   renderFacturasRecBox(); renderPagosProv();
-  if(!l.length){ c.innerHTML=empty("Sin deudas. Agrega o carga por Excel."); return; }
-  // Filtro: no mostrar todas al inicio; solo al buscar proveedor o elegir fecha
+  // botones de modo
+  const bt=document.getElementById("dpTotal"), bm=document.getElementById("dpMes"), im=document.getElementById("deudaMes");
+  if(bt) bt.className="text-[11px] font-semibold px-3 py-1.5 rounded-lg "+(_dpModo==="total"?"bg-teal-600 text-white":"bg-slate-100 text-slate-600");
+  if(bm) bm.className="text-[11px] font-semibold px-3 py-1.5 rounded-lg "+(_dpModo==="mes"?"bg-teal-600 text-white":"bg-slate-100 text-slate-600");
+  let mes=null; if(_dpModo==="mes"){ if(im && !im.value) im.value=_finMes||hoy().slice(0,7); mes=(im&&im.value)||hoy().slice(0,7); }
+  if(im) im.style.display=_dpModo==="mes"?"":"none";
   const q=(document.getElementById("deudaBuscar")?.value||"").trim().toLowerCase();
-  const fsel=document.getElementById("deudaFecha")?.value||"";
-  const filtrando = !!(q || fsel);
-  let lf=l;
-  if(q) lf=lf.filter(d=>(d.proveedor||"").toLowerCase().includes(q) || (d.rif||"").toLowerCase().includes(q));
-  if(fsel) lf=lf.filter(d=>String(d.fecha||"").slice(0,10)===fsel);
-  if(!filtrando){ c.innerHTML=`<div class="bg-amber-50 text-amber-700 rounded-xl px-3 py-3 text-sm text-center">Escribe un proveedor o elige una fecha para ver las deudas.<br><span class="text-[11px] text-amber-600">Hay ${l.length.toLocaleString("es-VE")} deuda${l.length===1?"":"s"} registrada${l.length===1?"":"s"}.</span></div>`; return; }
-  if(!lf.length){ c.innerHTML=empty("Sin resultados con ese filtro."); return; }
-  const sc={ "Pendiente":"bg-red-100 text-red-700","Pagado parcial":"bg-amber-100 text-amber-700","Pagado total":"bg-emerald-100 text-emerald-700" };
-  c.innerHTML=`<p class="text-[11px] text-slate-400 mb-1">${lf.length.toLocaleString("es-VE")} resultado${lf.length===1?"":"s"}</p>`+lf.map(d=>{ const saldo=(Number(d.monto)||0)-(Number(d.abonado)||0);
-    return `<div onclick="openDeuda('${d.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50"><div class="flex items-center justify-between"><p class="font-semibold truncate">${esc(d.proveedor)} ${d.tipo==="Nota de crédito"?'<span class="text-[10px] text-emerald-600">NC</span>':''}</p><button onclick="ciclarStatus('${d.id}',event)" class="text-[10px] px-2 py-1 rounded-full ${sc[d.status]||sc.Pendiente} font-semibold shrink-0">${esc(d.status||"Pendiente")} ▸</button></div>
-      <p class="text-xs text-slate-500 mt-0.5">${d.rif?esc(d.rif)+" · ":""}${esc(d.fecha||"")} · Monto ${money(d.monto)}${d.abonado?" · Abonado "+money(d.abonado):""}${saldo>0&&d.tipo!=="Nota de crédito"?" · Saldo "+money(saldo):""}</p></div>`; }).join("");
+  let l=deudasPorProveedor(mes); if(q) l=l.filter(m=>(m.proveedor||"").toLowerCase().includes(q) || (m.rif||"").toLowerCase().includes(q));
+  l.sort((a,b)=>b.deuda-a.deuda);
+  const conDeuda=l.filter(m=>m.deuda>0.005); const tot=conDeuda.reduce((s,m)=>s+m.deuda,0); const nF=l.reduce((s,m)=>s+m.nFact,0);
+  const res=document.getElementById("deudaProvResumen"); const etiqueta=mes?("Deuda de "+MES_NOMBRES[Number(mes.slice(5,7))-1]+" "+mes.slice(0,4)):"Deuda total acumulada";
+  if(res) res.innerHTML=`<div class="bg-slate-800 text-white rounded-xl px-3 py-2 text-sm flex items-center justify-between gap-2"><span>${etiqueta} · ${conDeuda.length} proveedor(es) · ${nF} factura(s) pendiente(s)</span><span class="font-bold">${money(tot)}</span></div>`;
+  if(!l.length){ c.innerHTML=empty(mes?"Sin deudas registradas en ese mes.":"Sin deudas pendientes. Todo al día."); return; }
+  c.innerHTML=l.map(m=>{ const pos=m.deuda>0.005; const det=[]; if(m.nFact) det.push(m.nFact+" factura"+(m.nFact===1?"":"s")+" pend."); if(m.nDeudas) det.push(m.nDeudas+" deuda"+(m.nDeudas===1?"":"s")+" manual"); if(m.nPagos) det.push(m.nPagos+" pago"+(m.nPagos===1?"":"s")); if(m.desde) det.push("desde "+m.desde);
+    return `<div onclick="abrirProveedorDeuda('${esc(m.proveedor).replace(/'/g,"\\'")}')" class="bg-white border border-slate-100 rounded-2xl p-3 active:bg-slate-50 flex items-center justify-between gap-3"><div class="min-w-0"><p class="font-semibold truncate">${esc(m.proveedor)}</p><p class="text-[11px] text-slate-500 truncate">${m.rif?esc(m.rif)+" · ":""}${det.join(" · ")}</p></div><div class="text-right shrink-0"><p class="font-bold ${pos?'text-rose-600':'text-emerald-600'}">${money(m.deuda)}</p><p class="text-[10px] text-slate-400">${pos?"por pagar":"a favor"}</p></div></div>`; }).join("");
 }
 
 /* ===================== PAGO A PROVEEDORES (con WhatsApp) ===================== */
@@ -4168,7 +4190,23 @@ function exportarRespaldoFinanzas(){ if(!puede("deudas")){ toast("Sin acceso"); 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gas.length?gas:[{Fecha:"",Tipo:"",Monto:0}]), "Gastos");
   XLSX.writeFile(wb, "respaldo_finanzas_"+hoy()+".xlsx");
   toast("Respaldo de finanzas descargado ("+fac.length+" facturas, "+deu.length+" deudas, "+pag.length+" pagos, "+gas.length+" gastos)"); }
-async function importarJSON(ev){ const file=ev.target.files[0]; if(!file) return; const data=JSON.parse(await file.text());
+async function importarJSON(ev){ const file=ev.target.files[0]; if(!file) return; let data; try{ data=JSON.parse(await file.text()); }catch(e){ toast("El archivo no es un respaldo JSON válido"); ev.target.value=""; return; }
+  if(USE_CLOUD){
+    // Modo nube: el respaldo se FUSIONA — se agregan a Supabase los registros que no existan. Nunca borra ni sobreescribe.
+    if(!confirm("Se agregarán a la base compartida los registros del respaldo que NO existan todavía. No se borra ni se sobreescribe nada. ¿Continuar?")){ ev.target.value=""; return; }
+    showLoader("Restaurando respaldo…"); let agregados=0, fallidos=0; const tablas=[]; const errores=[];
+    for(const t of TABLES){ const rows=Array.isArray(data[t])?data[t]:[]; if(!rows.length) continue;
+      const existentes=new Set((store[t]||[]).map(r=>r.id)); const nuevos=rows.filter(r=>r && r.id && !existentes.has(r.id)); if(!nuevos.length) continue; let ok=0;
+      for(let i=0;i<nuevos.length;i+=200){ const lote=nuevos.slice(i,i+200); const {error}=await sb.from(t).upsert(lote,{onConflict:"id",ignoreDuplicates:true});
+        if(!error){ ok+=lote.length; continue; }
+        // si el lote falla (p. ej. una columna desconocida), se intenta fila por fila para salvar el resto
+        for(const r of lote){ const {error:e2}=await sb.from(t).upsert(r,{onConflict:"id",ignoreDuplicates:true}); if(e2){ fallidos++; if(errores.length<8) errores.push(t+" · "+(r.id||"")+": "+e2.message); } else ok++; } }
+      if(ok){ agregados+=ok; tablas.push(t+" ("+ok+")"); } }
+    try{ await db.recargar(); }catch(_){}
+    hideLoader(); render();
+    if(agregados) toast(`Respaldo aplicado: ${agregados} registro(s) agregados`); else toast("No había registros nuevos que agregar");
+    if(tablas.length || errores.length) alert((tablas.length?"Agregados por tabla:\n"+tablas.join("\n"):"Sin registros nuevos.")+(fallidos?"\n\nNo se pudieron agregar "+fallidos+" registro(s):\n"+errores.join("\n"):""));
+    ev.target.value=""; return; }
   TABLES.forEach(t=>{ if(t==="usuarios" && !Array.isArray(data.usuarios)) return; store[t]=data[t]||[]; });
   if(!db.list("usuarios").length){ await seedUsuarios(); }
   if(!USE_CLOUD) lsSave(); render(); toast("Datos restaurados"); ev.target.value=""; }
