@@ -875,7 +875,7 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos","parametros_legales","conceptos_nomina","gastos","liquidaciones","historial_salarios"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos","parametros_legales","conceptos_nomina","gastos","liquidaciones","historial_salarios","faltantes_desc"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
@@ -886,7 +886,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="5.6"; // se incrementa con cada mejora
+const APP_VERSION="5.7"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -4114,26 +4114,42 @@ async function abonarPrestamo(id){ if(!puede("tesoreria")){ toast("Sin acceso");
   try{ await db.update("prestamos",id,{abonado:nuevo}); openPrestamos(); render(); toast("Abono registrado"); }catch(e){ toast("Error: "+e.message); } }
 async function delPrestamo(id){ if(!esGerencia()){ toast("Solo gerencia puede eliminar"); return; } if(confirm("¿Eliminar este préstamo?")){ await db.remove("prestamos",id); openPrestamos(); render(); toast("Eliminado"); } }
 
-/* ===================== FALTANTE POR CAJERO (por periodo) ===================== */
-function openFaltanteCajero(){ if(!puede("tesoreria")){ toast("Sin acceso"); return; } const finMes=hoy(); const iniMes=finMes.slice(0,8)+"01";
-  openModal(`<h3 class="font-bold text-lg mb-1">Faltante por cajero</h3><p class="text-xs text-slate-500 mb-3">Suma los faltantes/sobrantes de los cierres de un cajero en el periodo. Solo personal del área Cajas.</p><div class="space-y-3">
-    <div><label class="text-xs text-slate-500">Cajero</label><input id="fc_cajero" list="dlCajeros" placeholder="Selecciona o escribe" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
-    <div class="grid grid-cols-2 gap-3"><div><label class="text-xs text-slate-500">Desde</label><input id="fc_desde" type="date" value="${iniMes}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div><div><label class="text-xs text-slate-500">Hasta</label><input id="fc_hasta" type="date" value="${finMes}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div></div>
-    <button onclick="calcularFaltanteCajero()" class="w-full bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Calcular</button>
-    <div id="fc_result"></div></div>
-    <button onclick="closeModal()" class="w-full mt-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`); }
-function calcularFaltanteCajero(){ const cajero=(document.getElementById("fc_cajero").value||"").trim(); const desde=document.getElementById("fc_desde").value, hasta=document.getElementById("fc_hasta").value;
-  const res=document.getElementById("fc_result"); if(!cajero){ res.innerHTML=`<p class="text-xs text-amber-600">Elige un cajero.</p>`; return; }
-  const cl=(cajero||"").toLowerCase();
-  const cierres=db.list("cierres_caja").filter(c=>!c.arqueo && (c.cajero||"").toLowerCase()===cl && (!desde||(c.fecha||"")>=desde) && (!hasta||(c.fecha||"")<=hasta)).sort((a,b)=>(a.fecha||"").localeCompare(b.fecha||""));
-  if(!cierres.length){ res.innerHTML=`<p class="text-xs text-slate-400 text-center py-4">Sin cierres de ${esc(cajero)} en el periodo.</p>`; return; }
-  let falta=0, sobra=0; const filas=cierres.map(ci=>{ const r=calcCierre(ci); if(r.difBs<0) falta+=Math.abs(r.difBs); else sobra+=r.difBs;
-    return `<div class="flex items-center justify-between text-[11px] py-1 border-b border-slate-100"><span>${esc(ci.fecha||"")} · Caja ${esc(ci.numero_caja||"—")}</span><span class="font-semibold ${r.difBs<0?"text-red-600":"text-emerald-600"}">${r.difBs<0?"Falta ":"Sobra "}${fmtBs(Math.abs(r.difBs))}</span></div>`; }).join("");
-  const neto=sobra-falta;
-  res.innerHTML=`<div class="bg-slate-800 text-white rounded-2xl p-4 mt-1"><p class="text-xs text-slate-300">${esc(cajero)} · ${cierres.length} cierre(s)</p>
-    <div class="grid grid-cols-2 gap-2 mt-2 text-center text-xs"><div><p class="text-slate-400">Faltante total</p><p class="font-bold text-red-400">${fmtBs(falta)}</p><p class="text-[10px] text-slate-400">${fmtUsd(bsToUsd(falta))}</p></div><div><p class="text-slate-400">Sobrante total</p><p class="font-bold text-emerald-400">${fmtBs(sobra)}</p></div></div>
-    <p class="text-center text-xs mt-2 text-slate-300">Neto: <b class="${neto<0?"text-red-400":"text-emerald-400"}">${neto<0?"−":"+"}${fmtBs(Math.abs(neto))}</b></p></div>
-    <div class="mt-2 max-h-48 overflow-y-auto">${filas}</div>`; }
+/* ===================== FALTANTE POR CAJERO (por quincena) =====================
+   Muestra de una vez el total de TODOS los cajeros del mes, separado por quincena (1–15 y 16–fin de mes),
+   con botón "Descontado en quincena" junto al cajero que tiene faltante. Se guarda en la tabla faltantes_desc. */
+let _fcMes=null;
+function rangoQuincena(mes,q){ const [y,m]=mes.split("-").map(Number); const ult=new Date(y,m,0).getDate(); return q===1?[mes+"-01",mes+"-15"]:[mes+"-16",mes+"-"+String(ult).padStart(2,"0")]; }
+function faltantesPorCajero(mes,q){ const [a,b]=rangoQuincena(mes,q); const map={};
+  db.list("cierres_caja").filter(c=>!c.arqueo && (c.fecha||"")>=a && (c.fecha||"")<=b && String(c.cajero||"").trim()).forEach(c=>{ const nombre=String(c.cajero).trim(); const k=nombre.toLowerCase(); let r; try{ r=calcCierre(c); }catch(_){ return; }
+    const o=map[k]||(map[k]={key:k,nombre,falta:0,sobra:0,faltaUsd:0,sobraUsd:0,n:0,cierres:[]}); o.n++; o.cierres.push({fecha:c.fecha,caja:c.numero_caja,difBs:r.difBs,difUsd:r.difUsd});
+    if(r.difBs<0){ o.falta+=-r.difBs; o.faltaUsd+=-r.difUsd; } else { o.sobra+=r.difBs; o.sobraUsd+=r.difUsd; } });
+  return Object.values(map).map(o=>{ o.neto=o.sobra-o.falta; o.netoUsd=o.sobraUsd-o.faltaUsd; o.cierres.sort((x,y)=>String(x.fecha).localeCompare(String(y.fecha))); return o; }).sort((x,y)=>x.neto-y.neto); }
+function descuentoFaltante(key,mes,q){ return db.list("faltantes_desc").find(d=>d.cajero_key===key && d.periodo===mes+"-Q"+q); }
+function openFaltanteCajero(){ if(!puede("tesoreria")){ toast("Sin acceso"); return; } _fcMes=_fcMes||hoy().slice(0,7); const y=Number(_fcMes.slice(0,4)), m=_fcMes.slice(5,7);
+  const anios=[]; for(let a=y-2;a<=y+1;a++) anios.push(a);
+  openModal(`<h3 class="font-bold text-lg mb-1">Faltante por cajero</h3><p class="text-xs text-slate-500 mb-3">Faltantes y sobrantes de los cierres de cada cajero, por quincena. Marca «Descontado» cuando el faltante ya se descontó en esa quincena.</p>
+    <div class="flex gap-2 mb-2"><select id="fc_mes" onchange="cambiarFcMes()" class="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white">${MES_NOMBRES.map((n,i)=>`<option value="${String(i+1).padStart(2,"0")}" ${String(i+1).padStart(2,"0")===m?"selected":""}>${n}</option>`).join("")}</select>
+      <select id="fc_anio" onchange="cambiarFcMes()" class="w-24 px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white">${anios.map(a=>`<option ${a===y?"selected":""}>${a}</option>`).join("")}</select></div>
+    <input id="fc_buscar" list="dlCajeros" oninput="renderFaltanteCajero()" placeholder="🔍 Buscar cajero (opcional)" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm mb-3">
+    <div id="fc_result" class="max-h-[62vh] overflow-y-auto pr-1"></div>
+    <button onclick="closeModal()" class="w-full mt-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`); renderFaltanteCajero(); }
+function cambiarFcMes(){ _fcMes=document.getElementById("fc_anio").value+"-"+document.getElementById("fc_mes").value; renderFaltanteCajero(); }
+function renderFaltanteCajero(){ const res=document.getElementById("fc_result"); if(!res) return; const mes=_fcMes||hoy().slice(0,7); const filtro=(document.getElementById("fc_buscar")?.value||"").trim().toLowerCase();
+  const bloque=(q)=>{ const [a,b]=rangoQuincena(mes,q); let lista=faltantesPorCajero(mes,q); if(filtro) lista=lista.filter(o=>o.key.includes(filtro));
+    const totF=lista.reduce((s,o)=>s+o.falta,0), totS=lista.reduce((s,o)=>s+o.sobra,0), totFUsd=lista.reduce((s,o)=>s+o.faltaUsd,0); const conFalta=lista.filter(o=>o.neto<-0.005); const desc=conFalta.filter(o=>descuentoFaltante(o.key,mes,q)).length;
+    const filas=lista.map(o=>{ const d=descuentoFaltante(o.key,mes,q); const tieneFalta=o.neto<-0.005; const uid=("fcd_"+q+"_"+o.key).replace(/[^a-z0-9_]/g,"_");
+      const btn=tieneFalta?(d?`<button onclick="quitarDescontado('${d.id}')" class="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 whitespace-nowrap" title="Descontado el ${esc(d.fecha||"")} por ${esc(d.usuario||"")}">✓ Descontado en quincena</button>`:`<button onclick="marcarDescontado('${esc(o.nombre).replace(/'/g,"\\'")}','${mes}',${q},${o.neto.toFixed(2)},${o.netoUsd.toFixed(2)})" class="text-[10px] font-bold px-2 py-1 rounded-full bg-rose-600 text-white whitespace-nowrap">Descontar en quincena</button>`):`<span class="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700">Sin faltante</span>`;
+      return `<div class="bg-white rounded-xl p-3 shadow-sm ${tieneFalta&&!d?"border border-rose-200":""}"><div class="flex items-center justify-between gap-2"><button onclick="const e=document.getElementById('${uid}'); e.style.display=e.style.display==='none'?'':'none'" class="font-semibold text-sm text-left truncate flex-1">${esc(o.nombre)} <span class="text-[10px] text-slate-400 font-normal">${o.n} cierre(s) ▾</span></button>${btn}</div>
+        <div class="grid grid-cols-3 gap-1 mt-2 text-center text-[11px]"><div class="bg-rose-50 rounded-lg py-1"><p class="text-slate-500">Faltante</p><p class="font-bold text-rose-700">${fmtBs(o.falta)}</p><p class="text-[10px] text-slate-400">${fmtUsd(o.faltaUsd)}</p></div><div class="bg-emerald-50 rounded-lg py-1"><p class="text-slate-500">Sobrante</p><p class="font-bold text-emerald-700">${fmtBs(o.sobra)}</p><p class="text-[10px] text-slate-400">${fmtUsd(o.sobraUsd)}</p></div><div class="bg-slate-100 rounded-lg py-1"><p class="text-slate-500">Neto</p><p class="font-bold ${o.neto<-0.005?"text-rose-700":"text-emerald-700"}">${o.neto<0?"−":"+"}${fmtBs(Math.abs(o.neto))}</p><p class="text-[10px] text-slate-400">${o.netoUsd<0?"−":"+"}${fmtUsd(Math.abs(o.netoUsd))}</p></div></div>
+        <div id="${uid}" style="display:none" class="mt-2 border-t border-slate-100 pt-1">${o.cierres.map(ci=>`<div class="flex items-center justify-between text-[11px] py-0.5"><span>${esc(ci.fecha||"")} · Caja ${esc(ci.caja||"—")}</span><span class="font-semibold ${ci.difBs<0?"text-rose-600":"text-emerald-600"}">${ci.difBs<0?"Falta ":"Sobra "}${fmtBs(Math.abs(ci.difBs))}</span></div>`).join("")}</div></div>`; }).join("");
+    return `<div class="mb-4"><div class="bg-slate-800 text-white rounded-2xl p-3 mb-2"><div class="flex items-center justify-between"><p class="font-bold text-sm">${q===1?"1ª quincena":"2ª quincena"} <span class="text-slate-400 font-normal text-xs">${a.slice(8)} al ${b.slice(8)} de ${MES_NOMBRES[Number(mes.slice(5,7))-1]}</span></p><span class="text-[10px] text-slate-300">${lista.length} cajero(s)</span></div>
+        <div class="grid grid-cols-3 gap-2 mt-2 text-center text-xs"><div><p class="text-slate-400">Faltante total</p><p class="font-bold text-rose-400">${fmtBs(totF)}</p><p class="text-[10px] text-slate-400">${fmtUsd(totFUsd)}</p></div><div><p class="text-slate-400">Sobrante total</p><p class="font-bold text-emerald-400">${fmtBs(totS)}</p></div><div><p class="text-slate-400">Con faltante</p><p class="font-bold">${conFalta.length}</p><p class="text-[10px] text-slate-400">${desc} descontado(s)</p></div></div></div>
+      ${lista.length?`<div class="space-y-2">${filas}</div>`:`<p class="text-xs text-slate-400 text-center py-3">Sin cierres de cajeros en esta quincena.</p>`}</div>`; };
+  res.innerHTML=bloque(1)+bloque(2); }
+async function marcarDescontado(nombre,mes,q,neto,netoUsd){ if(!puede("tesoreria")){ toast("Sin acceso"); return; } const key=String(nombre).trim().toLowerCase(); if(descuentoFaltante(key,mes,q)){ toast("Ya estaba marcado"); return; }
+  if(!confirm(`¿Marcar el faltante de ${nombre} (${fmtBs(Math.abs(neto))}) como descontado en la ${q===1?"1ª":"2ª"} quincena de ${MES_NOMBRES[Number(mes.slice(5,7))-1]}?`)) return;
+  try{ await db.insert("faltantes_desc",{cajero:String(nombre).trim(),cajero_key:key,periodo:mes+"-Q"+q,mes,quincena:q,monto_bs:Math.abs(Number(neto)||0),monto_usd:Math.abs(Number(netoUsd)||0),fecha:hoy(),usuario:currentUser?currentUser.nombre:""}); renderFaltanteCajero(); toast("Marcado como descontado"); }catch(e){ toast("Error: "+e.message); } }
+async function quitarDescontado(id){ if(!esGerencia()){ toast("Solo gerencia puede quitar la marca"); return; } if(!confirm("¿Quitar la marca de descontado?")) return; try{ await db.remove("faltantes_desc",id); renderFaltanteCajero(); toast("Marca quitada"); }catch(e){ toast("Error: "+e.message); } }
 
 /* ===================== FINANZAS (DEUDAS) ===================== */
 function openDeuda(id){ const d=id?db.list("deudas").find(x=>x.id===id):{};
