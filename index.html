@@ -174,6 +174,18 @@
   .hp-foot{ display:flex; flex-wrap:wrap; gap:8px; margin-top:22px; }
   .hp-foot button{ flex:1; min-width:140px; }
 
+  /* Métricas por sección (inicio) */
+  .met-panel{ background:rgba(255,255,255,.8); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.75); border-radius:18px; padding:12px 14px; box-shadow:var(--hp-sh); margin-bottom:12px; }
+  .met-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  @media (min-width:700px){ .met-grid{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
+  @media (min-width:1100px){ .met-grid{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
+  .met-chip{ display:flex; gap:10px; align-items:center; background:#fff; border:1px solid var(--hp-line); border-radius:14px; padding:10px 11px; cursor:pointer; transition:transform .12s, box-shadow .12s; min-width:0; }
+  .met-chip:hover{ transform:translateY(-2px); box-shadow:0 10px 24px rgba(13,148,136,.14); }
+  .met-chip .ic{ width:36px; height:36px; border-radius:11px; display:grid; place-items:center; font-size:17px; flex-shrink:0; box-shadow:inset 0 1px 0 rgba(255,255,255,.7); }
+  .met-chip .l{ font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; line-height:1.1; }
+  .met-chip .v{ font-size:15px; font-weight:800; color:var(--hp-ink); line-height:1.2; margin-top:1px; }
+  .met-chip .s{ font-size:10px; color:#64748b; margin-top:1px; }
+
   /* ===================== TEMA TECH v5.1 — moderno, glass y degradados ===================== */
   :root{ --hp-grad:linear-gradient(135deg,#0d9488 0%,#0891b2 100%); --hp-grad2:linear-gradient(135deg,#14b8a6,#06b6d4 60%,#6366f1); --hp-glow:0 10px 26px rgba(8,145,178,.28); }
   body{ background:#eef3f6 radial-gradient(900px 520px at 8% -10%, rgba(13,148,136,.16), transparent 60%), radial-gradient(760px 420px at 110% 8%, rgba(6,182,212,.14), transparent 60%), radial-gradient(640px 420px at 50% 120%, rgba(99,102,241,.10), transparent 60%); background-attachment:fixed; }
@@ -382,40 +394,21 @@
   <!-- ======== INICIO ======== -->
   <section data-view="inicio" hidden>
     <div id="inicioHero"></div>
-    <button id="btnIndic" onclick="toggleIndicadores()" class="hp-indic-toggle">📊 Ver indicadores detallados</button>
-    <div id="indicadoresWrap" style="display:none" class="mt-3">
-    <div id="hResumen" class="flex items-center justify-between mb-2"><h3 class="font-bold text-sm text-slate-600">Resumen</h3>
-      <select id="filtroAreaResumen" onchange="render()" class="text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white"><option value="">Todas las áreas</option></select></div>
-    <div id="resumenBox" class="grid grid-cols-2 gap-3">
-      <div id="card_empleados" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Empleados activos</p><p id="mEmpleados" class="text-2xl font-bold text-teal-700">0</p></div>
-      <div id="card_nomina" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Nómina base / mes</p><p id="mNomina" class="text-2xl font-bold text-teal-700">0</p></div>
-      <div id="card_facturas" onclick="show('facturasrec')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">📥 Facturas recibidas</p><p id="mFacturas" class="text-2xl font-bold text-teal-700">0</p><p id="mFacturasUsd" class="text-[11px] text-slate-400">$0.00</p></div>
-      <div id="card_inv" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Productos bajo mínimo</p><p id="mBajoMin" class="text-2xl font-bold text-amber-600">0</p></div>
-      <div id="card_incid" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Incidencias abiertas</p><p id="mIncid" class="text-2xl font-bold text-amber-600">0</p></div>
-      <div id="card_repo" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">Pasillos con alerta</p><p id="mRepo" class="text-2xl font-bold text-amber-600">0</p></div>
-      <div id="card_quiebre" class="bg-white rounded-2xl p-4 shadow-sm"><p class="text-xs text-slate-500">🚨 Quiebres pendientes</p><p id="mQuiebre" class="text-2xl font-bold text-red-600">0</p></div>
-      <div id="card_compA" onclick="show('compras')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">🚨 Quiebres en productos A</p><p id="mCompA" class="text-2xl font-bold text-red-600">0</p></div>
-    </div>
-    <button id="btnMasIndic" onclick="toggleMasIndicadores()" class="w-full mt-2 text-xs font-semibold text-teal-700 bg-white rounded-xl py-2 shadow-sm">📊 Ver más indicadores</button>
-    <div id="masIndicadores" class="grid grid-cols-2 gap-3 mt-2" style="display:none">
-      <div id="card_tareas" onclick="show('tareas')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">Tareas pendientes</p><p id="mTareas" class="text-2xl font-bold text-teal-700">0</p></div>
-      <div id="card_eval" onclick="show('eval')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">Prom. evaluación</p><p id="mEval" class="text-2xl font-bold text-teal-700">—</p></div>
-      <div id="card_ordenes" onclick="show('ordenes')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">Órdenes pendientes</p><p id="mOrdenes" class="text-2xl font-bold text-teal-700">0</p></div>
-      <div id="card_compC" onclick="show('compras')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">Capital detenido en C</p><p id="mCompC" class="text-2xl font-bold text-amber-600">0</p></div>
-    </div>
-    <div id="desgloseAreas" class="mt-3"></div>
-    </div><!-- /indicadoresWrap -->
 
     <h3 id="hRRHH" class="font-bold text-sm mt-5 mb-2 text-slate-600">Personal y RRHH</h3>
+    <div id="metRRHH"></div>
     <div class="grid grid-cols-3 gap-3" id="tilesRRHH"></div>
 
     <h3 id="hSup" class="font-bold text-sm mt-5 mb-2 text-slate-600">Supervisores</h3>
+    <div id="metSup"></div>
     <div class="grid grid-cols-3 gap-3" id="tilesSup"></div>
 
     <h3 id="hProd" class="font-bold text-sm mt-5 mb-2 text-slate-600">Productos y Compras</h3>
+    <div id="metProd"></div>
     <div class="grid grid-cols-3 gap-3" id="tilesProd"></div>
 
     <h3 id="hFin" class="font-bold text-sm mt-5 mb-2 text-slate-600">Caja y Finanzas</h3>
+    <div id="metFin"></div>
     <div class="grid grid-cols-3 gap-3" id="tilesFin"></div>
 
     <div class="hp-foot">
@@ -876,7 +869,7 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos","parametros_legales","conceptos_nomina","gastos","liquidaciones"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos","parametros_legales","conceptos_nomina","gastos","liquidaciones","historial_salarios"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
@@ -887,7 +880,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="5.3"; // se incrementa con cada mejora
+const APP_VERSION="5.4"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1287,7 +1280,7 @@ const SUP_VIEWS=["piso","tareas","asignaciones","diaslibres","incpersonal"];
 const FIN_VIEWS=["caja","tesoreria","facturasrec","deudas","conexiones"];
 // Todas las opciones que gerencia puede otorgar/quitar por usuario (tesoreria es solo gerencia, por eso no está aquí)
 const OPCIONES=[
-  ["resumen","Resumen / indicadores del inicio"],
+  ["metricas_rrhh","📊 Ver métricas de Personal y RRHH (inicio)"],["metricas_sup","📊 Ver métricas de Supervisores (inicio)"],["metricas_prod","📊 Ver métricas de Productos y Compras (inicio)"],["metricas_fin","📊 Ver métricas de Caja y Finanzas (inicio)"],
   ["empleados","Personal"],["empleados_editar","Modificar personal (editar datos de empleados)"],["nomina","Nómina"],["nominave","Nómina y beneficios (Venezuela)"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],["candidatos","Candidatos / Bolsa de empleo"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],["incpersonal","Incidencias de personal (asistencia)"],
   ["proveedores","Proveedores"],["inventario","Inventario"],["inventario_editar","Modificar inventario (crear/editar/eliminar productos y stock)"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],["rotacion","Rotación y clasificación ABC"],["compras","Compras (evaluación e indicadores del encargado)"],
@@ -1477,8 +1470,94 @@ function renderInicioHero(){ const h=document.getElementById("inicioHero"); if(!
   const acc=[]; if(puedeFin) acc.push(["🧾","Gasto","openGastos()"]); if(puedeFin) acc.push(["💵","Pago","openPagoProv()"]); if(puedeCaja) acc.push(["🏧","Caja","show('caja')"]); if(puede("inventario")) acc.push(["📤","Salida","show('inventario');setTimeout(()=>{ try{ openSalida(); }catch(_){}} ,350)"]); if(puede("tareas")) acc.push(["✅","Tarea","show('tareas');setTimeout(()=>{ try{ openTarea(); }catch(_){}} ,350)"]); if(puede("empleados")) acc.push(["👥","Personal","show('empleados')"]); if(puede("piso")) acc.push(["🏬","Piso","show('piso')"]);
   h.innerHTML=`<div class="hp-hero"><h2>${saludo}${nombre?", "+esc(nombre):""} 👋</h2><p>${esc(finFechaLarga())} · ${esc(ajustes.nombre||"Hipposupermarket")}</p>
       ${acc.length?`<div class="hp-quick">${acc.map(([ic,l,fn])=>`<button onclick="${fn.replace(/"/g,"&quot;")}"><span>${ic}</span><span>${l}</span></button>`).join("")}</div>`:""}</div>
-    ${kpis.length?`<div class="hp-kpis">${kpis.map(([ic,bg,l,v,go])=>`<div class="hp-kpi" onclick="show('${go}')"><div class="ic" style="background:${bg}">${ic}</div><div class="min-w-0"><p class="l">${l}</p><p class="v truncate">${verSueldos()||!/Ventas|Deuda|Gastos/.test(l)?v:"•••"}</p></div></div>`).join("")}</div>`:""}
     <div class="hp-alerts"><p class="text-xs font-bold text-slate-600 mb-1">🔔 Pendientes de hoy</p>${al.length?al.map(([ic,txt,go])=>`<div class="row" onclick="show('${go}')"><span>${ic} ${esc(txt)}</span><b>Ver ›</b></div>`).join(""):`<p class="text-sm text-emerald-600 font-semibold py-1">✓ Todo al día. Sin pendientes por ahora.</p>`}</div>`; }
+/* ===================== MÉTRICAS Y ESTADÍSTICAS POR SECCIÓN (inicio) =====================
+   Gerencia ve todo. Los demás ven solo las áreas que gerencia les permita (permisos metricas_*). */
+function puedeMetricas(sec){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("metricas_"+sec))); }
+function metPeriodo(){ const hoyF=hoy(); const mes=hoyF.slice(0,7); return {hoyF, mes, prev:mesAnteriorYM(mes)}; }
+function metChip(ic,label,val,sub,go,tono){ const bg={ok:"#dcfce7",warn:"#fef3c7",bad:"#ffe4e6",info:"#e0f2fe",neutral:"#eef2f7"}[tono||"neutral"];
+  return `<div class="met-chip" ${go?`onclick="${go.replace(/"/g,"&quot;")}"`:""}><div class="ic" style="background:${bg}">${ic}</div><div class="min-w-0"><p class="l">${label}</p><p class="v truncate">${val}</p>${sub?`<p class="s truncate">${sub}</p>`:""}</div></div>`; }
+function metPanel(id, titulo, chips, extra){ return `<div class="met-panel"><div class="flex items-center justify-between mb-2"><p class="text-xs font-bold text-slate-600">📊 ${titulo}</p><span class="text-[10px] text-slate-400">${MES_NOMBRES[Number(metPeriodo().mes.slice(5,7))-1]} ${metPeriodo().mes.slice(0,4)}</span></div><div class="met-grid">${chips.join("")}</div>${extra||""}</div>`; }
+function metDelta(cur,prev,goodUp){ if(!prev) return ""; const pct=(cur-prev)/Math.abs(prev)*100; const up=pct>=0; const bueno=goodUp?up:!up; return `<span class="${bueno?'text-emerald-600':'text-rose-600'} font-bold">${up?"↑":"↓"} ${Math.abs(pct).toFixed(0)}% vs mes ant.</span>`; }
+function metricasRRHH(){ const {hoyF,mes,prev}=metPeriodo(); const emps=db.list("empleados"); const act=emps.filter(e=>e.estado!=="Inactivo"); const inact=emps.length-act.length;
+  const nuevos=act.filter(e=>String(e.fecha_ingreso||"").startsWith(mes)).length;
+  const liqs=db.list("liquidaciones").filter(l=>l.estado==="Liquidado" && String((l.cfg&&l.cfg.fecha_egreso)||"").startsWith(mes)); const despedidos=liqs.filter(l=>/despido/.test((l.cfg&&l.cfg.motivo)||"")).length; const retirados=liqs.length-despedidos;
+  const liqsPrev=db.list("liquidaciones").filter(l=>l.estado==="Liquidado" && String((l.cfg&&l.cfg.fecha_egreso)||"").startsWith(prev)).length;
+  const aum=db.list("historial_salarios").filter(h=>String(h.fecha||"").startsWith(mes) && (Number(h.nuevo)||0)>(Number(h.anterior)||0)); const aumTot=aum.reduce((s,h)=>s+((Number(h.nuevo)||0)-(Number(h.anterior)||0)),0); const rebajas=db.list("historial_salarios").filter(h=>String(h.fecha||"").startsWith(mes) && (Number(h.nuevo)||0)<(Number(h.anterior)||0)).length;
+  const nomina=act.reduce((s,e)=>s+(Number(e.salario_base)||0),0); const bonosMes=db.list("bonos").filter(b=>String(b.fecha||"").startsWith(mes)); const bon=bonosMes.filter(b=>b.tipo!=="Deducción").reduce((s,b)=>s+(Number(b.monto)||0),0); const ded=bonosMes.filter(b=>b.tipo==="Deducción").reduce((s,b)=>s+(Number(b.monto)||0),0); const gastoPersonal=nomina+bon-ded;
+  const liqPag=liqs.reduce((s,l)=>s+(Number(l.total_usd)||0),0);
+  const asis=db.list("asistencia").filter(a=>String(a.fecha||"").startsWith(mes)); const retardos=asis.filter(a=>(Number(a.tardanza)||0)>0); const minProm=retardos.length?retardos.reduce((s,a)=>s+(Number(a.tardanza)||0),0)/retardos.length:0;
+  const evs=db.list("evaluaciones").filter(v=>String(v.fecha||"").startsWith(mes)); const evProm=evs.length?(evs.reduce((s,v)=>s+(Number(v.promedio)||0),0)/evs.length):null;
+  const cand=db.list("candidatos").filter(c=>(c.estado||"Nuevo")==="Nuevo").length; const prest=db.list("prestamos").filter(p=>(p.estado||"")!=="Pagado" && (Number(p.saldo)||Number(p.monto)||0)>0).length;
+  const rot=act.length?((retirados+despedidos)/act.length*100):0; const ver=verSueldos();
+  const chips=[
+    metChip("👥","Empleados activos",String(act.length),(nuevos?nuevos+" ingreso(s) este mes":"sin ingresos este mes")+(inact?" · "+inact+" inactivo(s)":""),"show('empleados')","info"),
+    metChip("🚪","Retirados (mes)",String(retirados),liqsPrev?metDelta(liqs.length,liqsPrev,false):"renuncias, fin de contrato, mutuo acuerdo","show('liqnom')",retirados?"warn":"ok"),
+    metChip("⛔","Despedidos (mes)",String(despedidos),"rotación "+rot.toFixed(1)+"% del personal","show('liqnom')",despedidos?"bad":"ok"),
+    metChip("📈","Aumentos de sueldo (mes)",String(aum.length),ver?("+"+money(aumTot)+"/mes en total"+(rebajas?" · "+rebajas+" rebaja(s)":"")):"•••","show('empleados')",aum.length?"ok":"neutral"),
+    metChip("💸","Gasto de personal (mes)",ver?money(gastoPersonal):"•••",ver?("nómina "+money(nomina)+" · bonos "+money(bon)+" · deducc. "+money(ded)):"","show('nomina')","warn"),
+    metChip("🧾","Liquidaciones pagadas (mes)",ver?money(liqPag):"•••",liqs.length+" liquidación(es)","show('liqnom')",liqs.length?"warn":"neutral"),
+    metChip("⏰","Retardos (mes)",String(retardos.length),retardos.length?("promedio "+Math.round(minProm)+" min · "+asis.length+" registros"):(asis.length+" registros de asistencia"),"show('asistencia')",retardos.length>10?"bad":retardos.length?"warn":"ok"),
+    metChip("⭐","Evaluación promedio",evProm!==null?evProm.toFixed(1)+" / 5":"—",evs.length+" evaluación(es) este mes","show('eval')",evProm===null?"neutral":evProm>=4?"ok":evProm>=3?"warn":"bad"),
+    metChip("📨","Candidatos nuevos",String(cand),prest?prest+" préstamo(s) activo(s)":"bolsa de empleo","show('candidatos')","info")];
+  return metPanel("metRRHH","Personal y RRHH · métricas",chips); }
+function metricasSup(){ const {hoyF,mes,prev}=metPeriodo(); const tareas=db.list("tareas"); const tMes=tareas.filter(t=>String(t.fecha_limite||t.creado||"").slice(0,7)===mes||String(t.fecha||"").startsWith(mes));
+  const hechas=tMes.filter(t=>(t.estado||"")==="Hecha").length; const pend=tareas.filter(t=>(t.estado||"Pendiente")!=="Hecha"); const venc=pend.filter(t=>t.fecha_limite && String(t.fecha_limite)<hoyF).length; const cumpl=tMes.length?hechas/tMes.length*100:0;
+  const asig=db.list("asignaciones"); const aMes=asig.filter(a=>String(a.fecha||"").startsWith(mes)); const aComp=aMes.filter(a=>a.estado==="Completada"); const conT=aComp.filter(a=>Number(a.tiempo_real_min)>0 && Number(a.objetivo_min)>0);
+  const prod=conT.length?conT.reduce((s,a)=>s+Math.min(150,(Number(a.objetivo_min)/Number(a.tiempo_real_min))*100),0)/conT.length:null; const tProm=conT.length?conT.reduce((s,a)=>s+Number(a.tiempo_real_min),0)/conT.length:0; const enCurso=asig.filter(a=>a.estado==="En curso"||a.estado==="Asignada").length;
+  const inc=db.list("piso_incidencias"); const incAb=inc.filter(x=>x.estado!=="Resuelta").length; const incRes=inc.filter(x=>x.estado==="Resuelta" && String(x.fecha||x.creado||"").slice(0,7)===mes).length; const pasAl=db.list("piso_secciones").filter(s=>pasilloActiva(s.estado)).length;
+  const dl=db.list("dias_libres").filter(d=>String(d.fecha||"").startsWith(mes)).length; const ip=db.list("inc_personal").filter(i=>String(i.fecha||"").startsWith(mes)).length;
+  // productividad por empleado: tareas hechas este mes
+  const porEmp={}; tMes.filter(t=>(t.estado||"")==="Hecha").forEach(t=>{ const k=t.empleado_id||"?"; porEmp[k]=(porEmp[k]||0)+1; }); const top=Object.keys(porEmp).map(k=>({k,n:porEmp[k]})).sort((a,b)=>b.n-a.n).slice(0,3).map(x=>{ const e=empById(x.k); return (e?e.nombre.split(" ").slice(0,2).join(" "):"—")+" ("+x.n+")"; });
+  const chips=[
+    metChip("✅","Cumplimiento de tareas",cumpl.toFixed(0)+"%",hechas+" hechas de "+tMes.length+" este mes","show('tareas')",cumpl>=80?"ok":cumpl>=50?"warn":"bad"),
+    metChip("⏳","Tareas pendientes",String(pend.length),venc?venc+" vencida(s)":"ninguna vencida","show('tareas')",venc?"bad":pend.length?"warn":"ok"),
+    metChip("⚡","Productividad asignaciones",prod!==null?prod.toFixed(0)+"%":"—",conT.length?("objetivo vs real · "+aComp.length+" completadas"):"sin asignaciones cronometradas","show('asignaciones')",prod===null?"neutral":prod>=100?"ok":prod>=75?"warn":"bad"),
+    metChip("⏱️","Tiempo promedio por trabajo",tProm?Math.round(tProm)+" min":"—",enCurso+" asignación(es) en curso","show('asignaciones')","info"),
+    metChip("🏬","Incidencias de piso",String(incAb)+" abiertas",incRes+" resueltas este mes","show('piso')",incAb?"warn":"ok"),
+    metChip("🚧","Pasillos con alerta",String(pasAl),"caídos, quiebre o en proceso","show('piso')",pasAl?"bad":"ok"),
+    metChip("🗓️","Días libres (mes)",String(dl),ip+" incidencia(s) de personal","show('diaslibres')","info"),
+    metChip("🏆","Más productivos",top.length?top[0]:"—",top.slice(1).join(" · ")||"por tareas hechas este mes","show('tareas')","ok")];
+  return metPanel("metSup","Supervisores · productividad",chips); }
+function metricasProd(){ const {hoyF,mes,prev}=metPeriodo(); const prods=db.list("productos"); const bajo=prods.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0)).length; const valInv=prods.reduce((s,p)=>s+(Number(p.stock)||0)*(Number(p.precio_compra)||0),0);
+  let k=null; try{ k=comprasKPIs(); }catch(_){} const qb=db.list("quiebres").filter(q=>(q.status||"Pendiente")!=="Resuelto").length;
+  const ord=db.list("ordenes"); const oMes=ord.filter(o=>String(o.fecha||"").startsWith(mes)); const oPrev=ord.filter(o=>String(o.fecha||"").startsWith(prev)); const oTot=oMes.reduce((s,o)=>s+(Number(o.total)||0),0); const oTotPrev=oPrev.reduce((s,o)=>s+(Number(o.total)||0),0); const oPend=ord.filter(o=>o.estado==="Pendiente"||o.estado==="Enviada").length;
+  const rec=db.list("recepciones").filter(r=>String(r.fecha||"").startsWith(mes)).length;
+  const pmap={}; prods.forEach(p=>{ pmap[p.id]=p; }); const mer=db.list("merma").filter(m=>String(m.fecha||"").startsWith(mes)); const merU=mer.reduce((s,m)=>s+(Number(m.cantidad)||0),0); const merV=mer.reduce((s,m)=>{ const p=pmap[m.producto_id]; return s+(Number(m.cantidad)||0)*(Number((p&&p.precio_compra))||Number(m.precio_compra)||0); },0);
+  const sal=db.list("salidas").filter(x=>String(x.fecha||"").startsWith(mes)); const salU=sal.reduce((s,x)=>s+(Number(x.cantidad)||0),0); const salV=sal.reduce((s,x)=>s+(Number(x.cantidad)||0)*(Number(x.precio_compra)||0),0);
+  const porP={}; sal.forEach(x=>{ porP[x.nombre||x.producto_id]=(porP[x.nombre||x.producto_id]||0)+(Number(x.cantidad)||0); }); const top=Object.keys(porP).map(n=>({n,q:porP[n]})).sort((a,b)=>b.q-a.q).slice(0,3);
+  const ver=verCostoCfg||esGerencia();
+  const chips=[
+    metChip("📦","Productos",prods.length.toLocaleString("es-VE"),ver?("inventario al costo "+money(valInv)):(bajo+" bajo mínimo"),"show('inventario')","info"),
+    metChip("📉","Bajo mínimo",String(bajo),qb+" quiebre(s) pendiente(s)","show('inventario')",bajo?"warn":"ok"),
+    metChip("🚨","Quiebres en productos A",k?String(k.aQuebrados.length):"—",k?("de "+k.aTotal.length+" productos A"):"","show('compras')",k&&k.aQuebrados.length?"bad":"ok"),
+    metChip("🛒","Órdenes de compra (mes)",String(oMes.length),(ver?money(oTot)+" · ":"")+oPend+" pendiente(s)"+(oTotPrev?" · "+metDelta(oTot,oTotPrev,false):""),"show('ordenes')","info"),
+    metChip("📥","Recepciones (mes)",String(rec),"entradas de mercancía","show('recepcion')","ok"),
+    metChip("🗑️","Merma (mes)",merU.toLocaleString("es-VE")+" und.",ver?("pérdida "+money(merV)+" al costo"):(mer.length+" registro(s)"),"show('merma')",merU?"bad":"ok"),
+    metChip("📤","Salidas / ventas (mes)",salU.toLocaleString("es-VE")+" und.",ver?("valor al costo "+money(salV)):(sal.length+" movimiento(s)"),"show('rotacion')","ok"),
+    metChip("💤","Capital detenido en C",k&&ver?money(k.valorC):"—","productos de baja rotación","show('compras')",k&&k.valorC>0?"warn":"neutral"),
+    metChip("🔥","Más vendidos (mes)",top.length?top[0].n.slice(0,22):"—",top.length?(top.map(t=>t.q).join(" · ")+" und."):"sin salidas registradas","show('rotacion')","ok")];
+  return metPanel("metProd","Productos y Compras · métricas",chips); }
+function metricasFin(){ const {hoyF,mes,prev}=metPeriodo(); const M=finMetrics(mes), P=finMetrics(prev);
+  const cierres=db.list("cierres_caja").filter(c=>!c.arqueo); const cHoy=cierres.filter(c=>c.fecha===hoyF); const cMes=cierres.filter(c=>String(c.fecha||"").startsWith(mes));
+  let vHoy=0, falt=0, sobr=0, fis=0, nof=0; const cajasMap={}; db.list("cajas").forEach(c=>{ cajasMap[c.id]=c; });
+  cHoy.forEach(c=>{ try{ vHoy+=calcCierre(c).facturadoUsd||0; }catch(_){} }); cMes.forEach(c=>{ try{ const r=calcCierre(c); if(r.difUsd<0) falt+=Math.abs(r.difUsd); else sobr+=r.difUsd; if(cajaEsFiscal(cajasMap[c.caja_id])) fis+=r.facturadoUsd; else nof+=r.facturadoUsd; }catch(_){} });
+  const gs=db.list("gastos").filter(g=>String(g.fecha||"").startsWith(mes)); let gFijo=0,gVar=0; gs.forEach(g=>{ const u=gastoMontos(g).usd; if(g.tipo==="Fijo") gFijo+=u; else gVar+=u; });
+  const deuda=deudaPendienteUsd(); const fr=db.list("facturas_rec"); const frMes=fr.filter(f=>String(f.fecha||"").startsWith(mes)); const frMesUsd=frMes.reduce((s,f)=>s+(esUSDmon(f.moneda)?(Number(f.monto)||0):((Number(f.monto)||0)/(tipoCambio||1))),0); const venc=fr.filter(f=>frPend(f)>0.005 && String(f.fecha||"")<hoyF).length;
+  const pagos=db.list("pagos_prov").filter(p=>String(p.fecha_pago||"").startsWith(mes)); const pagUsd=pagos.reduce((s,p)=>s+pagoUsd(p),0); const ver=verSueldos()||esGerencia();
+  const chips=[
+    metChip("💵","Ventas de hoy",money(vHoy),cHoy.length+" caja(s) cerrada(s)","show('caja')","ok"),
+    metChip("📈","Ventas del mes",money(M.ingUsd),(cMes.length+" cierres")+(P.ingUsd?" · "+metDelta(M.ingUsd,P.ingUsd,true):""),"show('tesoreria')","ok"),
+    metChip("🧾","Fiscal / No fiscal (mes)",money(fis),"no fiscal "+money(nof),"show('tesoreria')","info"),
+    metChip("⚖️","Faltantes / Sobrantes (mes)",money(falt),"sobrantes "+money(sobr),"show('tesoreria')",falt>sobr?"bad":"ok"),
+    metChip("💸","Gastos del mes",money(M.egrUsd),"fijos "+money(gFijo)+" · variables "+money(gVar)+" · pagos prov. "+money(pagUsd),"show('deudas')","warn"),
+    metChip("💲","Saldo neto del mes",money(M.neto),P.neto?metDelta(M.neto,P.neto,true):"ingresos − gastos","show('deudas')",M.neto>=0?"ok":"bad"),
+    metChip("⚠️","Deuda a proveedores",money(deuda),venc?venc+" factura(s) vencida(s)":"sin facturas vencidas","show('deudas')",deuda>0.005?"bad":"ok"),
+    metChip("📥","Facturas recibidas (mes)",String(frMes.length),money(frMesUsd)+" en documentos","show('facturasrec')","info"),
+    metChip("🏦","Pagos a proveedores (mes)",money(pagUsd),pagos.length+" pago(s)","show('deudas')","info")];
+  return metPanel("metFin","Caja y Finanzas · métricas",chips); }
+function renderMetricasSecciones(){ const put=(id,sec,fn)=>{ const el=document.getElementById(id); if(!el) return; if(!puedeMetricas(sec)){ el.innerHTML=""; return; } try{ el.innerHTML=fn(); }catch(e){ el.innerHTML=""; console.warn("metricas "+sec,e); } };
+  put("metRRHH","rrhh",metricasRRHH); put("metSup","sup",metricasSup); put("metProd","prod",metricasProd); put("metFin","fin",metricasFin); }
 function renderTiles(){
   const ACC={gastos:"openGastos()"}; // tiles que abren una acción en vez de navegar a una vista
   const t=(arr)=>arr.filter(([v])=>puede(v)).map(([v,ic,l])=>`<button onclick="${ACC[v]||("show('"+v+"')")}" class="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1 active:scale-95 transition"><span class="text-2xl">${ic}</span><span class="text-[11px] font-semibold text-slate-600">${window.t?window.t(l):l}</span></button>`).join("");
@@ -1528,7 +1607,9 @@ async function saveEmpleado(id){ if(bloqueoEdicionEmpleado(id)) return; const r=
   if(!r.nombre){ toast("El nombre es obligatorio"); return; } r.salario_base=Number(r.salario_base)||0;
   // Si la modificación de sueldos está bloqueada, no se cambia el salario de un empleado existente
   if(id && !puedeModificarSueldo()){ const prev=empById(id); if(prev) r.salario_base=Number(prev.salario_base)||0; }
-  try{ id?await db.update("empleados",id,r):await db.insert("empleados",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
+  try{ const prev=id?empById(id):null; id?await db.update("empleados",id,r):await db.insert("empleados",r);
+    if(prev && Math.abs((Number(prev.salario_base)||0)-r.salario_base)>0.005){ try{ await db.insert("historial_salarios",{empleado_id:id, nombre:r.nombre||prev.nombre||"", anterior:Number(prev.salario_base)||0, nuevo:r.salario_base, fecha:hoy(), usuario:currentUser?currentUser.nombre:""}); }catch(_){} }
+    closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delEmpleado(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar empleado?")){ await db.remove("empleados",id); closeModal(); render(); } }
 function renderDesgloseAreas(empsAll, areaSel){ const c=document.getElementById("desgloseAreas"); if(!c) return;
   // Agrupa por área OFICIAL (empareja sin mayúsculas); lo que no calce va a "Sin área / otras"
@@ -4567,39 +4648,8 @@ function actualizarDatalists(){
 function toggleMasIndicadores(){ const mi=document.getElementById("masIndicadores"), bm=document.getElementById("btnMasIndic"); if(!mi) return; const abrir=mi.style.display==="none"; mi.style.display=abrir?"grid":"none"; if(bm) bm.textContent=abrir?"▲ Ocultar indicadores":"📊 Ver más indicadores"; }
 function renderInicio(){
   renderTiles(); try{ renderInicioHero(); }catch(e){ console.warn("hero",e); }
-  const empsAll=db.list("empleados").filter(e=>e.estado!=="Inactivo");
-  const faR=document.getElementById("filtroAreaResumen");
-  if(faR){ const actual=faR.value; faR.innerHTML=`<option value="">Todas las áreas</option>`+AREAS.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join(""); if(AREAS.includes(actual)) faR.value=actual; }
-  const areaR=faR?faR.value:""; const sR=areaR.trim().toLowerCase();
-  const emps=areaR?empsAll.filter(e=>(e.area||"").trim().toLowerCase()===sR):empsAll;
-  document.getElementById("mEmpleados").textContent=emps.length;
-  document.getElementById("mNomina").textContent=moneyS(emps.reduce((s,e)=>s+(Number(e.salario_base)||0),0));
-  document.getElementById("mTareas").textContent=db.list("tareas").filter(t=>(t.estado||"Pendiente")!=="Hecha").length;
-  const evs=db.list("evaluaciones"); document.getElementById("mEval").textContent=evs.length?(evs.reduce((s,v)=>s+(v.promedio||0),0)/evs.length).toFixed(1):"—";
-  document.getElementById("mBajoMin").textContent=db.list("productos").filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0)).length;
-  { const fr=db.list("facturas_rec"); const mf=document.getElementById("mFacturas"); if(mf) mf.textContent=fr.length.toLocaleString("es-VE");
-    const grossUsd=fr.reduce((s,f)=>{ const m=Number(f.monto)||0; return s+(esUSDmon(f.moneda)?m:(tipoCambio>0?m/tipoCambio:0)); },0);
-    const mu=document.getElementById("mFacturasUsd"); if(mu) mu.textContent="$"+grossUsd.toLocaleString("es-VE",{minimumFractionDigits:2,maximumFractionDigits:2});
-    const cf=document.getElementById("card_facturas"); if(cf) cf.style.display=(esGerencia()||puede("deudas"))?"":"none"; }
-  document.getElementById("mOrdenes").textContent=db.list("ordenes").filter(o=>o.estado==="Pendiente"||o.estado==="Enviada").length;
-  document.getElementById("mIncid").textContent=db.list("piso_incidencias").filter(x=>x.estado!=="Resuelta").length;
-  document.getElementById("mRepo").textContent=db.list("piso_secciones").filter(s=>pasilloActiva(s.estado)).length;
-  { const mq=document.getElementById("mQuiebre"); if(mq) mq.textContent=db.list("quiebres").filter(q=>(q.status||"Pendiente")!=="Resuelto").length; }
+  try{ renderMetricasSecciones(); }catch(e){ console.warn("metricas",e); }
   { const rp=document.getElementById("btnReportePDF"); if(rp) rp.style.display=esGerencia()?"":"none"; }
-  { const verComp=esGerencia()||puede("compras"); const ca=document.getElementById("card_compA"), cc=document.getElementById("card_compC");
-    if(ca) ca.style.display=verComp?"":"none"; if(cc) cc.style.display=verComp?"":"none";
-    if(verComp){ const k=comprasKPIs(); const ma=document.getElementById("mCompA"), mc=document.getElementById("mCompC");
-      if(ma){ ma.textContent=k.aQuebrados.length; ma.className="text-2xl font-bold "+(k.aQuebrados.length?"text-red-600":"text-emerald-600"); }
-      if(mc) mc.textContent=money(k.valorC); } }
-  const verResumen=puede("resumen");
-  const rbx=document.getElementById("resumenBox"), hR=document.getElementById("hResumen");
-  if(rbx) rbx.style.display=verResumen?"":"none"; if(hR) hR.style.display=verResumen?"":"none";
-  { const bm=document.getElementById("btnMasIndic"), mi=document.getElementById("masIndicadores"); if(bm) bm.style.display=verResumen?"":"none"; if(mi && !verResumen) mi.style.display="none"; }
-  if(verResumen){ const showCard=(cid,view)=>{ const el=document.getElementById(cid); if(el) el.style.display=puede(view)?"":"none"; };
-    showCard("card_empleados","empleados"); showCard("card_nomina","nomina"); showCard("card_tareas","tareas"); showCard("card_eval","eval");
-    showCard("card_inv","inventario"); showCard("card_ordenes","ordenes"); showCard("card_incid","piso"); showCard("card_repo","piso"); showCard("card_quiebre","quiebre"); }
-  { const da=document.getElementById("desgloseAreas");
-    if(da){ if(verResumen && (puede("empleados")||puede("nomina"))){ da.style.display=""; renderDesgloseAreas(empsAll,areaR); } else da.style.display="none"; } }
 }
 function renderAjustesView(){
   const n=document.getElementById("cfgNombre"); if(n) n.value=ajustes.nombre;
