@@ -376,6 +376,20 @@
     <div id="listaNominaVE" class="space-y-2"></div>
   </section>
 
+  <!-- ======== NÓMINA DE LIQUIDACIÓN (autónoma: no altera la ficha del empleado) ======== -->
+  <section data-view="liqnom" hidden>
+    <h2 class="text-lg font-bold mb-1">Nómina de liquidación · Venezuela</h2>
+    <p class="text-xs text-slate-500 mb-2">Módulo independiente: aquí puedes ajustar el sueldo, la fecha de ingreso y todos los conceptos de la liquidación de cada empleado <b>sin modificar su ficha</b> ni la nómina regular.</p>
+    <div class="bg-amber-50 text-amber-800 rounded-xl px-3 py-2 text-[11px] mb-3">⚠ Cálculo referencial según LOTTT (prestaciones art. 142, vacaciones art. 190, bono vacacional art. 192, utilidades art. 131, indemnización art. 92). Verifica con tu asesor laboral antes de pagar.</div>
+    <div id="liqnomToggles"></div>
+    <div class="flex flex-wrap gap-2 mb-2">
+      <input id="liqnomBuscar" oninput="renderLiqNom()" placeholder="🔎 Nombre, cédula o cargo" class="flex-1 min-w-[160px] px-3 py-2 rounded-xl border border-slate-200 text-sm">
+      <select id="liqnomFiltro" onchange="renderLiqNom()" class="px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white"><option value="todos">Todos</option><option value="borrador">Con liquidación en borrador</option><option value="liquidado">Liquidados</option><option value="inactivos">Empleados inactivos</option></select>
+    </div>
+    <div id="liqnomResumen" class="mb-2"></div>
+    <div id="listaLiqNom" class="space-y-2"></div>
+  </section>
+
   <!-- ======== TAREAS ======== -->
   <section data-view="tareas" hidden>
     <div class="flex items-center justify-between mb-3"><h2 class="text-lg font-bold">Tareas</h2>
@@ -714,7 +728,7 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos","parametros_legales","conceptos_nomina","gastos"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos","parametros_legales","conceptos_nomina","gastos","liquidaciones"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
@@ -725,7 +739,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.62"; // se incrementa con cada mejora
+const APP_VERSION="4.63"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1039,6 +1053,7 @@ const MODULES = {
   candidatos:{parent:"rrhh",title:"Candidatos (Bolsa de empleo)",sub:"Recursos Humanos"},
   nomina:{parent:"rrhh",title:"Nómina",sub:"Recursos Humanos"},
   nominave:{parent:"rrhh",title:"Nómina y Beneficios (VE)",sub:"Recursos Humanos"},
+  liqnom:{parent:"rrhh",title:"Nómina de liquidación",sub:"Recursos Humanos"},
   tareas:{parent:"supervisores",title:"Tareas",sub:"Supervisores"},
   asignaciones:{parent:"supervisores",title:"Asignaciones de trabajo",sub:"Supervisores"},
   diaslibres:{parent:"supervisores",title:"Días libres",sub:"Supervisores"},
@@ -1058,7 +1073,7 @@ const MODULES = {
   facturasrec:{parent:"finanzas",title:"Facturas recibidas",sub:"Caja y Finanzas"},
   conexiones:{parent:"finanzas",title:"Conexiones",sub:"Caja y Finanzas"},
 };
-const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["nominave","⚖️","Nómina VE"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"],["candidatos","📨","Candidatos"]];
+const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["nominave","⚖️","Nómina VE"],["liqnom","📋","Nómina liquidación"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"],["candidatos","📨","Candidatos"]];
 const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"],["quiebre","🚨","Quiebre"],["rotacion","🔥","Rotación/ABC"],["compras","🛒","Compras"]];
 const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"],["incpersonal","⏰","Asistencia personal"]];
 const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["facturasrec","📥","Facturas recibidas"],["gastos","🧾","Gastos"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
@@ -1118,7 +1133,7 @@ function pintarIdioma(){
 let currentView="inicio";
 
 /* ---------- USUARIOS Y PERMISOS ---------- */
-const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia","candidatos","nominave"];
+const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia","candidatos","nominave","liqnom"];
 const PROD_VIEWS=["proveedores","inventario","ordenes","recepcion","merma","quiebre","rotacion","compras"];
 const SUP_VIEWS=["piso","tareas","asignaciones","diaslibres","incpersonal"];
 const FIN_VIEWS=["caja","tesoreria","facturasrec","deudas","conexiones"];
@@ -1133,7 +1148,7 @@ const OPCIONES=[
 const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma","quiebre"];
 const OP_PERM=["tareas","asignaciones","asistencia","piso","quiebre"];
 let currentUser=null;
-function puede(view){ if(!currentUser) return false; if(view==="inicio") return true; if(view==="facturasrec"||view==="gastos") view="deudas"; if(currentUser.es_gerencia) return true; if(view==="ajustes") return false; return (currentUser.permisos||[]).includes(view); }
+function puede(view){ if(!currentUser) return false; if(view==="inicio") return true; if(view==="facturasrec"||view==="gastos") view="deudas"; if(view==="liqnom") view="nominave"; if(currentUser.es_gerencia) return true; if(view==="ajustes") return false; return (currentUser.permisos||[]).includes(view); }
 async function seedUsuarios(){
   await db.insert("usuarios",{nombre:"Gerencia",clave:"123456",es_gerencia:true,permisos:[],activo:true});
   await db.insert("usuarios",{nombre:"Supervisor",clave:"111111",es_gerencia:false,permisos:SUP_PERM,activo:true});
@@ -1746,6 +1761,152 @@ function _descargarLiquidacionVE(){ const d=liqData(); if(!d){ return; }
   doc.setFillColor(15,118,110); doc.rect(M,y-4,W-2*M,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("TOTAL LIQUIDACION",M+2,y+2); doc.text(dualBs(d.total,b.tasa),W-M-2,y+2,{align:"right"}); doc.setTextColor(30,30,30); y+=14;
   doc.setFontSize(7.5); doc.setTextColor(150,155,160); doc.text("Documento referencial - verifique los parametros legales con la Gaceta Oficial vigente y su asesor laboral. - "+(ajustes.nombre||""),M,289);
   doc.save("liquidacion_"+(e.nombre||"empleado").replace(/\s+/g,"_")+"_"+d.fecha+".pdf"); toast("Liquidación PDF descargada"); }
+
+/* ===================== NÓMINA DE LIQUIDACIÓN (módulo autónomo) =====================
+   Los datos de sueldo/fecha de ingreso que se editan aquí se guardan en la tabla "liquidaciones"
+   y NO tocan la ficha del empleado ni la nómina regular. */
+function liqRegDe(empId){ return db.list("liquidaciones").find(x=>x.empleado_id===empId)||null; }
+function liqMesesEntre(d0,d1){ let m=(d1.getFullYear()-d0.getFullYear())*12+(d1.getMonth()-d0.getMonth()); if(d1.getDate()<d0.getDate()) m--; return Math.max(0,m); }
+function liqDefaults(emp){ const hoyF=hoy(); const tasa=tasaBCVde(hoyF)||tipoCambio||0;
+  return { salario:Number(emp.salario_base)||0, sal_moneda: salariosEnBs(hoyF)?"Bs":"USD", fecha_ingreso:emp.fecha_ingreso||"", fecha_egreso:hoyF, motivo:"renuncia", tasa,
+    dias_util:paramLegal("dias_utilidades",hoyF)||30, dias_vac_base:paramLegal("dias_vac_base",hoyF)||15, dias_bonovac_base:paramLegal("dias_bonovac_base",hoyF)||15,
+    dias_prest_trim:paramLegal("dias_prest_trim",hoyF)||15, dias_adic_anio:2, tope_vac:30, tope_bono:30, tope_adic:30, usar_retroactivo:true,
+    dias_garantia:null, dias_adic:null, meses_vac:null, meses_util:null,
+    vac_vencidas_dias:0, bono_vencido_dias:0, util_pend_dias:0, intereses:0, otros_ingresos:0, otros_desc:"", deducciones:0, deduc_desc:"", indemniz_auto:true, indemniz_monto:0, notas:"" }; }
+function liqCfgDe(emp){ const r=liqRegDe(emp.id); const d=liqDefaults(emp); return r && r.cfg ? {...d, ...r.cfg} : d; }
+function calcLiquidacion(c){ const n=(v,def=0)=>{ const x=Number(v); return isFinite(x)?x:def; };
+  const tasa=n(c.tasa)||tipoCambio||0; const salMes=(c.sal_moneda==="USD")? n(c.salario)*tasa : n(c.salario); const salDia=salMes/30;
+  const d0=c.fecha_ingreso?new Date(c.fecha_ingreso+"T00:00:00"):null, d1=c.fecha_egreso?new Date(c.fecha_egreso+"T00:00:00"):null;
+  if(!d0||!d1||isNaN(d0)||isNaN(d1)||d1<d0) return null;
+  const dias=Math.floor((d1-d0)/86400000); const mesesTot=liqMesesEntre(d0,d1); const aniosEnt=Math.floor(mesesTot/12); const mesesResto=mesesTot%12;
+  const diasVac=Math.min(n(c.tope_vac,30), n(c.dias_vac_base,15)+Math.max(0,aniosEnt-1));
+  const diasBono=Math.min(n(c.tope_bono,30), n(c.dias_bonovac_base,15)+Math.max(0,aniosEnt-1));
+  const diasUtil=n(c.dias_util,30);
+  const salIntDia=salDia*(1 + diasUtil/360 + diasBono/360);
+  // Prestaciones: garantía (art. 142 a y b)
+  const trimestres=Math.floor(dias/91); const garantiaAuto=Math.max(0,trimestres-1)*n(c.dias_prest_trim,15);
+  const adicAuto=Math.min(n(c.tope_adic,30), Math.max(0,aniosEnt-1)*n(c.dias_adic_anio,2));
+  const diasGarantia=(c.dias_garantia===null||c.dias_garantia===""||c.dias_garantia===undefined)?garantiaAuto:n(c.dias_garantia);
+  const diasAdic=(c.dias_adic===null||c.dias_adic===""||c.dias_adic===undefined)?adicAuto:n(c.dias_adic);
+  const prestGarantia=(diasGarantia+diasAdic)*salIntDia;
+  // Retroactivo (art. 142 c): 30 días por año o fracción > 6 meses × salario integral
+  const aniosRetro=aniosEnt+(mesesResto>6?1:0); const prestRetro=aniosRetro*30*salIntDia;
+  const usarRetro=!!c.usar_retroactivo && prestRetro>prestGarantia; const prestaciones=usarRetro?prestRetro:prestGarantia;
+  // Fracciones
+  const mesesVac=(c.meses_vac===null||c.meses_vac===""||c.meses_vac===undefined)?mesesResto:n(c.meses_vac);
+  const mesesUtilAuto=Math.min(d1.getMonth()+1, mesesTot+1, 12);
+  const mesesUtil=(c.meses_util===null||c.meses_util===""||c.meses_util===undefined)?mesesUtilAuto:n(c.meses_util);
+  const vacFrac=diasVac*(mesesVac/12)*salDia; const bonoFrac=diasBono*(mesesVac/12)*salDia;
+  const vacVenc=n(c.vac_vencidas_dias)*salDia; const bonoVenc=n(c.bono_vencido_dias)*salDia;
+  const utilFrac=diasUtil*(mesesUtil/12)*salDia; const utilPend=n(c.util_pend_dias)*salDia;
+  const injust=c.motivo==="despido_injust"; const indemniz= injust ? (c.indemniz_auto!==false ? prestaciones : n(c.indemniz_monto)) : 0;
+  const intereses=n(c.intereses), otros=n(c.otros_ingresos), deduc=n(c.deducciones);
+  const subtotal=prestaciones+vacFrac+bonoFrac+vacVenc+bonoVenc+utilFrac+utilPend+indemniz+intereses+otros;
+  const total=subtotal-deduc; const totalUsd=tasa>0?total/tasa:0;
+  return {tasa,salMes,salDia,salIntDia,dias,mesesTot,aniosEnt,mesesResto,diasVac,diasBono,diasUtil,trimestres,garantiaAuto,adicAuto,diasGarantia,diasAdic,prestGarantia,aniosRetro,prestRetro,usarRetro,prestaciones,mesesVac,mesesUtil,mesesUtilAuto,vacFrac,bonoFrac,vacVenc,bonoVenc,utilFrac,utilPend,injust,indemniz,intereses,otros,deduc,subtotal,total,totalUsd}; }
+function renderLiqNom(){ if(!puede("liqnom")) return; const c=document.getElementById("listaLiqNom"); if(!c) return;
+  { const tg=document.getElementById("liqnomToggles"); if(tg) tg.innerHTML=togglesSueldosHTML(); }
+  const q=(document.getElementById("liqnomBuscar")?.value||"").trim().toLowerCase(); const filtro=document.getElementById("liqnomFiltro")?.value||"todos";
+  let emps=db.list("empleados").slice(); if(q) emps=emps.filter(e=>[e.nombre,e.cedula,e.area,e.cargo].join(" ").toLowerCase().includes(q));
+  const regs={}; db.list("liquidaciones").forEach(r=>{ regs[r.empleado_id]=r; });
+  if(filtro==="borrador") emps=emps.filter(e=>regs[e.id] && regs[e.id].estado!=="Liquidado"); else if(filtro==="liquidado") emps=emps.filter(e=>regs[e.id] && regs[e.id].estado==="Liquidado"); else if(filtro==="inactivos") emps=emps.filter(e=>e.estado==="Inactivo");
+  emps.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+  let totBs=0, totUsd=0, nCalc=0; const filas=emps.map(e=>{ const cfg=liqCfgDe(e); const r=calcLiquidacion(cfg); const reg=regs[e.id]; if(r){ totBs+=r.total; totUsd+=r.totalUsd; nCalc++; }
+    const edit=reg?'<span class="text-[9px] px-1.5 py-0.5 rounded-full '+(reg.estado==="Liquidado"?"bg-emerald-100 text-emerald-700":"bg-amber-100 text-amber-700")+'">'+(reg.estado==="Liquidado"?"Liquidado":"Borrador")+'</span>':'';
+    const mod=reg&&reg.cfg&&((Number(reg.cfg.salario)||0)!==(Number(e.salario_base)||0)||(reg.cfg.fecha_ingreso||"")!==(e.fecha_ingreso||""))?'<span class="text-[9px] text-indigo-600">✎ datos propios</span>':'';
+    return `<div onclick="openLiqEmp('${e.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50 flex items-center justify-between gap-2"><div class="min-w-0"><p class="font-semibold truncate">${esc(e.nombre)} ${edit} ${mod}</p><p class="text-[11px] text-slate-500 truncate">${esc(e.cedula||"—")}${e.cargo?" · "+esc(e.cargo):""}${e.estado==="Inactivo"?' · <span class="text-rose-500">Inactivo</span>':""} · ingreso ${esc(cfg.fecha_ingreso||"—")} · ${verSueldos()?(cfg.sal_moneda==="USD"?"$"+fmt2(cfg.salario):bsN(cfg.salario)):"•••"}</p></div><div class="text-right shrink-0">${r?`<p class="text-sm font-bold text-teal-700">${verSueldos()?bsN(r.total):"•••"}</p><p class="text-[10px] text-slate-400">${verSueldos()?"$"+fmt2(r.totalUsd):""} · ${LIQ_MOTIVOS[cfg.motivo]||""}</p>`:`<p class="text-[11px] text-amber-600">Falta fecha de ingreso</p>`}</div></div>`; });
+  const rz=document.getElementById("liqnomResumen"); if(rz) rz.innerHTML=`<div class="bg-slate-800 text-white rounded-xl px-3 py-2 text-sm flex items-center justify-between"><span>${emps.length} empleado(s) · ${nCalc} con cálculo</span><span class="font-bold">${verSueldos()?bsN(totBs)+" · $"+fmt2(totUsd):"•••"}</span></div>`;
+  c.innerHTML = filas.length? filas.join("") : empty("Sin empleados que coincidan."); }
+let _liqEmpId=null;
+function openLiqEmp(empId){ if(!puede("liqnom")){ toast("Sin acceso"); return; } if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; }
+  const e=empById(empId); if(!e) return; _liqEmpId=empId; const cfg=liqCfgDe(e); const reg=liqRegDe(empId);
+  const inp=(id,label,val,type="number",extra="")=>`<div><label class="text-[11px] text-slate-500">${label}</label><input id="lq_${id}" type="${type}" ${type==="number"?'step="any"':""} value="${esc(val===null||val===undefined?"":val)}" oninput="pintarLiqCalc()" ${extra} class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div>`;
+  const sel=(id,label,opts,val)=>`<div><label class="text-[11px] text-slate-500">${label}</label><select id="lq_${id}" onchange="pintarLiqCalc()" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm bg-white">${opts.map(o=>`<option value="${o[0]}" ${String(o[0])===String(val)?"selected":""}>${o[1]}</option>`).join("")}</select></div>`;
+  const chk=(id,label,val)=>`<label class="flex items-center gap-2 text-xs text-slate-600"><input id="lq_${id}" type="checkbox" ${val?"checked":""} onchange="pintarLiqCalc()"> ${label}</label>`;
+  openModal(`<h3 class="font-bold text-lg mb-0.5">📋 Liquidación · ${esc(e.nombre)}</h3>
+    <p class="text-xs text-slate-500 mb-2">${esc(e.cedula||"—")}${e.cargo?" · "+esc(e.cargo):""} ${reg?'· <span class="'+(reg.estado==="Liquidado"?"text-emerald-600":"text-amber-600")+' font-semibold">'+esc(reg.estado||"Borrador")+'</span>':""}</p>
+    <div class="bg-indigo-50 text-indigo-800 rounded-xl px-3 py-2 text-[11px] mb-2">✎ Lo que edites aquí se guarda solo para esta liquidación. La ficha del empleado (Personal) y la nómina regular no cambian. Deja un campo automático vacío para que se calcule solo.</div>
+    <div class="space-y-2 max-h-[62vh] overflow-y-auto pr-1">
+      <p class="text-[11px] font-bold text-slate-600 uppercase">Datos base</p>
+      <div class="grid grid-cols-2 gap-2">${inp("salario","Salario mensual",cfg.salario)}${sel("sal_moneda","Moneda del salario",[["USD","USD ($)"],["Bs","Bolívares"]],cfg.sal_moneda)}</div>
+      <div class="grid grid-cols-2 gap-2">${inp("fecha_ingreso","Fecha de ingreso (para liquidar)",cfg.fecha_ingreso,"date")}${inp("fecha_egreso","Fecha de egreso",cfg.fecha_egreso,"date")}</div>
+      <div class="grid grid-cols-2 gap-2">${sel("motivo","Motivo de egreso",Object.entries(LIQ_MOTIVOS),cfg.motivo)}${inp("tasa","Tasa BCV (Bs/$)",cfg.tasa)}</div>
+      <p class="text-[11px] font-bold text-slate-600 uppercase mt-1">Parámetros (días)</p>
+      <div class="grid grid-cols-3 gap-2">${inp("dias_util","Utilidades/año",cfg.dias_util)}${inp("dias_vac_base","Vacaciones base",cfg.dias_vac_base)}${inp("dias_bonovac_base","Bono vac. base",cfg.dias_bonovac_base)}</div>
+      <div class="grid grid-cols-3 gap-2">${inp("dias_prest_trim","Prest. por trimestre",cfg.dias_prest_trim)}${inp("dias_adic_anio","Adicionales por año",cfg.dias_adic_anio)}${inp("tope_adic","Tope adicionales",cfg.tope_adic)}</div>
+      <div class="grid grid-cols-2 gap-2">${inp("tope_vac","Tope días vacaciones",cfg.tope_vac)}${inp("tope_bono","Tope días bono vac.",cfg.tope_bono)}</div>
+      <p class="text-[11px] font-bold text-slate-600 uppercase mt-1">Ajustes manuales (vacío = automático)</p>
+      <div class="grid grid-cols-2 gap-2">${inp("dias_garantia","Días garantía prestaciones",cfg.dias_garantia)}${inp("dias_adic","Días adicionales prestaciones",cfg.dias_adic)}</div>
+      <div class="grid grid-cols-2 gap-2">${inp("meses_vac","Meses fracción vacaciones/bono",cfg.meses_vac)}${inp("meses_util","Meses fracción utilidades",cfg.meses_util)}</div>
+      ${chk("usar_retroactivo","Usar el mayor entre garantía y retroactivo (art. 142.c: 30 días × año)",cfg.usar_retroactivo!==false)}
+      <p class="text-[11px] font-bold text-slate-600 uppercase mt-1">Conceptos adicionales</p>
+      <div class="grid grid-cols-3 gap-2">${inp("vac_vencidas_dias","Vacaciones vencidas (días)",cfg.vac_vencidas_dias)}${inp("bono_vencido_dias","Bono vac. vencido (días)",cfg.bono_vencido_dias)}${inp("util_pend_dias","Utilidades pendientes (días)",cfg.util_pend_dias)}</div>
+      <div class="grid grid-cols-2 gap-2">${inp("intereses","Intereses s/ prestaciones (Bs)",cfg.intereses)}${inp("otros_ingresos","Otros ingresos (Bs)",cfg.otros_ingresos)}</div>
+      ${inp("otros_desc","Descripción otros ingresos",cfg.otros_desc,"text")}
+      <div class="grid grid-cols-2 gap-2">${inp("deducciones","Deducciones: préstamos/adelantos (Bs)",cfg.deducciones)}${inp("deduc_desc","Descripción deducciones",cfg.deduc_desc,"text")}</div>
+      <div id="lq_indemWrap">${chk("indemniz_auto","Indemnización art. 92 = prestaciones (automático)",cfg.indemniz_auto!==false)}${inp("indemniz_monto","Indemnización manual (Bs)",cfg.indemniz_monto)}</div>
+      ${inp("notas","Notas",cfg.notas,"text")}
+      <div id="lq_calc"></div>
+    </div>
+    <div class="flex flex-wrap gap-2 mt-3">
+      <button onclick="guardarLiqEmp('${e.id}',false)" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">💾 Guardar</button>
+      <button onclick="guardarLiqEmp('${e.id}',true)" class="px-3 ${reg&&reg.estado==="Liquidado"?"bg-amber-100 text-amber-700":"bg-emerald-600 text-white"} font-semibold py-2.5 rounded-xl">${reg&&reg.estado==="Liquidado"?"↩ Reabrir":"✅ Marcar liquidado"}</button>
+      <button onclick="pdfLiqNom('${e.id}')" class="px-3 bg-slate-800 text-white font-semibold py-2.5 rounded-xl">📄 PDF</button>
+      ${reg?`<button onclick="borrarLiqEmp('${e.id}')" class="px-3 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">🗑</button>`:""}
+      <button onclick="closeModal()" class="px-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
+  pintarLiqCalc(); }
+function leerLiqForm(){ const g=(id)=>document.getElementById("lq_"+id); const v=(id)=>{ const el=g(id); return el?el.value:""; }; const nOrNull=(id)=>{ const x=v(id); return x===""?null:Number(x); };
+  return { salario:Number(v("salario"))||0, sal_moneda:v("sal_moneda")||"USD", fecha_ingreso:v("fecha_ingreso"), fecha_egreso:v("fecha_egreso"), motivo:v("motivo")||"renuncia", tasa:Number(v("tasa"))||0,
+    dias_util:Number(v("dias_util"))||0, dias_vac_base:Number(v("dias_vac_base"))||0, dias_bonovac_base:Number(v("dias_bonovac_base"))||0, dias_prest_trim:Number(v("dias_prest_trim"))||0, dias_adic_anio:Number(v("dias_adic_anio"))||0,
+    tope_vac:Number(v("tope_vac"))||30, tope_bono:Number(v("tope_bono"))||30, tope_adic:Number(v("tope_adic"))||30, usar_retroactivo:!!(g("usar_retroactivo")&&g("usar_retroactivo").checked),
+    dias_garantia:nOrNull("dias_garantia"), dias_adic:nOrNull("dias_adic"), meses_vac:nOrNull("meses_vac"), meses_util:nOrNull("meses_util"),
+    vac_vencidas_dias:Number(v("vac_vencidas_dias"))||0, bono_vencido_dias:Number(v("bono_vencido_dias"))||0, util_pend_dias:Number(v("util_pend_dias"))||0, intereses:Number(v("intereses"))||0,
+    otros_ingresos:Number(v("otros_ingresos"))||0, otros_desc:v("otros_desc"), deducciones:Number(v("deducciones"))||0, deduc_desc:v("deduc_desc"),
+    indemniz_auto:!!(g("indemniz_auto")&&g("indemniz_auto").checked), indemniz_monto:Number(v("indemniz_monto"))||0, notas:v("notas") }; }
+function pintarLiqCalc(){ const box=document.getElementById("lq_calc"); if(!box) return; const cfg=leerLiqForm(); const r=calcLiquidacion(cfg);
+  const iw=document.getElementById("lq_indemWrap"); if(iw) iw.style.display=cfg.motivo==="despido_injust"?"":"none";
+  const im=document.getElementById("lq_indemniz_monto"); if(im) im.disabled=cfg.indemniz_auto;
+  if(!r){ box.innerHTML=`<p class="text-xs text-amber-600 mt-2">Indica fecha de ingreso y de egreso (la de egreso debe ser posterior).</p>`; return; }
+  const row=(l,v,cls)=>`<div class="flex items-center justify-between text-sm py-0.5"><span class="text-slate-600">${l}</span><span class="font-semibold ${cls||""}">${v}</span></div>`;
+  box.innerHTML=`<div class="bg-slate-50 rounded-xl p-3 mt-2">
+    <p class="text-[11px] text-slate-400 mb-1">Antigüedad ${r.aniosEnt} año(s) y ${r.mesesResto} mes(es) (${r.mesesTot} meses, ${r.dias} días) · Salario mes ${bsN(r.salMes)} · diario ${bsN(r.salDia)} · integral diario ${bsN(r.salIntDia)}</p>
+    ${row("Prestaciones garantía ("+r.diasGarantia+"+"+r.diasAdic+" días × integral)", bsN(r.prestGarantia))}
+    ${row("Prestaciones retroactivo ("+r.aniosRetro+" año(s) × 30 días)", bsN(r.prestRetro), r.usarRetro?"text-teal-700":"text-slate-400")}
+    ${row("<b>Prestaciones sociales a pagar</b> ("+(r.usarRetro?"retroactivo":"garantía")+")", "<b>"+bsN(r.prestaciones)+"</b>")}
+    ${row("Vacaciones fraccionadas ("+r.diasVac+" días × "+r.mesesVac+"/12)", bsN(r.vacFrac))}
+    ${row("Bono vacacional fraccionado ("+r.diasBono+" días × "+r.mesesVac+"/12)", bsN(r.bonoFrac))}
+    ${r.vacVenc?row("Vacaciones vencidas", bsN(r.vacVenc)):""}${r.bonoVenc?row("Bono vacacional vencido", bsN(r.bonoVenc)):""}
+    ${row("Utilidades fraccionadas ("+r.diasUtil+" días × "+r.mesesUtil+"/12)", bsN(r.utilFrac))}
+    ${r.utilPend?row("Utilidades pendientes", bsN(r.utilPend)):""}
+    ${r.injust?row("Indemnización por despido (art. 92)", bsN(r.indemniz)):""}
+    ${r.intereses?row("Intereses sobre prestaciones", bsN(r.intereses)):""}${r.otros?row("Otros ingresos"+(cfg.otros_desc?" · "+esc(cfg.otros_desc):""), bsN(r.otros)):""}
+    ${r.deduc?row("Deducciones"+(cfg.deduc_desc?" · "+esc(cfg.deduc_desc):""), "− "+bsN(r.deduc), "text-red-600"):""}
+    <div class="border-t border-slate-200 mt-1 pt-1">${row("<b>TOTAL LIQUIDACIÓN</b>","<b>"+dualBs(r.total,r.tasa)+"</b>")}</div></div>`; }
+async function guardarLiqEmp(empId, toggleEstado){ if(!puede("liqnom")){ toast("Sin acceso"); return; } const e=empById(empId); if(!e) return; const cfg=leerLiqForm(); const r=calcLiquidacion(cfg); const reg=liqRegDe(empId);
+  let estado=reg?(reg.estado||"Borrador"):"Borrador"; if(toggleEstado) estado=(estado==="Liquidado")?"Borrador":"Liquidado";
+  const row={ empleado_id:empId, nombre:e.nombre||"", cedula:e.cedula||"", cargo:e.cargo||"", cfg, total_bs:r?Math.round(r.total*100)/100:0, total_usd:r?Math.round(r.totalUsd*100)/100:0, estado, notas:cfg.notas||"" };
+  try{ if(reg) await db.update("liquidaciones",reg.id,row); else await db.insert("liquidaciones",row); toast(toggleEstado?(estado==="Liquidado"?"Marcado como liquidado":"Liquidación reabierta"):"Liquidación guardada"); openLiqEmp(empId); render(); }catch(err){ toast("Error: "+err.message); } }
+async function borrarLiqEmp(empId){ if(!esGerencia()){ toast("Solo gerencia"); return; } const reg=liqRegDe(empId); if(!reg) return; if(!confirm("¿Borrar los datos de liquidación de este empleado? La ficha del empleado no se toca.")) return; await db.remove("liquidaciones",reg.id); closeModal(); render(); toast("Liquidación borrada"); }
+function pdfLiqNom(empId){ if(!verSueldos()){ toast("Sueldos ocultos"); return; } if(!window.jspdf){ toast("Abre la app publicada para generar el PDF"); return; } const e=empById(empId); if(!e) return; const cfg=document.getElementById("lq_salario")?leerLiqForm():liqCfgDe(e); const r=calcLiquidacion(cfg); if(!r){ toast("Indica las fechas de ingreso y egreso"); return; }
+  return withLoader("Generando liquidación…", ()=>{ const { jsPDF }=window.jspdf; const doc=new jsPDF(); const W=210,M=14; let y=0;
+    doc.setFillColor(15,118,110); doc.rect(0,0,W,30,"F"); try{ if(ajustes.logo){ const fmt=/png/i.test(ajustes.logo)?"PNG":"JPEG"; doc.addImage(ajustes.logo,fmt,M,5,18,18); } }catch(_){}
+    doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.text(ajustes.nombre||"Hipposupermarket",M+22,12); doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.text("Liquidacion de prestaciones sociales",M+22,18); doc.setFontSize(8); doc.text("Egreso: "+cfg.fecha_egreso+"   ·   Tasa: "+bsN(r.tasa)+"/$",M+22,24);
+    y=40; doc.setTextColor(30,30,30); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text(e.nombre||"",M,y); doc.setFont("helvetica","normal"); doc.setFontSize(9);
+    doc.text("C.I.: "+(e.cedula||"—")+(e.cargo?"   ·   "+e.cargo:"")+(e.area?"   ·   "+e.area:""),M,y+5); doc.text("Ingreso: "+cfg.fecha_ingreso+"   ·   Egreso: "+cfg.fecha_egreso+"   ·   Motivo: "+(LIQ_MOTIVOS[cfg.motivo]||cfg.motivo),M,y+10); y+=19;
+    const fila=(l,v,bold)=>{ if(y>270){ doc.addPage(); y=20; } doc.setFont("helvetica",bold?"bold":"normal"); doc.setFontSize(9.5); doc.text(l,M+2,y); doc.text(v,W-M-2,y,{align:"right"}); doc.setFont("helvetica","normal"); y+=6; };
+    const band=(t)=>{ doc.setFillColor(240,244,247); doc.rect(M,y-4,W-2*M,6,"F"); doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.text(t,M+2,y); doc.setFont("helvetica","normal"); y+=6; };
+    band("DATOS"); fila("Antiguedad",r.aniosEnt+" ano(s) y "+r.mesesResto+" mes(es) ("+r.dias+" dias)"); fila("Salario mensual",bsN(r.salMes)); fila("Salario diario",bsN(r.salDia)); fila("Salario integral diario",bsN(r.salIntDia)); y+=2;
+    band("CONCEPTOS"); fila("Prestaciones sociales ("+(r.usarRetro?"retroactivo art. 142.c":"garantia "+r.diasGarantia+"+"+r.diasAdic+" dias")+")",dualBs(r.prestaciones,r.tasa));
+    fila("Vacaciones fraccionadas ("+r.diasVac+" dias x "+r.mesesVac+"/12)",dualBs(r.vacFrac,r.tasa)); fila("Bono vacacional fraccionado ("+r.diasBono+" dias x "+r.mesesVac+"/12)",dualBs(r.bonoFrac,r.tasa));
+    if(r.vacVenc) fila("Vacaciones vencidas ("+cfg.vac_vencidas_dias+" dias)",dualBs(r.vacVenc,r.tasa)); if(r.bonoVenc) fila("Bono vacacional vencido ("+cfg.bono_vencido_dias+" dias)",dualBs(r.bonoVenc,r.tasa));
+    fila("Utilidades fraccionadas ("+r.diasUtil+" dias x "+r.mesesUtil+"/12)",dualBs(r.utilFrac,r.tasa)); if(r.utilPend) fila("Utilidades pendientes ("+cfg.util_pend_dias+" dias)",dualBs(r.utilPend,r.tasa));
+    if(r.injust) fila("Indemnizacion por despido (art. 92 LOTTT)",dualBs(r.indemniz,r.tasa)); if(r.intereses) fila("Intereses sobre prestaciones",dualBs(r.intereses,r.tasa)); if(r.otros) fila("Otros ingresos"+(cfg.otros_desc?" - "+cfg.otros_desc:""),dualBs(r.otros,r.tasa));
+    if(r.deduc){ fila("Subtotal",dualBs(r.subtotal,r.tasa),true); fila("Deducciones"+(cfg.deduc_desc?" - "+cfg.deduc_desc:""),"- "+dualBs(r.deduc,r.tasa)); } y+=3;
+    doc.setFillColor(15,118,110); doc.rect(M,y-4,W-2*M,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("TOTAL LIQUIDACION",M+2,y+2); doc.text(dualBs(r.total,r.tasa),W-M-2,y+2,{align:"right"}); doc.setTextColor(30,30,30); y+=16;
+    if(cfg.notas){ doc.setFontSize(9); doc.text("Notas: "+cfg.notas,M,y); y+=8; }
+    doc.setFontSize(9); doc.text("________________________          ________________________",M,y+16); doc.setFontSize(7.5); doc.text("Firma del trabajador                                          Firma de la empresa",M+6,y+21);
+    doc.setFontSize(7.5); doc.setTextColor(150,155,160); doc.text("Documento referencial - verifique los parametros legales con la Gaceta Oficial vigente y su asesor laboral. - "+(ajustes.nombre||""),M,289);
+    doc.save("liquidacion_"+(e.nombre||"empleado").replace(/\s+/g,"_")+"_"+cfg.fecha_egreso+".pdf"); toast("Liquidación PDF descargada"); }); }
 
 /* --- Parámetros legales (versionados) --- */
 function openParamsLegales(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const hoyF=hoy();
@@ -4159,7 +4320,7 @@ function renderAjustesView(){
 // Cada vista renderiza SOLO su contenido (no reconstruye todas las listas en cada cambio)
 const RENDER_VISTA={
   inicio:renderInicio, empleados:renderEmpleados, bonos:renderBonos, eval:renderEval, evalsup:renderEvalSup,
-  asistencia:renderAsistencia, candidatos:renderCandidatos, nominave:renderNominaVE, tareas:renderTareas, asignaciones:renderAsignaciones, nomina:renderNomina,
+  asistencia:renderAsistencia, candidatos:renderCandidatos, nominave:renderNominaVE, liqnom:renderLiqNom, tareas:renderTareas, asignaciones:renderAsignaciones, nomina:renderNomina,
   diaslibres:renderDiasLibres, incpersonal:renderIncPersonal,
   piso:renderPisoVenta,
   proveedores:renderProveedores, inventario:renderInventario, ordenes:renderOrdenes,
