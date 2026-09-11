@@ -522,7 +522,8 @@
     <div id="liqnomToggles"></div>
     <div class="flex flex-wrap gap-2 mb-2">
       <input id="liqnomBuscar" oninput="renderLiqNom()" placeholder="🔎 Nombre, cédula o cargo" class="flex-1 min-w-[160px] px-3 py-2 rounded-xl border border-slate-200 text-sm">
-      <select id="liqnomFiltro" onchange="renderLiqNom()" class="px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white"><option value="todos">Todos</option><option value="borrador">Con liquidación en borrador</option><option value="liquidado">Liquidados</option><option value="inactivos">Empleados inactivos</option></select>
+      <select id="liqnomFiltro" onchange="renderLiqNom()" class="px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white"><option value="todos">Todos</option><option value="internos">Solo personal del supermercado</option><option value="externos">Solo externos (otro negocio)</option><option value="borrador">Con liquidación en borrador</option><option value="liquidado">Liquidados</option><option value="inactivos">Empleados inactivos</option></select>
+      <button onclick="openLiqExterno()" class="bg-violet-600 text-white text-sm font-semibold px-3 py-2 rounded-xl">➕ Trabajador externo</button>
     </div>
     <div id="liqnomResumen" class="mb-2"></div>
     <div id="listaLiqNom" class="space-y-2"></div>
@@ -886,7 +887,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="5.7"; // se incrementa con cada mejora
+const APP_VERSION="5.8"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1556,8 +1557,8 @@ function metPanel(id, titulo, chips, extra){ return `<div class="met-panel"><div
 function metDelta(cur,prev,goodUp){ if(!prev) return ""; const pct=(cur-prev)/Math.abs(prev)*100; const up=pct>=0; const bueno=goodUp?up:!up; return `<span class="${bueno?'text-emerald-600':'text-rose-600'} font-bold">${up?"↑":"↓"} ${Math.abs(pct).toFixed(0)}% vs mes ant.</span>`; }
 function metricasRRHH(){ const {hoyF,mes,prev}=metPeriodo(); const emps=db.list("empleados"); const act=emps.filter(e=>e.estado!=="Inactivo"); const inact=emps.length-act.length;
   const nuevos=act.filter(e=>String(e.fecha_ingreso||"").startsWith(mes)).length;
-  const liqs=db.list("liquidaciones").filter(l=>l.estado==="Liquidado" && String((l.cfg&&l.cfg.fecha_egreso)||"").startsWith(mes)); const despedidos=liqs.filter(l=>/despido/.test((l.cfg&&l.cfg.motivo)||"")).length; const retirados=liqs.length-despedidos;
-  const liqsPrev=db.list("liquidaciones").filter(l=>l.estado==="Liquidado" && String((l.cfg&&l.cfg.fecha_egreso)||"").startsWith(prev)).length;
+  const liqs=db.list("liquidaciones").filter(l=>!liqEsExterno(l) && l.estado==="Liquidado" && String((l.cfg&&l.cfg.fecha_egreso)||"").startsWith(mes)); const despedidos=liqs.filter(l=>/despido/.test((l.cfg&&l.cfg.motivo)||"")).length; const retirados=liqs.length-despedidos;
+  const liqsPrev=db.list("liquidaciones").filter(l=>!liqEsExterno(l) && l.estado==="Liquidado" && String((l.cfg&&l.cfg.fecha_egreso)||"").startsWith(prev)).length;
   const aum=db.list("historial_salarios").filter(h=>String(h.fecha||"").startsWith(mes) && (Number(h.nuevo)||0)>(Number(h.anterior)||0)); const aumTot=aum.reduce((s,h)=>s+((Number(h.nuevo)||0)-(Number(h.anterior)||0)),0); const rebajas=db.list("historial_salarios").filter(h=>String(h.fecha||"").startsWith(mes) && (Number(h.nuevo)||0)<(Number(h.anterior)||0)).length;
   const nomina=act.reduce((s,e)=>s+(Number(e.salario_base)||0),0); const bonosMes=db.list("bonos").filter(b=>String(b.fecha||"").startsWith(mes)); const bon=bonosMes.filter(b=>b.tipo!=="Deducción").reduce((s,b)=>s+(Number(b.monto)||0),0); const ded=bonosMes.filter(b=>b.tipo==="Deducción").reduce((s,b)=>s+(Number(b.monto)||0),0); const gastoPersonal=nomina+bon-ded;
   const liqPag=liqs.reduce((s,l)=>s+(Number(l.total_usd)||0),0);
@@ -2104,13 +2105,34 @@ function _descargarLiquidacionVE(){ const d=liqData(); if(!d){ return; }
   if(d.injust) fila("Indemnizacion por despido (art. 92 LOTTT)",dualBs(d.indemniz,b.tasa));
   y+=3;
   doc.setFillColor(15,118,110); doc.rect(M,y-4,W-2*M,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("TOTAL LIQUIDACION",M+2,y+2); doc.text(dualBs(d.total,b.tasa),W-M-2,y+2,{align:"right"}); doc.setTextColor(30,30,30); y+=14;
-  doc.setFontSize(7.5); doc.setTextColor(150,155,160); doc.text("Documento referencial - verifique los parametros legales con la Gaceta Oficial vigente y su asesor laboral. - "+(ajustes.nombre||""),M,289);
+  doc.setFontSize(7.5); doc.setTextColor(150,155,160); doc.text("Documento referencial - verifique los parametros legales con la Gaceta Oficial vigente y su asesor laboral. - "+((e.externo&&e.empresa)?e.empresa:(ajustes.nombre||"")),M,289);
   doc.save("liquidacion_"+(e.nombre||"empleado").replace(/\s+/g,"_")+"_"+d.fecha+".pdf"); toast("Liquidación PDF descargada"); }
 
 /* ===================== NÓMINA DE LIQUIDACIÓN (módulo autónomo) =====================
    Los datos de sueldo/fecha de ingreso que se editan aquí se guardan en la tabla "liquidaciones"
    y NO tocan la ficha del empleado ni la nómina regular. */
 function liqRegDe(empId){ return db.list("liquidaciones").find(x=>x.empleado_id===empId)||null; }
+/* Trabajadores EXTERNOS (otro negocio): viven solo en la tabla liquidaciones (cfg.externo=true). No aparecen en Personal,
+   nóminas ni métricas. Se identifican con empleado_id "ext_...". */
+function liqEsExterno(r){ return !!(r && r.cfg && r.cfg.externo); }
+function liqExternos(){ return db.list("liquidaciones").filter(liqEsExterno); }
+function liqEmpDe(empId){ if(String(empId||"").startsWith("ext_")){ const r=liqRegDe(empId); if(!r) return null; const c=r.cfg||{}; return {id:r.empleado_id, nombre:r.nombre||"", cedula:r.cedula||"", cargo:r.cargo||"", salario_base:Number(c.salario)||0, fecha_ingreso:c.fecha_ingreso||"", estado:"Externo", externo:true, empresa:c.empresa||""}; } return empById(empId); }
+function openLiqExterno(empId){ if(!puede("liqnom")){ toast("Sin acceso"); return; } if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; } const reg=empId?liqRegDe(empId):null; const c=(reg&&reg.cfg)||{};
+  const empresas=[...new Set(liqExternos().map(r=>(r.cfg&&r.cfg.empresa)||"").filter(Boolean))];
+  openModal(`<h3 class="font-bold text-lg mb-0.5">${reg?"Editar":"➕ Nuevo"} trabajador externo</h3><p class="text-xs text-slate-500 mb-2">Para liquidar personal de <b>otro negocio</b>. No se agrega a Personal ni a ninguna nómina: solo existe en esta nómina de liquidación.</p>
+    <div class="space-y-2">
+      <div><label class="text-[11px] text-slate-500">Negocio / empresa</label><input id="lx_empresa" list="dlLxEmpresas" value="${esc(c.empresa||"")}" placeholder="Ej: Panadería La Espiga" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"><datalist id="dlLxEmpresas">${empresas.map(x=>`<option value="${esc(x)}">`).join("")}</datalist></div>
+      <div><label class="text-[11px] text-slate-500">Nombre y apellido</label><input id="lx_nombre" value="${esc(reg?reg.nombre:"")}" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"></div>
+      <div class="grid grid-cols-2 gap-2"><div><label class="text-[11px] text-slate-500">Cédula</label><input id="lx_cedula" value="${esc(reg?reg.cedula:"")}" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"></div><div><label class="text-[11px] text-slate-500">Cargo</label><input id="lx_cargo" value="${esc(reg?reg.cargo:"")}" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"></div></div>
+      ${reg?"":`<div class="grid grid-cols-3 gap-2"><div class="col-span-2"><label class="text-[11px] text-slate-500">Sueldo mensual</label><input id="lx_salario" type="number" step="any" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"></div><div><label class="text-[11px] text-slate-500">Moneda</label><select id="lx_moneda" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white"><option value="USD">USD</option><option value="Bs">Bs</option></select></div></div>
+      <div><label class="text-[11px] text-slate-500">Fecha de ingreso</label><input id="lx_ingreso" type="date" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"></div>
+      <p class="text-[10px] text-slate-400">El sueldo, la fecha de egreso, el motivo y todos los conceptos se ajustan después en la ficha de liquidación.</p>`}
+    </div>
+    <div class="flex gap-2 mt-4"><button onclick="guardarLiqExterno('${empId||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">${reg?"Guardar":"Crear y abrir liquidación"}</button><button onclick="${reg?`openLiqEmp('${empId}')`:"closeModal()"}" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">${reg?"Volver":"Cancelar"}</button></div>`); setTimeout(()=>document.getElementById("lx_nombre")?.focus(),50); }
+async function guardarLiqExterno(empId){ if(!puede("liqnom")){ toast("Sin acceso"); return; } const v=(id)=>(document.getElementById("lx_"+id)?.value||"").trim(); const nombre=v("nombre"); if(!nombre){ toast("Falta el nombre"); return; }
+  try{ if(empId){ const reg=liqRegDe(empId); if(!reg) return; const cfg={...(reg.cfg||{}), externo:true, empresa:v("empresa")}; await db.update("liquidaciones",reg.id,{nombre, cedula:v("cedula"), cargo:v("cargo"), cfg}); toast("Trabajador externo actualizado"); openLiqEmp(empId); render(); return; }
+    const id="ext_"+uid(); const fake={id, nombre, cedula:v("cedula"), cargo:v("cargo"), salario_base:Number(v("salario"))||0, fecha_ingreso:v("ingreso")}; const cfg={...liqDefaults(fake), sal_moneda:v("moneda")||"USD", externo:true, empresa:v("empresa")};
+    await db.insert("liquidaciones",{empleado_id:id, nombre, cedula:fake.cedula, cargo:fake.cargo, cfg, total_bs:0, total_usd:0, estado:"Borrador", notas:""}); toast("Trabajador externo creado"); openLiqEmp(id); render(); }catch(e){ toast("Error: "+e.message); } }
 function liqMesesEntre(d0,d1){ let m=(d1.getFullYear()-d0.getFullYear())*12+(d1.getMonth()-d0.getMonth()); if(d1.getDate()<d0.getDate()) m--; return Math.max(0,m); }
 function liqDefaults(emp){ const hoyF=hoy(); const tasa=tasaBCVde(hoyF)||tipoCambio||0;
   return { salario:Number(emp.salario_base)||0, sal_moneda: salariosEnBs(hoyF)?"Bs":"USD", fecha_ingreso:emp.fecha_ingreso||"", fecha_egreso:hoyF, motivo:"renuncia", tasa,
@@ -2152,24 +2174,26 @@ function calcLiquidacion(c){ const n=(v,def=0)=>{ const x=Number(v); return isFi
 function renderLiqNom(){ if(!puede("liqnom")) return; const c=document.getElementById("listaLiqNom"); if(!c) return;
   { const tg=document.getElementById("liqnomToggles"); if(tg) tg.innerHTML=togglesSueldosHTML(); }
   const q=(document.getElementById("liqnomBuscar")?.value||"").trim().toLowerCase(); const filtro=document.getElementById("liqnomFiltro")?.value||"todos";
-  let emps=db.list("empleados").slice(); if(q) emps=emps.filter(e=>[e.nombre,e.cedula,e.area,e.cargo].join(" ").toLowerCase().includes(q));
+  const externos=liqExternos().map(r=>liqEmpDe(r.empleado_id)).filter(Boolean);
+  let emps=(filtro==="externos"?[]:db.list("empleados").slice()).concat(externos); if(q) emps=emps.filter(e=>[e.nombre,e.cedula,e.area,e.cargo,e.empresa].join(" ").toLowerCase().includes(q));
   const regs={}; db.list("liquidaciones").forEach(r=>{ regs[r.empleado_id]=r; });
-  if(filtro==="borrador") emps=emps.filter(e=>regs[e.id] && regs[e.id].estado!=="Liquidado"); else if(filtro==="liquidado") emps=emps.filter(e=>regs[e.id] && regs[e.id].estado==="Liquidado"); else if(filtro==="inactivos") emps=emps.filter(e=>e.estado==="Inactivo");
+  if(filtro==="borrador") emps=emps.filter(e=>regs[e.id] && regs[e.id].estado!=="Liquidado"); else if(filtro==="liquidado") emps=emps.filter(e=>regs[e.id] && regs[e.id].estado==="Liquidado"); else if(filtro==="inactivos") emps=emps.filter(e=>e.estado==="Inactivo"); else if(filtro==="internos") emps=emps.filter(e=>!e.externo);
   emps.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
   let totBs=0, totUsd=0, nCalc=0; const filas=emps.map(e=>{ const cfg=liqCfgDe(e); const r=calcLiquidacion(cfg); const reg=regs[e.id]; if(r){ totBs+=r.total; totUsd+=r.totalUsd; nCalc++; }
     const edit=reg?'<span class="text-[9px] px-1.5 py-0.5 rounded-full '+(reg.estado==="Liquidado"?"bg-emerald-100 text-emerald-700":"bg-amber-100 text-amber-700")+'">'+(reg.estado==="Liquidado"?"Liquidado":"Borrador")+'</span>':'';
-    const mod=reg&&reg.cfg&&((Number(reg.cfg.salario)||0)!==(Number(e.salario_base)||0)||(reg.cfg.fecha_ingreso||"")!==(e.fecha_ingreso||""))?'<span class="text-[9px] text-indigo-600">✎ datos propios</span>':'';
+    const mod=e.externo?('<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">🏢 '+esc(e.empresa||"externo")+'</span>'):(reg&&reg.cfg&&((Number(reg.cfg.salario)||0)!==(Number(e.salario_base)||0)||(reg.cfg.fecha_ingreso||"")!==(e.fecha_ingreso||""))?'<span class="text-[9px] text-indigo-600">✎ datos propios</span>':'');
     return `<div onclick="openLiqEmp('${e.id}')" class="bg-white rounded-2xl p-3 shadow-sm active:bg-slate-50 flex items-center justify-between gap-2"><div class="min-w-0"><p class="font-semibold truncate">${esc(e.nombre)} ${edit} ${mod}</p><p class="text-[11px] text-slate-500 truncate">${esc(e.cedula||"—")}${e.cargo?" · "+esc(e.cargo):""}${e.estado==="Inactivo"?' · <span class="text-rose-500">Inactivo</span>':""} · ingreso ${esc(cfg.fecha_ingreso||"—")} · ${verSueldos()?(cfg.sal_moneda==="USD"?"$"+fmt2(cfg.salario):bsN(cfg.salario)):"•••"}</p></div><div class="text-right shrink-0">${r?`<p class="text-sm font-bold text-teal-700">${verSueldos()?bsN(r.total):"•••"}</p><p class="text-[10px] text-slate-400">${verSueldos()?"$"+fmt2(r.totalUsd):""} · ${LIQ_MOTIVOS[cfg.motivo]||""}</p>`:`<p class="text-[11px] text-amber-600">Falta fecha de ingreso</p>`}</div></div>`; });
-  const rz=document.getElementById("liqnomResumen"); if(rz) rz.innerHTML=`<div class="bg-slate-800 text-white rounded-xl px-3 py-2 text-sm flex items-center justify-between"><span>${emps.length} empleado(s) · ${nCalc} con cálculo</span><span class="font-bold">${verSueldos()?bsN(totBs)+" · $"+fmt2(totUsd):"•••"}</span></div>`;
+  const nExt=emps.filter(e=>e.externo).length;
+  const rz=document.getElementById("liqnomResumen"); if(rz) rz.innerHTML=`<div class="bg-slate-800 text-white rounded-xl px-3 py-2 text-sm flex items-center justify-between"><span>${emps.length} trabajador(es)${nExt?" · "+nExt+" externo(s)":""} · ${nCalc} con cálculo</span><span class="font-bold">${verSueldos()?bsN(totBs)+" · $"+fmt2(totUsd):"•••"}</span></div>`;
   c.innerHTML = filas.length? filas.join("") : empty("Sin empleados que coincidan."); }
 let _liqEmpId=null;
 function openLiqEmp(empId){ if(!puede("liqnom")){ toast("Sin acceso"); return; } if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; }
-  const e=empById(empId); if(!e) return; _liqEmpId=empId; const cfg=liqCfgDe(e); const reg=liqRegDe(empId);
+  const e=liqEmpDe(empId); if(!e) return; _liqEmpId=empId; const cfg=liqCfgDe(e); const reg=liqRegDe(empId);
   const inp=(id,label,val,type="number",extra="")=>`<div><label class="text-[11px] text-slate-500">${label}</label><input id="lq_${id}" type="${type}" ${type==="number"?'step="any"':""} value="${esc(val===null||val===undefined?"":val)}" oninput="pintarLiqCalc()" ${extra} class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div>`;
   const sel=(id,label,opts,val)=>`<div><label class="text-[11px] text-slate-500">${label}</label><select id="lq_${id}" onchange="pintarLiqCalc()" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm bg-white">${opts.map(o=>`<option value="${o[0]}" ${String(o[0])===String(val)?"selected":""}>${o[1]}</option>`).join("")}</select></div>`;
   const chk=(id,label,val)=>`<label class="flex items-center gap-2 text-xs text-slate-600"><input id="lq_${id}" type="checkbox" ${val?"checked":""} onchange="pintarLiqCalc()"> ${label}</label>`;
   openModal(`<h3 class="font-bold text-lg mb-0.5">📋 Liquidación · ${esc(e.nombre)}</h3>
-    <p class="text-xs text-slate-500 mb-2">${esc(e.cedula||"—")}${e.cargo?" · "+esc(e.cargo):""} ${reg?'· <span class="'+(reg.estado==="Liquidado"?"text-emerald-600":"text-amber-600")+' font-semibold">'+esc(reg.estado||"Borrador")+'</span>':""}</p>
+    <p class="text-xs text-slate-500 mb-2">${esc(e.cedula||"—")}${e.cargo?" · "+esc(e.cargo):""} ${e.externo?'· <span class="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 font-semibold">🏢 '+esc(e.empresa||"Trabajador externo")+'</span> <button onclick="openLiqExterno(\''+e.id+'\')" class="text-violet-700 underline">editar datos</button>':""} ${reg?'· <span class="'+(reg.estado==="Liquidado"?"text-emerald-600":"text-amber-600")+' font-semibold">'+esc(reg.estado||"Borrador")+'</span>':""}</p>
     <div class="bg-indigo-50 text-indigo-800 rounded-xl px-3 py-2 text-[11px] mb-2">✎ Lo que edites aquí se guarda solo para esta liquidación. La ficha del empleado (Personal) y la nómina regular no cambian. Deja un campo automático vacío para que se calcule solo.</div>
     <div class="space-y-2 max-h-[62vh] overflow-y-auto pr-1">
       <p class="text-[11px] font-bold text-slate-600 uppercase">Datos base</p>
@@ -2227,15 +2251,15 @@ function pintarLiqCalc(){ const box=document.getElementById("lq_calc"); if(!box)
     ${r.intereses?row("Intereses sobre prestaciones", bsN(r.intereses)):""}${r.otros?row("Otros ingresos"+(cfg.otros_desc?" · "+esc(cfg.otros_desc):""), bsN(r.otros)):""}
     ${r.deduc?row("Deducciones"+(cfg.deduc_desc?" · "+esc(cfg.deduc_desc):""), "− "+bsN(r.deduc), "text-red-600"):""}
     <div class="border-t border-slate-200 mt-1 pt-1">${row("<b>TOTAL LIQUIDACIÓN</b>","<b>"+dualBs(r.total,r.tasa)+"</b>")}</div></div>`; }
-async function guardarLiqEmp(empId, toggleEstado){ if(!puede("liqnom")){ toast("Sin acceso"); return; } const e=empById(empId); if(!e) return; const cfg=leerLiqForm(); const r=calcLiquidacion(cfg); const reg=liqRegDe(empId);
+async function guardarLiqEmp(empId, toggleEstado){ if(!puede("liqnom")){ toast("Sin acceso"); return; } const e=liqEmpDe(empId); if(!e) return; const cfg=leerLiqForm(); if(e.externo){ cfg.externo=true; cfg.empresa=e.empresa||""; } const r=calcLiquidacion(cfg); const reg=liqRegDe(empId);
   let estado=reg?(reg.estado||"Borrador"):"Borrador"; if(toggleEstado) estado=(estado==="Liquidado")?"Borrador":"Liquidado";
   const row={ empleado_id:empId, nombre:e.nombre||"", cedula:e.cedula||"", cargo:e.cargo||"", cfg, total_bs:r?Math.round(r.total*100)/100:0, total_usd:r?Math.round(r.totalUsd*100)/100:0, estado, notas:cfg.notas||"" };
   try{ if(reg) await db.update("liquidaciones",reg.id,row); else await db.insert("liquidaciones",row); toast(toggleEstado?(estado==="Liquidado"?"Marcado como liquidado":"Liquidación reabierta"):"Liquidación guardada"); openLiqEmp(empId); render(); }catch(err){ toast("Error: "+err.message); } }
-async function borrarLiqEmp(empId){ if(!esGerencia()){ toast("Solo gerencia"); return; } const reg=liqRegDe(empId); if(!reg) return; if(!confirm("¿Borrar los datos de liquidación de este empleado? La ficha del empleado no se toca.")) return; await db.remove("liquidaciones",reg.id); closeModal(); render(); toast("Liquidación borrada"); }
-function pdfLiqNom(empId){ if(!verSueldos()){ toast("Sueldos ocultos"); return; } if(!window.jspdf){ toast("Abre la app publicada para generar el PDF"); return; } const e=empById(empId); if(!e) return; const cfg=document.getElementById("lq_salario")?leerLiqForm():liqCfgDe(e); const r=calcLiquidacion(cfg); if(!r){ toast("Indica las fechas de ingreso y egreso"); return; }
+async function borrarLiqEmp(empId){ if(!esGerencia()){ toast("Solo gerencia"); return; } const reg=liqRegDe(empId); if(!reg) return; if(!confirm(String(empId).startsWith("ext_")?"¿Eliminar este trabajador externo y su liquidación?":"¿Borrar los datos de liquidación de este empleado? La ficha del empleado no se toca.")) return; await db.remove("liquidaciones",reg.id); closeModal(); render(); toast("Liquidación borrada"); }
+function pdfLiqNom(empId){ if(!verSueldos()){ toast("Sueldos ocultos"); return; } if(!window.jspdf){ toast("Abre la app publicada para generar el PDF"); return; } const e=liqEmpDe(empId); if(!e) return; const cfg=document.getElementById("lq_salario")?leerLiqForm():liqCfgDe(e); const r=calcLiquidacion(cfg); if(!r){ toast("Indica las fechas de ingreso y egreso"); return; }
   return withLoader("Generando liquidación…", ()=>{ const { jsPDF }=window.jspdf; const doc=new jsPDF(); const W=210,M=14; let y=0;
     doc.setFillColor(15,118,110); doc.rect(0,0,W,30,"F"); try{ if(ajustes.logo){ const fmt=/png/i.test(ajustes.logo)?"PNG":"JPEG"; doc.addImage(ajustes.logo,fmt,M,5,18,18); } }catch(_){}
-    doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.text(ajustes.nombre||"Hipposupermarket",M+22,12); doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.text("Liquidacion de prestaciones sociales",M+22,18); doc.setFontSize(8); doc.text("Egreso: "+cfg.fecha_egreso+"   ·   Tasa: "+bsN(r.tasa)+"/$",M+22,24);
+    doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.text((e.externo&&e.empresa)?e.empresa:(ajustes.nombre||"Hipposupermarket"),M+22,12); doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.text("Liquidacion de prestaciones sociales",M+22,18); doc.setFontSize(8); doc.text("Egreso: "+cfg.fecha_egreso+"   ·   Tasa: "+bsN(r.tasa)+"/$",M+22,24);
     y=40; doc.setTextColor(30,30,30); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text(e.nombre||"",M,y); doc.setFont("helvetica","normal"); doc.setFontSize(9);
     doc.text("C.I.: "+(e.cedula||"—")+(e.cargo?"   ·   "+e.cargo:"")+(e.area?"   ·   "+e.area:""),M,y+5); doc.text("Ingreso: "+cfg.fecha_ingreso+"   ·   Egreso: "+cfg.fecha_egreso+"   ·   Motivo: "+(LIQ_MOTIVOS[cfg.motivo]||cfg.motivo),M,y+10); y+=19;
     const fila=(l,v,bold)=>{ if(y>270){ doc.addPage(); y=20; } doc.setFont("helvetica",bold?"bold":"normal"); doc.setFontSize(9.5); doc.text(l,M+2,y); doc.text(v,W-M-2,y,{align:"right"}); doc.setFont("helvetica","normal"); y+=6; };
