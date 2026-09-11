@@ -938,7 +938,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="6.0"; // se incrementa con cada mejora
+const APP_VERSION="6.1"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -2057,6 +2057,8 @@ function calcBeneficiosVE(emp, fechaCorte){ fechaCorte=fechaCorte||hoy(); const 
 
 /* --- Formatos --- */
 function bsN(n){ return (Number(n)||0).toLocaleString("es-VE",{minimumFractionDigits:2,maximumFractionDigits:2})+" Bs"; }
+/* En los PDF (recibo, liquidación) solo se imprime el monto en bolívares, sin la conversión a dólares */
+function pdfBs(n){ return bsN(n); }
 function dualBs(n,tasa){ const u=tasa>0?(Number(n)||0)/tasa:0; return bsN(n)+(tasa>0?"  ($"+u.toLocaleString("es-VE",{minimumFractionDigits:2,maximumFractionDigits:2})+")":""); }
 
 /* --- Vista principal --- */
@@ -2160,7 +2162,7 @@ function _descargarLiquidacionVE(){ const d=liqData(); if(!d){ return; }
   try{ if(ajustes.logo){ const fmt=/png/i.test(ajustes.logo)?"PNG":"JPEG"; doc.addImage(ajustes.logo,fmt,M,5,18,18); } }catch(_){}
   doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.text(ajustes.nombre||"Hipposupermarket",M+22,12);
   doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.text("Liquidacion de prestaciones sociales",M+22,18);
-  doc.setFontSize(8); doc.text("Egreso: "+d.fecha+"   ·   Tasa: "+(b.tasa?bsN(b.tasa)+"/$":"—"),M+22,24);
+  doc.setFontSize(8); doc.text("Egreso: "+d.fecha,M+22,24);
   y=40; doc.setTextColor(30,30,30);
   doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text(e.nombre||"",M,y); doc.setFont("helvetica","normal"); doc.setFontSize(9);
   doc.text("C.I.: "+(e.cedula||"—")+(e.cargo?"   ·   "+e.cargo:"")+(e.area?"   ·   "+e.area:""),M,y+5);
@@ -2169,13 +2171,13 @@ function _descargarLiquidacionVE(){ const d=liqData(); if(!d){ return; }
   const band=(t)=>{ doc.setFillColor(240,244,247); doc.rect(M,y-4,W-2*M,6,"F"); doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.text(t,M+2,y); doc.setFont("helvetica","normal"); y+=6; };
   band("DATOS DE ANTIGUEDAD"); fila("Antiguedad",b.aniosEnt+" ano(s), "+b.mesesTot+" mes(es)"); fila("Salario diario",bsN(b.salDia)); fila("Salario integral diario",bsN(b.salIntDia)); y+=2;
   band("CONCEPTOS DE LIQUIDACION");
-  fila("Prestaciones sociales ("+b.diasGarantia+"+"+b.diasAdic+" dias)",dualBs(b.prestaciones,b.tasa));
-  fila("Vacaciones fraccionadas",dualBs(b.vacFrac,b.tasa));
-  fila("Bono vacacional fraccionado",dualBs(b.bonoVacFrac,b.tasa));
-  fila("Utilidades fraccionadas",dualBs(b.utilFrac,b.tasa));
-  if(d.injust) fila("Indemnizacion por despido (art. 92 LOTTT)",dualBs(d.indemniz,b.tasa));
+  fila("Prestaciones sociales ("+b.diasGarantia+"+"+b.diasAdic+" dias)",pdfBs(b.prestaciones,b.tasa));
+  fila("Vacaciones fraccionadas",pdfBs(b.vacFrac,b.tasa));
+  fila("Bono vacacional fraccionado",pdfBs(b.bonoVacFrac,b.tasa));
+  fila("Utilidades fraccionadas",pdfBs(b.utilFrac,b.tasa));
+  if(d.injust) fila("Indemnizacion por despido (art. 92 LOTTT)",pdfBs(d.indemniz,b.tasa));
   y+=3;
-  doc.setFillColor(15,118,110); doc.rect(M,y-4,W-2*M,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("TOTAL LIQUIDACION",M+2,y+2); doc.text(dualBs(d.total,b.tasa),W-M-2,y+2,{align:"right"}); doc.setTextColor(30,30,30); y+=14;
+  doc.setFillColor(15,118,110); doc.rect(M,y-4,W-2*M,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("TOTAL LIQUIDACION",M+2,y+2); doc.text(pdfBs(d.total,b.tasa),W-M-2,y+2,{align:"right"}); doc.setTextColor(30,30,30); y+=14;
   doc.setFontSize(7.5); doc.setTextColor(150,155,160); doc.text("Documento referencial - verifique los parametros legales con la Gaceta Oficial vigente y su asesor laboral. - "+((e.externo&&e.empresa)?e.empresa:(ajustes.nombre||"")),M,289);
   doc.save("liquidacion_"+(e.nombre||"empleado").replace(/\s+/g,"_")+"_"+d.fecha+".pdf"); toast("Liquidación PDF descargada"); }
 
@@ -2330,19 +2332,19 @@ async function borrarLiqEmp(empId){ if(!esGerencia()){ toast("Solo gerencia"); r
 function pdfLiqNom(empId){ if(!verSueldos()){ toast("Sueldos ocultos"); return; } if(!window.jspdf){ toast("Abre la app publicada para generar el PDF"); return; } const e=liqEmpDe(empId); if(!e) return; const cfg=document.getElementById("lq_salario")?leerLiqForm():liqCfgDe(e); const r=calcLiquidacion(cfg); if(!r){ toast("Indica las fechas de ingreso y egreso"); return; }
   return withLoader("Generando liquidación…", ()=>{ const { jsPDF }=window.jspdf; const doc=new jsPDF(); const W=210,M=14; let y=0;
     doc.setFillColor(15,118,110); doc.rect(0,0,W,30,"F"); try{ if(ajustes.logo){ const fmt=/png/i.test(ajustes.logo)?"PNG":"JPEG"; doc.addImage(ajustes.logo,fmt,M,5,18,18); } }catch(_){}
-    doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.text((e.externo&&e.empresa)?e.empresa:(ajustes.nombre||"Hipposupermarket"),M+22,12); doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.text("Liquidacion de prestaciones sociales",M+22,18); doc.setFontSize(8); doc.text("Egreso: "+cfg.fecha_egreso+"   ·   Tasa: "+bsN(r.tasa)+"/$",M+22,24);
+    doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.text((e.externo&&e.empresa)?e.empresa:(ajustes.nombre||"Hipposupermarket"),M+22,12); doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.text("Liquidacion de prestaciones sociales",M+22,18); doc.setFontSize(8); doc.text("Egreso: "+cfg.fecha_egreso,M+22,24);
     y=40; doc.setTextColor(30,30,30); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text(e.nombre||"",M,y); doc.setFont("helvetica","normal"); doc.setFontSize(9);
     doc.text("C.I.: "+(e.cedula||"—")+(e.cargo?"   ·   "+e.cargo:"")+(e.area?"   ·   "+e.area:""),M,y+5); doc.text("Ingreso: "+cfg.fecha_ingreso+"   ·   Egreso: "+cfg.fecha_egreso+"   ·   Motivo: "+(LIQ_MOTIVOS[cfg.motivo]||cfg.motivo),M,y+10); y+=19;
     const fila=(l,v,bold)=>{ if(y>270){ doc.addPage(); y=20; } doc.setFont("helvetica",bold?"bold":"normal"); doc.setFontSize(9.5); doc.text(l,M+2,y); doc.text(v,W-M-2,y,{align:"right"}); doc.setFont("helvetica","normal"); y+=6; };
     const band=(t)=>{ doc.setFillColor(240,244,247); doc.rect(M,y-4,W-2*M,6,"F"); doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.text(t,M+2,y); doc.setFont("helvetica","normal"); y+=6; };
     band("DATOS"); fila("Antiguedad",r.aniosEnt+" ano(s) y "+r.mesesResto+" mes(es) ("+r.dias+" dias)"); fila("Salario mensual",bsN(r.salMes)); fila("Salario diario",bsN(r.salDia)); fila("Salario integral diario",bsN(r.salIntDia)); y+=2;
-    band("CONCEPTOS"); fila("Prestaciones sociales ("+(r.usarRetro?"retroactivo art. 142.c":"garantia "+r.diasGarantia+"+"+r.diasAdic+" dias")+")",dualBs(r.prestaciones,r.tasa));
-    fila("Vacaciones fraccionadas ("+r.diasVac+" dias x "+r.mesesVac+"/12)",dualBs(r.vacFrac,r.tasa)); fila("Bono vacacional fraccionado ("+r.diasBono+" dias x "+r.mesesVac+"/12)",dualBs(r.bonoFrac,r.tasa));
-    if(r.vacVenc) fila("Vacaciones vencidas ("+cfg.vac_vencidas_dias+" dias)",dualBs(r.vacVenc,r.tasa)); if(r.bonoVenc) fila("Bono vacacional vencido ("+cfg.bono_vencido_dias+" dias)",dualBs(r.bonoVenc,r.tasa));
-    fila("Utilidades fraccionadas ("+r.diasUtil+" dias x "+r.mesesUtil+"/12)",dualBs(r.utilFrac,r.tasa)); if(r.utilPend) fila("Utilidades pendientes ("+cfg.util_pend_dias+" dias)",dualBs(r.utilPend,r.tasa));
-    if(r.injust) fila("Indemnizacion por despido (art. 92 LOTTT)",dualBs(r.indemniz,r.tasa)); if(r.intereses) fila("Intereses sobre prestaciones",dualBs(r.intereses,r.tasa)); if(r.otros) fila("Otros ingresos"+(cfg.otros_desc?" - "+cfg.otros_desc:""),dualBs(r.otros,r.tasa));
-    if(r.deduc){ fila("Subtotal",dualBs(r.subtotal,r.tasa),true); fila("Deducciones"+(cfg.deduc_desc?" - "+cfg.deduc_desc:""),"- "+dualBs(r.deduc,r.tasa)); } y+=3;
-    doc.setFillColor(15,118,110); doc.rect(M,y-4,W-2*M,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("TOTAL LIQUIDACION",M+2,y+2); doc.text(dualBs(r.total,r.tasa),W-M-2,y+2,{align:"right"}); doc.setTextColor(30,30,30); y+=16;
+    band("CONCEPTOS"); fila("Prestaciones sociales ("+(r.usarRetro?"retroactivo art. 142.c":"garantia "+r.diasGarantia+"+"+r.diasAdic+" dias")+")",pdfBs(r.prestaciones,r.tasa));
+    fila("Vacaciones fraccionadas ("+r.diasVac+" dias x "+r.mesesVac+"/12)",pdfBs(r.vacFrac,r.tasa)); fila("Bono vacacional fraccionado ("+r.diasBono+" dias x "+r.mesesVac+"/12)",pdfBs(r.bonoFrac,r.tasa));
+    if(r.vacVenc) fila("Vacaciones vencidas ("+cfg.vac_vencidas_dias+" dias)",pdfBs(r.vacVenc,r.tasa)); if(r.bonoVenc) fila("Bono vacacional vencido ("+cfg.bono_vencido_dias+" dias)",pdfBs(r.bonoVenc,r.tasa));
+    fila("Utilidades fraccionadas ("+r.diasUtil+" dias x "+r.mesesUtil+"/12)",pdfBs(r.utilFrac,r.tasa)); if(r.utilPend) fila("Utilidades pendientes ("+cfg.util_pend_dias+" dias)",pdfBs(r.utilPend,r.tasa));
+    if(r.injust) fila("Indemnizacion por despido (art. 92 LOTTT)",pdfBs(r.indemniz,r.tasa)); if(r.intereses) fila("Intereses sobre prestaciones",pdfBs(r.intereses,r.tasa)); if(r.otros) fila("Otros ingresos"+(cfg.otros_desc?" - "+cfg.otros_desc:""),pdfBs(r.otros,r.tasa));
+    if(r.deduc){ fila("Subtotal",pdfBs(r.subtotal,r.tasa),true); fila("Deducciones"+(cfg.deduc_desc?" - "+cfg.deduc_desc:""),"- "+pdfBs(r.deduc,r.tasa)); } y+=3;
+    doc.setFillColor(15,118,110); doc.rect(M,y-4,W-2*M,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("TOTAL LIQUIDACION",M+2,y+2); doc.text(pdfBs(r.total,r.tasa),W-M-2,y+2,{align:"right"}); doc.setTextColor(30,30,30); y+=16;
     if(cfg.notas){ doc.setFontSize(9); doc.text("Notas: "+cfg.notas,M,y); y+=8; }
     doc.setFontSize(9); doc.text("________________________          ________________________",M,y+16); doc.setFontSize(7.5); doc.text("Firma del trabajador                                          Firma de la empresa",M+6,y+21);
     doc.setFontSize(7.5); doc.setTextColor(150,155,160); doc.text("Documento referencial - verifique los parametros legales con la Gaceta Oficial vigente y su asesor laboral. - "+(ajustes.nombre||""),M,289);
@@ -2398,7 +2400,7 @@ function _descargarReciboVE(empId){ const e=empById(empId); if(!e){ return; } co
   try{ if(ajustes.logo){ const fmt=/png/i.test(ajustes.logo)?"PNG":"JPEG"; doc.addImage(ajustes.logo,fmt,M,5,18,18); } }catch(_){}
   doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.text(ajustes.nombre||"Hipposupermarket",M+22,12);
   doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.text("Recibo de pago de nómina",M+22,18);
-  doc.setFontSize(8); doc.text("Período: "+per+"   ·   Tasa: "+(n.tasa?bsN(n.tasa)+"/$":"—"),M+22,24);
+  doc.setFontSize(8); doc.text("Período: "+per,M+22,24);
   y=40; doc.setTextColor(30,30,30);
   doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text(e.nombre||"",M,y); doc.setFont("helvetica","normal"); doc.setFontSize(9);
   doc.text("C.I.: "+(e.cedula||"—")+(e.cargo?"   ·   "+e.cargo:"")+(e.area?"   ·   "+e.area:""),M,y+5); y+=14;
@@ -2406,8 +2408,8 @@ function _descargarReciboVE(empId){ const e=empById(empId); if(!e){ return; } co
   const band=(t)=>{ doc.setFillColor(240,244,247); doc.rect(M,y-4,W-2*M,6,"F"); doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.text(t,M+2,y); doc.setFont("helvetica","normal"); y+=6; };
   band("ASIGNACIONES"); fila("Salario del mes",bsN(n.salMes)); n.detAsig.forEach(a=>fila(a.nombre,bsN(a.monto))); fila("Cestaticket / bono alimentacion",bsN(n.cesta)); fila("Total asignaciones",bsN(n.totalAsig),true); y+=2;
   band("DEDUCCIONES"); fila("IVSS (Seguro Social)",bsN(n.ivss)); fila("Paro forzoso (RPE)",bsN(n.paro)); fila("FAOV (Ley de Vivienda)",bsN(n.faov)); if(n.islr>0) fila("ISLR",bsN(n.islr)); n.detDed.forEach(a=>fila(a.nombre,bsN(a.monto))); if(n.retardoBs>0) fila("Retardos",bsN(n.retardoBs)); fila("Total deducciones",bsN(n.totalDed),true); y+=3;
-  doc.setFillColor(15,118,110); doc.rect(M,y-4,W-2*M,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("NETO A PAGAR",M+2,y+2); doc.text(dualBs(n.neto,n.tasa),W-M-2,y+2,{align:"right"}); doc.setTextColor(30,30,30); y+=14;
-  if(b && _reciboBenef){ band("BENEFICIOS ACUMULADOS (ESTIMADO)"); fila("Antiguedad",b.aniosEnt+" ano(s), "+b.mesesTot+" mes(es)"); fila("Prestaciones sociales",dualBs(b.prestaciones,b.tasa)); fila("Vacaciones ("+b.diasVac+" dias)",dualBs(b.vacaciones,b.tasa)); fila("Bono vacacional",dualBs(b.bonoVac,b.tasa)); fila("Utilidades fraccionadas",dualBs(b.utilFrac,b.tasa)); }
+  doc.setFillColor(15,118,110); doc.rect(M,y-4,W-2*M,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text("NETO A PAGAR",M+2,y+2); doc.text(pdfBs(n.neto,n.tasa),W-M-2,y+2,{align:"right"}); doc.setTextColor(30,30,30); y+=14;
+  if(b && _reciboBenef){ band("BENEFICIOS ACUMULADOS (ESTIMADO)"); fila("Antiguedad",b.aniosEnt+" ano(s), "+b.mesesTot+" mes(es)"); fila("Prestaciones sociales",pdfBs(b.prestaciones,b.tasa)); fila("Vacaciones ("+b.diasVac+" dias)",pdfBs(b.vacaciones,b.tasa)); fila("Bono vacacional",pdfBs(b.bonoVac,b.tasa)); fila("Utilidades fraccionadas",pdfBs(b.utilFrac,b.tasa)); }
   doc.setFontSize(7.5); doc.setTextColor(150,155,160); doc.text("Documento referencial - verifique los parametros legales con la Gaceta Oficial vigente y su asesor laboral. - "+(ajustes.nombre||""),M,289);
   doc.save("recibo_"+(e.nombre||"empleado").replace(/\s+/g,"_")+"_"+per+".pdf"); toast("Recibo PDF descargado"); }
 function descargarCV(id){ const c=db.list("candidatos").find(x=>x.id===id); if(!c||!c.cv_data) return;
