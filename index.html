@@ -15,7 +15,10 @@
 <link rel="manifest" href='data:application/manifest+json,{"name":"Hipposupermarket","short_name":"Hippo","start_url":".","scope":".","display":"standalone","background_color":"%230d9488","theme_color":"%230d9488","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27192%27 height=%27192%27%3E%3Crect width=%27192%27 height=%27192%27 rx=%2742%27 fill=%27%230d9488%27/%3E%3Ctext x=%2796%27 y=%27138%27 font-size=%27118%27 text-anchor=%27middle%27%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E","sizes":"192x192","type":"image/svg+xml"},{"src":"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27512%27 height=%27512%27%3E%3Crect width=%27512%27 height=%27512%27 rx=%27110%27 fill=%27%230d9488%27/%3E%3Ctext x=%27256%27 y=%27368%27 font-size=%27315%27 text-anchor=%27middle%27%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E","sizes":"512x512","type":"image/svg+xml"}]}' />
 <title>Hipposupermarket</title>
 
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
+<script>try{ tailwind.config={ theme:{ extend:{ fontFamily:{ sans:["Inter","system-ui","-apple-system","Segoe UI","Roboto","sans-serif"] } } } }; }catch(_){}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -97,6 +100,138 @@
   .fin-bubble img{ width:32px; height:32px; border-radius:99px; background:#fff; object-fit:contain; padding:2px; }
   .fin-bubble b{ font-size:12px; display:block; line-height:1.1; } .fin-bubble small{ font-size:9px; opacity:.9; display:flex; align-items:center; gap:4px; }
   .fin-bubble small i{ width:6px; height:6px; border-radius:99px; background:#86efac; display:inline-block; }
+  /* ===================== SISTEMA DE DISEÑO HIPPO (v5) ===================== */
+  :root{ --hp-bg:#f2f6f7; --hp-card:#ffffff; --hp-line:#e4ebee; --hp-ink:#0f172a; --hp-muted:#64748b; --hp-teal:#0d9488; --hp-teal-700:#0f766e; --hp-teal-900:#134e4a; --hp-mint:#e6f7f5; --hp-sh:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05); }
+  body{ background:var(--hp-bg); font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; color:var(--hp-ink); }
+  main .bg-white.rounded-2xl, main .bg-white.rounded-xl, main .bg-white.rounded-3xl{ border:1px solid var(--hp-line); box-shadow:var(--hp-sh) !important; }
+  main .shadow-sm{ box-shadow:var(--hp-sh) !important; }
+  main button, main label[class*="rounded"]{ font-weight:600; letter-spacing:.005em; transition:transform .08s ease, box-shadow .12s ease, filter .12s ease; }
+  main button.rounded-xl, main button.rounded-lg, main label.rounded-xl, main label.rounded-lg{ border-radius:12px; }
+  main button:hover{ filter:brightness(1.03); } main button:active{ transform:scale(.98); }
+  main input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]), main select, main textarea, #modal input:not([type=checkbox]):not([type=radio]):not([type=file]), #modal select, #modal textarea{ background:#fff; border:1px solid #dbe4e9; border-radius:12px; transition:border-color .12s, box-shadow .12s; }
+  main input:focus, main select:focus, main textarea:focus, #modal input:focus, #modal select:focus, #modal textarea:focus{ outline:none; border-color:var(--hp-teal); box-shadow:0 0 0 3px rgba(13,148,136,.14); }
+  main h2{ letter-spacing:-.015em; font-size:1.25rem; }
+  #modal > div.absolute.inset-x-0{ border-radius:26px 26px 0 0; box-shadow:0 -12px 48px rgba(15,23,42,.2); }
+  @media (min-width:900px){
+    #modal > div.absolute.inset-x-0{ bottom:auto; top:50%; left:50%; right:auto; transform:translate(-50%,-50%); border-radius:22px; width:min(780px,92vw); max-height:88vh; padding:24px 26px; }
+    #modal > div.absolute.inset-x-0 > .w-10{ display:none; }
+  }
+  #toast{ border-radius:99px; padding:10px 18px; font-weight:600; box-shadow:0 10px 30px rgba(15,23,42,.25); }
+  [id^="tiles"] > button{ border:1px solid var(--hp-line); border-radius:18px; padding:14px 8px 12px; gap:8px; }
+  [id^="tiles"] > button > span:first-child{ width:46px; height:46px; border-radius:14px; background:var(--hp-mint); display:grid; place-items:center; font-size:22px; }
+  [id^="tiles"] > button > span:last-child{ color:#334155; }
+  main > section > h3.text-slate-600{ font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; }
+  /* ===================== SHELL ===================== */
+  .hp-shell{ display:flex; align-items:flex-start; min-height:100vh; }
+  .hp-side{ display:none; }
+  .hp-content{ flex:1; min-width:0; }
+  @media (min-width:900px){
+    .hp-side{ display:flex; flex-direction:column; width:240px; flex-shrink:0; position:sticky; top:0; height:100vh; overflow-y:auto; background:linear-gradient(180deg,#134e4a 0%,#0f3d3a 100%); color:#fff; padding:18px 12px 14px; }
+    .hp-content > header{ background:#fff !important; color:var(--hp-ink) !important; box-shadow:none !important; border-bottom:1px solid var(--hp-line); }
+    .hp-content > header .bg-white\/15{ background:#f1f5f9 !important; color:#334155 !important; }
+    .hp-content > header #hSub{ color:var(--hp-muted) !important; }
+    .hp-content > header > div{ max-width:1180px; padding-top:12px; padding-bottom:12px; }
+    main{ max-width:1180px !important; padding-bottom:48px !important; padding-left:28px; padding-right:28px; }
+    #brandIcon, #btnMenu, #modeBadge{ display:none !important; }
+    nav.fixed.bottom-0{ display:none !important; }
+    .fin-side{ display:none !important; }
+    #modal > div.absolute.inset-x-0{ margin-left:120px; }
+    [id^="tiles"]{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)) !important; gap:12px !important; }
+    .hp-quick button{ min-width:92px; }
+  }
+  .hp-side .brand{ display:flex; align-items:center; gap:10px; padding:4px 8px 14px; }
+  .hp-side .brand img{ width:36px; height:36px; border-radius:11px; background:#fff; object-fit:contain; padding:3px; }
+  .hp-side .brand b{ font-size:15px; display:block; line-height:1.1; } .hp-side .brand small{ font-size:10px; opacity:.6; }
+  .hp-side .grp{ font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:rgba(255,255,255,.45); margin:14px 12px 5px; font-weight:700; }
+  .hp-side .it{ display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:12px; color:rgba(255,255,255,.78); font-size:13px; width:100%; text-align:left; background:transparent; border:0; font-family:inherit; cursor:pointer; transition:background .12s; }
+  .hp-side .it .ic{ width:20px; text-align:center; font-size:14px; }
+  .hp-side .it.on{ background:#14b8a6; color:#fff; font-weight:600; box-shadow:0 6px 14px rgba(20,184,166,.32); }
+  .hp-side .it:hover{ background:rgba(255,255,255,.08); color:#fff; }
+  .hp-side .foot{ margin-top:auto; padding:12px 8px 0; border-top:1px solid rgba(255,255,255,.1); font-size:11px; color:rgba(255,255,255,.65); display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .hp-side .foot button{ background:rgba(255,255,255,.1); color:#fff; border:0; border-radius:9px; padding:6px 10px; font-size:11px; font-weight:600; cursor:pointer; }
+  .hp-menu-grp{ font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:#94a3b8; font-weight:700; margin:12px 2px 6px; }
+  .hp-menu-it{ display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:10px 12px; border-radius:12px; background:#f8fafc; border:1px solid var(--hp-line); font-size:13px; color:#334155; margin-bottom:6px; }
+  .hp-menu-it.on{ background:var(--hp-mint); border-color:#99f6e4; color:var(--hp-teal-700); font-weight:700; }
+  /* ===================== INICIO ===================== */
+  .hp-hero{ background:linear-gradient(135deg,#0f766e 0%,#0d9488 55%,#14b8a6 100%); color:#fff; border-radius:22px; padding:18px 18px 16px; box-shadow:0 12px 30px rgba(13,148,136,.28); position:relative; overflow:hidden; }
+  .hp-hero:after{ content:""; position:absolute; right:-40px; top:-40px; width:180px; height:180px; border-radius:99px; background:rgba(255,255,255,.08); }
+  .hp-hero h2{ font-size:1.35rem; font-weight:800; letter-spacing:-.02em; margin:0; color:#fff; }
+  .hp-hero p{ font-size:12px; opacity:.85; margin-top:2px; }
+  .hp-quick{ display:flex; gap:8px; overflow-x:auto; padding:14px 0 2px; -webkit-overflow-scrolling:touch; position:relative; }
+  .hp-quick button{ flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:5px; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.22); color:#fff; border-radius:14px; padding:9px 12px; min-width:76px; font-size:10.5px; font-weight:600; }
+  .hp-quick button span:first-child{ font-size:20px; }
+  .hp-kpis{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:12px; }
+  @media (min-width:900px){ .hp-kpis{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
+  .hp-kpi{ background:#fff; border:1px solid var(--hp-line); border-radius:18px; padding:14px; box-shadow:var(--hp-sh); cursor:pointer; display:flex; gap:12px; align-items:center; }
+  .hp-kpi .ic{ width:40px; height:40px; border-radius:12px; display:grid; place-items:center; font-size:19px; flex-shrink:0; }
+  .hp-kpi .l{ font-size:10.5px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+  .hp-kpi .v{ font-size:18px; font-weight:800; color:var(--hp-ink); line-height:1.15; }
+  .hp-alerts{ background:#fff; border:1px solid var(--hp-line); border-radius:18px; padding:12px 14px; box-shadow:var(--hp-sh); margin-top:12px; }
+  .hp-alerts .row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-top:1px solid #f1f5f9; font-size:13px; cursor:pointer; }
+  .hp-alerts .row:first-of-type{ border-top:0; }
+  .hp-alerts .row b{ color:var(--hp-teal-700); font-size:12px; }
+  .hp-indic-toggle{ width:100%; margin-top:12px; background:#fff; border:1px solid var(--hp-line); border-radius:14px; padding:10px; font-size:12px; font-weight:700; color:var(--hp-teal-700); }
+  .hp-foot{ display:flex; flex-wrap:wrap; gap:8px; margin-top:22px; }
+  .hp-foot button{ flex:1; min-width:140px; }
+
+  /* ===================== TEMA TECH v5.1 — moderno, glass y degradados ===================== */
+  :root{ --hp-grad:linear-gradient(135deg,#0d9488 0%,#0891b2 100%); --hp-grad2:linear-gradient(135deg,#14b8a6,#06b6d4 60%,#6366f1); --hp-glow:0 10px 26px rgba(8,145,178,.28); }
+  body{ background:#eef3f6 radial-gradient(900px 520px at 8% -10%, rgba(13,148,136,.16), transparent 60%), radial-gradient(760px 420px at 110% 8%, rgba(6,182,212,.14), transparent 60%), radial-gradient(640px 420px at 50% 120%, rgba(99,102,241,.10), transparent 60%); background-attachment:fixed; }
+  /* Tarjetas de cristal */
+  main .bg-white.rounded-2xl, main .bg-white.rounded-xl, main .bg-white.rounded-3xl, .hp-kpi, .hp-alerts, .fin-metric, .fin-chart, .fin-cuentas, .fin-card{ background:rgba(255,255,255,.80) !important; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.75) !important; box-shadow:0 10px 30px rgba(15,23,42,.06), inset 0 1px 0 rgba(255,255,255,.9) !important; transition:transform .16s ease, box-shadow .16s ease; }
+  main [onclick].rounded-2xl:hover, [id^="tiles"] > button:hover, .hp-kpi:hover{ transform:translateY(-2px); box-shadow:0 16px 36px rgba(13,148,136,.16), inset 0 1px 0 rgba(255,255,255,.9) !important; }
+  /* Botones principales con degradado y brillo */
+  main button.bg-teal-700, main button.bg-teal-600, #modal button.bg-teal-700, #modal button.bg-teal-600, main label.bg-teal-700, main button.bg-emerald-600, #modal button.bg-emerald-600{ background:var(--hp-grad) !important; box-shadow:var(--hp-glow); border:0; }
+  main button.bg-slate-800, #modal button.bg-slate-800{ background:linear-gradient(135deg,#1e293b,#0f172a) !important; box-shadow:0 8px 18px rgba(15,23,42,.25); }
+  main button.bg-slate-200, #modal button.bg-slate-200{ background:rgba(241,245,249,.9) !important; border:1px solid #e2e8f0; }
+  /* Cabecera */
+  .hp-content > header{ background:linear-gradient(90deg,#0f766e 0%,#0d9488 55%,#0891b2 100%) !important; box-shadow:0 6px 24px rgba(8,145,178,.25) !important; }
+  @media (min-width:900px){ .hp-content > header{ background:rgba(255,255,255,.72) !important; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); box-shadow:none !important; } }
+  /* Menú lateral con resplandor */
+  .hp-side{ position:sticky; background:linear-gradient(180deg,#0b2f2c 0%,#0e3b39 50%,#0b2a3a 100%) !important; }
+  @media (min-width:900px){ .hp-side{ box-shadow:inset -1px 0 0 rgba(255,255,255,.06); } }
+  .hp-side:before{ content:""; position:absolute; inset:0; background:radial-gradient(520px 320px at -10% -10%, rgba(45,212,191,.35), transparent 60%), radial-gradient(420px 320px at 120% 110%, rgba(99,102,241,.28), transparent 60%); pointer-events:none; }
+  .hp-side > *{ position:relative; }
+  .hp-side .brand img{ box-shadow:0 0 0 3px rgba(45,212,191,.35), 0 8px 20px rgba(0,0,0,.35); }
+  .hp-side .it{ border:1px solid transparent; }
+  .hp-side .it:hover{ background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.08); }
+  .hp-side .it.on{ background:var(--hp-grad2); box-shadow:0 10px 24px rgba(6,182,212,.45), inset 0 1px 0 rgba(255,255,255,.35); border-color:rgba(255,255,255,.2); }
+  /* Hero animado con malla de puntos */
+  .hp-hero{ background:linear-gradient(120deg,#0f766e,#0d9488,#0891b2,#6366f1,#0d9488); background-size:300% 300%; animation:hpGrad 14s ease infinite; box-shadow:0 18px 44px rgba(8,145,178,.35); }
+  .hp-hero:before{ content:""; position:absolute; inset:0; background-image:radial-gradient(rgba(255,255,255,.22) 1px, transparent 1.2px); background-size:18px 18px; opacity:.45; pointer-events:none; }
+  .hp-hero > *{ position:relative; }
+  .hp-quick button{ background:rgba(255,255,255,.16); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.3); box-shadow:inset 0 1px 0 rgba(255,255,255,.35); transition:transform .12s, background .12s; }
+  .hp-quick button:hover{ background:rgba(255,255,255,.26); transform:translateY(-2px); }
+  /* KPIs: barra de acento, ícono con relieve, número con degradado */
+  .hp-kpi{ position:relative; overflow:hidden; }
+  .hp-kpi:before{ content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--hp-grad2); }
+  .hp-kpi .ic{ box-shadow:inset 0 1px 0 rgba(255,255,255,.7), 0 6px 14px rgba(15,23,42,.08); }
+  .hp-kpi .v{ background:linear-gradient(90deg,#0f172a 0%,#0f766e 100%); -webkit-background-clip:text; background-clip:text; color:transparent; animation:hpPop .5s cubic-bezier(.2,.8,.2,1) both; }
+  .hp-alerts .row b{ background:var(--hp-grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  /* Mosaicos: íconos con degradado por grupo */
+  [id^="tiles"] > button{ background:rgba(255,255,255,.78) !important; backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,.75); box-shadow:0 8px 24px rgba(15,23,42,.05); transition:transform .14s, box-shadow .14s; }
+  [id^="tiles"] > button > span:first-child{ box-shadow:inset 0 1px 0 rgba(255,255,255,.7), 0 6px 14px rgba(15,23,42,.08); }
+  #tilesRRHH > button > span:first-child{ background:linear-gradient(135deg,#e0e7ff,#c7d2fe); }
+  #tilesSup  > button > span:first-child{ background:linear-gradient(135deg,#fef3c7,#fde68a); }
+  #tilesProd > button > span:first-child{ background:linear-gradient(135deg,#ffedd5,#fed7aa); }
+  #tilesFin  > button > span:first-child{ background:linear-gradient(135deg,#d1fae5,#a7f3d0); }
+  /* Barra inferior flotante (móvil) */
+  nav.fixed.bottom-0{ background:rgba(255,255,255,.84) !important; backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-top:1px solid rgba(255,255,255,.7) !important; box-shadow:0 -8px 30px rgba(15,23,42,.08); }
+  nav .tab .navic{ transition:transform .15s, background .15s; border-radius:12px; padding:2px 10px; }
+  nav .tab.text-teal-700 .navic{ background:var(--hp-grad); color:#fff; box-shadow:0 6px 14px rgba(8,145,178,.35); transform:translateY(-2px); }
+  nav .tab.text-teal-700 .tl{ font-weight:700; }
+  /* Toast, modal, zona de carga */
+  #toast{ background:linear-gradient(135deg,#0f172a,#134e4a) !important; box-shadow:0 12px 30px rgba(13,148,136,.35); }
+  #modal > div.absolute.inset-x-0{ background:rgba(255,255,255,.96); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
+  #loadingZone{ background:rgba(238,243,246,.82); }
+  #loadingZone .lz-bar span{ background:var(--hp-grad2); }
+  /* Transición al cambiar de sección */
+  main > section[data-view]:not([hidden]){ animation:hpIn .32s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes hpIn{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:none; } }
+  @keyframes hpGrad{ 0%{ background-position:0% 50%; } 50%{ background-position:100% 50%; } 100%{ background-position:0% 50%; } }
+  @keyframes hpPop{ from{ opacity:0; transform:translateY(6px) scale(.98); } to{ opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: reduce){ .hp-hero, main > section[data-view], .hp-kpi .v{ animation:none !important; } }
+
   /* gráficos */
   .fin-chart{ background:#fff; border-radius:18px; padding:14px 16px; box-shadow:0 1px 3px rgba(15,23,42,.06); }
   .fin-grid2{ display:grid; grid-template-columns:1fr; gap:12px; }
@@ -124,10 +259,14 @@
   };
 </script>
 
+<div class="hp-shell">
+<aside id="sideNav" class="hp-side"></aside>
+<div class="hp-content">
 <header class="sticky top-0 z-30 bg-teal-700 text-white shadow-md">
   <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
     <div class="flex items-center gap-2">
       <button id="btnBack" onclick="goBack()" class="hidden w-8 h-8 rounded-lg bg-white/15 grid place-items-center">‹</button>
+      <button id="btnMenu" onclick="abrirMenuCompleto()" title="Menú" class="w-8 h-8 rounded-lg bg-white/15 grid place-items-center text-base">☰</button>
       <div id="brandIcon" class="w-9 h-9 rounded-xl bg-white/15 grid place-items-center text-lg overflow-hidden">🛒</div>
       <div>
         <h1 id="hTitle" class="font-bold leading-tight">SuperGestión</h1>
@@ -242,6 +381,9 @@
 
   <!-- ======== INICIO ======== -->
   <section data-view="inicio" hidden>
+    <div id="inicioHero"></div>
+    <button id="btnIndic" onclick="toggleIndicadores()" class="hp-indic-toggle">📊 Ver indicadores detallados</button>
+    <div id="indicadoresWrap" style="display:none" class="mt-3">
     <div id="hResumen" class="flex items-center justify-between mb-2"><h3 class="font-bold text-sm text-slate-600">Resumen</h3>
       <select id="filtroAreaResumen" onchange="render()" class="text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white"><option value="">Todas las áreas</option></select></div>
     <div id="resumenBox" class="grid grid-cols-2 gap-3">
@@ -262,6 +404,7 @@
       <div id="card_compC" onclick="show('compras')" class="bg-white rounded-2xl p-4 shadow-sm cursor-pointer active:bg-slate-50"><p class="text-xs text-slate-500">Capital detenido en C</p><p id="mCompC" class="text-2xl font-bold text-amber-600">0</p></div>
     </div>
     <div id="desgloseAreas" class="mt-3"></div>
+    </div><!-- /indicadoresWrap -->
 
     <h3 id="hRRHH" class="font-bold text-sm mt-5 mb-2 text-slate-600">Personal y RRHH</h3>
     <div class="grid grid-cols-3 gap-3" id="tilesRRHH"></div>
@@ -275,10 +418,12 @@
     <h3 id="hFin" class="font-bold text-sm mt-5 mb-2 text-slate-600">Caja y Finanzas</h3>
     <div class="grid grid-cols-3 gap-3" id="tilesFin"></div>
 
-    <button id="btnReportePDF" onclick="descargarReportePDF()" style="display:none" class="w-full mt-6 bg-slate-800 text-white font-semibold py-3 rounded-xl active:bg-slate-900">📄 Descargar reporte general (PDF)</button>
-    <button onclick="sincronizarMaestro()" class="w-full mt-3 bg-teal-600 text-white font-semibold py-3 rounded-xl active:bg-teal-700">🔄 Sincronizar</button>
-    <p id="ultSync" class="text-[11px] text-center mt-1 text-slate-400">Última sincronización: —</p>
-    <button onclick="logout()" class="w-full mt-2 bg-white border border-slate-200 text-slate-600 font-semibold py-3 rounded-xl active:bg-slate-50">⎋ Cerrar sesión</button>
+    <div class="hp-foot">
+      <button id="btnReportePDF" onclick="descargarReportePDF()" style="display:none" class="bg-slate-800 text-white font-semibold py-3 rounded-xl">📄 Reporte general (PDF)</button>
+      <button onclick="sincronizarMaestro()" class="bg-teal-600 text-white font-semibold py-3 rounded-xl">🔄 Sincronizar</button>
+      <button onclick="logout()" class="bg-white border border-slate-200 text-slate-600 font-semibold py-3 rounded-xl">⎋ Cerrar sesión</button>
+    </div>
+    <p id="ultSync" class="text-[11px] text-center mt-2 text-slate-400">Última sincronización: —</p>
   </section>
 
   <!-- ======== EMPLEADOS ======== -->
@@ -566,6 +711,7 @@
       <button id="btnTesMes" onclick="tesPeriodo='mes';renderTesoreria()" class="flex-1 text-sm font-semibold py-2 rounded-xl bg-slate-200">Mensual</button>
     </div>
     <input id="tesFecha" type="date" onchange="renderTesoreria()" class="w-full mb-3 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" />
+    <div id="tesFiscalBox"></div>
     <div id="tesBancos" class="mb-3"></div>
     <div id="tesoreriaCont"></div>
   </section>
@@ -696,6 +842,8 @@
   </section>
   <p id="appVersion" class="text-center text-[10px] text-slate-400 mt-8 mb-24"></p>
 </main>
+</div><!-- /hp-content -->
+</div><!-- /hp-shell -->
 
 <!-- Barra inferior -->
 <nav class="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 safe-bottom">
@@ -739,7 +887,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.64"; // se incrementa con cada mejora
+const APP_VERSION="5.2"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1195,7 +1343,7 @@ function renderConexiones(){ const el=document.getElementById("conexFecha"); if(
 function aplicarPermisos(){
   const any=(arr)=> arr.some(v=>puede(v));
   const showTab=(name,vis)=>{ const b=document.querySelector('.tab[data-tab="'+name+'"]'); if(b) b.style.display=vis?"":"none"; };
-  pintarNav(); showTab("ajustes",puede("ajustes")||(currentUser&&currentUser.es_gerencia));
+  pintarNav(); showTab("ajustes",puede("ajustes")||(currentUser&&currentUser.es_gerencia)); try{ renderSideNav(); }catch(_){}
   const rb=document.getElementById("rolBadge"); if(rb) rb.textContent=(currentUser?currentUser.nombre:"")+" ⎋";
   aplicarIdiomaUsuario(); pintarCampana(); pintarIdioma();
 }
@@ -1277,6 +1425,7 @@ function show(view){
   currentView=view;
   document.querySelectorAll("[data-view]").forEach(s=> s.hidden = s.dataset.view!==view);
   { const mn=document.querySelector("main"); if(mn) mn.classList.toggle("fin-wide", view==="deudas"); }
+  try{ renderSideNav(); }catch(_){}
   const mod=MODULES[view];
   document.getElementById("btnBack").classList.toggle("hidden", !mod);
   document.getElementById("hTitle").textContent = mod? t(mod.title) : (view==="ajustes"?t("Ajustes"):view==="piso"?t("Piso de venta"):ajustes.nombre||"SuperGestión");
@@ -1291,6 +1440,45 @@ function show(view){
 function goBack(){ const mod=MODULES[currentView]; show(mod? "inicio":"inicio"); }
 document.querySelectorAll(".tab").forEach(b=> b.onclick=()=>show(b.dataset.target||b.dataset.tab));
 
+/* ===================== SHELL v5: menú lateral (escritorio) y menú completo (móvil) ===================== */
+const NAV_ACCIONES={gastos:"openGastos()"};
+function gruposNavegacion(){ const g=[]; const t=(l)=>window.t?window.t(l):l;
+  g.push({titulo:"", items:[["inicio","🏠",t("Inicio")]]});
+  const add=(titulo,arr)=>{ const items=arr.filter(([v])=>puede(v)).map(([v,ic,l])=>[v,ic,t(l)]); if(items.length) g.push({titulo:t(titulo),items}); };
+  add("Personal y RRHH",TILES_RRHH); add("Supervisores",TILES_SUP); add("Productos y Compras",TILES_PROD); add("Caja y Finanzas",TILES_FIN);
+  if(puede("ajustes")||(currentUser&&currentUser.es_gerencia)) g.push({titulo:"", items:[["ajustes","⚙️",t("Ajustes")]]});
+  return g; }
+function navIr(v){ if(NAV_ACCIONES[v]){ closeModal(); try{ eval(NAV_ACCIONES[v]); }catch(_){} return; } closeModal(); show(v); }
+function renderSideNav(){ const el=document.getElementById("sideNav"); if(!el) return; if(!currentUser){ el.innerHTML=""; return; }
+  const logo=(ajustes&&ajustes.logo)?ajustes.logo:(typeof LOGO_DEFAULT!=="undefined"?LOGO_DEFAULT:""); const mod=MODULES[currentView]; const act=currentView;
+  el.innerHTML=`<div class="brand"><img src="${logo}" alt=""><div><b>${esc(ajustes.nombre||"Hipposupermarket")}</b><small>v${APP_VERSION} · ${USE_CLOUD?"compartido":"local"}</small></div></div>
+    ${gruposNavegacion().map(gr=>(gr.titulo?`<div class="grp">${esc(gr.titulo)}</div>`:"")+gr.items.map(([v,ic,l])=>`<button class="it ${v===act?"on":""}" onclick="navIr('${v}')"><span class="ic">${ic}</span><span>${esc(l)}</span></button>`).join("")).join("")}
+    <div class="foot"><span class="truncate">👤 ${esc(currentUser.nombre||"")}</span><button onclick="logout()">Salir</button></div>`; }
+function abrirMenuCompleto(){ if(!currentUser) return; const act=currentView;
+  openModal(`<h3 class="font-bold text-lg mb-1">Menú</h3><p class="text-xs text-slate-500 mb-2">Todas las secciones de la app</p>
+    <div class="max-h-[70vh] overflow-y-auto pr-1">${gruposNavegacion().map(gr=>(gr.titulo?`<div class="hp-menu-grp">${esc(gr.titulo)}</div>`:"")+gr.items.map(([v,ic,l])=>`<button class="hp-menu-it ${v===act?"on":""}" onclick="navIr('${v}')"><span>${ic}</span><span>${esc(l)}</span></button>`).join("")).join("")}</div>
+    <button onclick="closeModal()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`); }
+/* ===================== INICIO v5: saludo, accesos rápidos, KPIs y pendientes ===================== */
+function toggleIndicadores(){ const w=document.getElementById("indicadoresWrap"), b=document.getElementById("btnIndic"); if(!w) return; const on=w.style.display==="none"; w.style.display=on?"":"none"; if(b) b.textContent=on?"📊 Ocultar indicadores detallados":"📊 Ver indicadores detallados"; }
+function renderInicioHero(){ const h=document.getElementById("inicioHero"); if(!h) return; if(!currentUser){ h.innerHTML=""; return; }
+  const nombre=String(currentUser.nombre||"").trim().split(" ")[0]; const hoyF=hoy(); const mes=hoyF.slice(0,7); const hora=new Date().getHours(); const saludo=hora<12?"Buenos días":hora<19?"Buenas tardes":"Buenas noches";
+  const puedeFin=puede("deudas"), puedeCaja=puede("caja");
+  const cierresHoy=db.list("cierres_caja").filter(c=>!c.arqueo && c.fecha===hoyF); let ventasHoy=0; cierresHoy.forEach(c=>{ try{ ventasHoy+=(calcCierre(c).facturadoUsd||0); }catch(_){}} );
+  let M=null; try{ M=(puedeFin||puedeCaja)?finMetrics(mes):null; }catch(_){} let deuda=0; try{ deuda=puedeFin?deudaPendienteUsd():0; }catch(_){}
+  const kpis=[]; if(puedeCaja) kpis.push(["💵","#dcfce7","Ventas de hoy",money(ventasHoy),"caja"]); if(puedeCaja&&M) kpis.push(["📈","#e0f2fe","Ventas del mes",money(M.ingUsd),"tesoreria"]);
+  if(puedeFin) kpis.push(["⚠️",deuda>0.005?"#ffe4e6":"#dcfce7","Deuda a proveedores",money(deuda),"deudas"]); if(puedeFin&&M) kpis.push(["🧾","#fef3c7","Gastos del mes",money(M.egrUsd),"deudas"]);
+  if(!kpis.length){ const emps=db.list("empleados").filter(e=>e.estado!=="Inactivo").length; if(puede("empleados")) kpis.push(["👥","#e0e7ff","Empleados activos",String(emps),"empleados"]); const tp=db.list("tareas").filter(t=>(t.estado||"Pendiente")!=="Hecha").length; if(puede("tareas")) kpis.push(["✅","#dcfce7","Tareas pendientes",String(tp),"tareas"]); }
+  const al=[]; const bajo=db.list("productos").filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0)).length; if(bajo&&puede("inventario")) al.push(["📦",bajo.toLocaleString("es-VE")+" producto(s) bajo mínimo","inventario"]);
+  const qb=db.list("quiebres").filter(q=>(q.status||"Pendiente")!=="Resuelto").length; if(qb&&puede("quiebre")) al.push(["🚨",qb+" quiebre(s) pendiente(s)","quiebre"]);
+  const tp=db.list("tareas").filter(t=>(t.estado||"Pendiente")!=="Hecha").length; if(tp&&puede("tareas")) al.push(["✅",tp+" tarea(s) pendiente(s)","tareas"]);
+  const inc=db.list("piso_incidencias").filter(x=>x.estado!=="Resuelta").length; if(inc&&puede("piso")) al.push(["🏬",inc+" incidencia(s) de piso abierta(s)","piso"]);
+  try{ if(puedeCaja && cierresHoy.length && !cierreDiaDe(hoyF) && hora>=18) al.push(["🔒","Falta el cierre total del día","caja"]); }catch(_){}
+  try{ const venc=db.list("facturas_rec").filter(f=>frPend(f)>0.005 && String(f.fecha||"")<hoyF).length; if(venc&&puedeFin) al.push(["📥",venc+" factura(s) vencida(s) por pagar","deudas"]); }catch(_){}
+  const acc=[]; if(puedeFin) acc.push(["🧾","Gasto","openGastos()"]); if(puedeFin) acc.push(["💵","Pago","openPagoProv()"]); if(puedeCaja) acc.push(["🏧","Caja","show('caja')"]); if(puede("inventario")) acc.push(["📤","Salida","show('inventario');setTimeout(()=>{ try{ openSalida(); }catch(_){}} ,350)"]); if(puede("tareas")) acc.push(["✅","Tarea","show('tareas');setTimeout(()=>{ try{ openTarea(); }catch(_){}} ,350)"]); if(puede("empleados")) acc.push(["👥","Personal","show('empleados')"]); if(puede("piso")) acc.push(["🏬","Piso","show('piso')"]);
+  h.innerHTML=`<div class="hp-hero"><h2>${saludo}${nombre?", "+esc(nombre):""} 👋</h2><p>${esc(finFechaLarga())} · ${esc(ajustes.nombre||"Hipposupermarket")}</p>
+      ${acc.length?`<div class="hp-quick">${acc.map(([ic,l,fn])=>`<button onclick="${fn.replace(/"/g,"&quot;")}"><span>${ic}</span><span>${l}</span></button>`).join("")}</div>`:""}</div>
+    ${kpis.length?`<div class="hp-kpis">${kpis.map(([ic,bg,l,v,go])=>`<div class="hp-kpi" onclick="show('${go}')"><div class="ic" style="background:${bg}">${ic}</div><div class="min-w-0"><p class="l">${l}</p><p class="v truncate">${verSueldos()||!/Ventas|Deuda|Gastos/.test(l)?v:"•••"}</p></div></div>`).join("")}</div>`:""}
+    <div class="hp-alerts"><p class="text-xs font-bold text-slate-600 mb-1">🔔 Pendientes de hoy</p>${al.length?al.map(([ic,txt,go])=>`<div class="row" onclick="show('${go}')"><span>${ic} ${esc(txt)}</span><b>Ver ›</b></div>`).join(""):`<p class="text-sm text-emerald-600 font-semibold py-1">✓ Todo al día. Sin pendientes por ahora.</p>`}</div>`; }
 function renderTiles(){
   const ACC={gastos:"openGastos()"}; // tiles que abren una acción en vez de navegar a una vista
   const t=(arr)=>arr.filter(([v])=>puede(v)).map(([v,ic,l])=>`<button onclick="${ACC[v]||("show('"+v+"')")}" class="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1 active:scale-95 transition"><span class="text-2xl">${ic}</span><span class="text-[11px] font-semibold text-slate-600">${window.t?window.t(l):l}</span></button>`).join("");
@@ -3509,11 +3697,11 @@ function calcCierre(c){ const tasa=tasaDe(c); const auto=sumFacturas(c); const f
   const fact=Number(c.facturado_bs)||0; const difBs=bs-fact; const usd=(v)=> tasa>0?v/tasa:0;
   return {contadoBs:bs, contadoUsd:usd(bs), facturadoBs:fact, facturadoUsd:usd(fact), difBs, difUsd:usd(difBs), autoriz:auto, fondos, tasa}; }
 function openCaja(id){ const c=id?db.list("cajas").find(x=>x.id===id):{};
-  openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nueva"} caja</h3><div class="space-y-3">${field("numero","Número de caja",c.numero)}${field("nombre","Nombre (opcional)",c.nombre)}</div>
+  openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nueva"} caja</h3><div class="space-y-3">${field("numero","Número de caja",c.numero)}${field("nombre","Nombre (opcional)",c.nombre)}${selectField("fiscal","Tipo de caja",["Fiscal","No fiscal"],c.fiscal===false?"No fiscal":"Fiscal")}</div>
     <div class="flex gap-2 mt-5"><button onclick="saveCaja('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
     ${id&&esGerencia()?`<button onclick="delCaja('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`); }
-async function saveCaja(id){ if(!puede("caja")){ toast("Sin acceso"); return; } const r=readForm(["numero","nombre"]); if(!r.numero){ toast("Falta el número"); return; } r.activa=true;
+async function saveCaja(id){ if(!puede("caja")){ toast("Sin acceso"); return; } const r=readForm(["numero","nombre","fiscal"]); if(!r.numero){ toast("Falta el número"); return; } r.activa=true; r.fiscal=(r.fiscal!=="No fiscal");
   try{ id?await db.update("cajas",id,r):await db.insert("cajas",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delCaja(id){ if(!esGerencia()){ toast("Solo gerencia puede eliminar cajas"); return; } if(confirm("¿Eliminar esta caja?")){ await db.remove("cajas",id); closeModal(); render(); } }
 function fieldEmp(id,label,val,listId){ return `<div><label class="text-xs text-slate-500">${label}</label><input id="f_${id}" list="${listId||"dlEmpleados"}" value="${esc(val??"")}" placeholder="Selecciona o escribe" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>`; }
@@ -3622,6 +3810,18 @@ function openCierreTotal(){ if(!esGerencia()){ toast("Solo gerencia"); return; }
 async function recalcularCierreTotal(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const fecha=cajaFechaVal(); closeModal(); if(await guardarCierreDia(fecha,true)) toast("Cierre definitivo actualizado"); }
 async function reabrirCierreTotal(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const fecha=cajaFechaVal(); const cd=cierreDiaDe(fecha); if(!cd) return;
   if(confirm("¿Reabrir el día "+fecha+"? Se quitará el cierre definitivo (podrás volver a hacerlo).")){ await db.remove("cierres_dia",cd.id); closeModal(); render(); toast("Día reabierto"); } }
+/* ---- Cajas fiscales / no fiscales ---- */
+function cajaEsFiscal(cj){ return !cj || cj.fiscal!==false; }
+async function toggleCajaFiscal(id){ if(!puede("caja")){ toast("Sin acceso"); return; } const cj=db.list("cajas").find(x=>x.id===id); if(!cj) return; const nuevo=!cajaEsFiscal(cj); try{ await db.update("cajas",id,{fiscal:nuevo}); render(); toast("Caja "+cj.numero+" marcada como "+(nuevo?"FISCAL":"NO fiscal")); }catch(e){ toast("Error: "+e.message); } }
+function resumenFiscalHTML(cierres, titulo){ const cajasMap={}; db.list("cajas").forEach(c=>{ cajasMap[c.id]=c; });
+  const acc={tot:{n:0,fact:0,cont:0,factUsd:0,contUsd:0}, fis:{n:0,fact:0,cont:0,factUsd:0,contUsd:0}, nof:{n:0,fact:0,cont:0,factUsd:0,contUsd:0}};
+  const cajasF=new Set(), cajasN=new Set();
+  cierres.forEach(ci=>{ const r=calcCierre(ci); const cj=cajasMap[ci.caja_id]; const k=cajaEsFiscal(cj)?"fis":"nof"; (k==="fis"?cajasF:cajasN).add(ci.caja_id);
+    for(const g of ["tot",k]){ acc[g].n++; acc[g].fact+=r.facturadoBs; acc[g].cont+=r.contadoBs; acc[g].factUsd+=r.facturadoUsd; acc[g].contUsd+=r.contadoUsd; } });
+  const col=(lbl,ic,a,cls,sub)=>`<div class="rounded-xl p-3 ${cls}"><p class="text-[10px] font-bold uppercase tracking-wide opacity-70">${ic} ${lbl}</p><p class="text-[10px] opacity-60">${sub}</p><p class="text-lg font-extrabold mt-1 leading-tight">${fmtBs(a.fact)}</p><p class="text-[11px] opacity-80">${fmtUsd(a.factUsd)} facturado</p><p class="text-[10px] opacity-60 mt-0.5">Contado ${fmtBs(a.cont)}</p></div>`;
+  return `<div class="bg-white rounded-2xl p-3 shadow-sm mb-3"><div class="flex items-center justify-between mb-2"><p class="text-xs font-bold text-slate-600">🧾 ${esc(titulo||"Fiscal vs. no fiscal")}</p><span class="text-[10px] text-slate-400">${cierres.length} cierre(s)</span></div>
+    <div class="grid grid-cols-3 gap-2 text-center">${col("Total","Σ",acc.tot,"bg-slate-800 text-white",acc.tot.n+" cierre(s)")}${col("Fiscal","🧾",acc.fis,"bg-emerald-50 text-emerald-900",cajasF.size+" caja(s)")}${col("No fiscal","⚪",acc.nof,"bg-amber-50 text-amber-900",cajasN.size+" caja(s)")}</div>
+    <p class="text-[10px] text-slate-400 mt-2">Marca cada caja como fiscal o no fiscal con el botón de su tarjeta (o al editarla).</p></div>`; }
 function renderCaja(){ const el=document.getElementById("cajaFecha"); if(el&&!el.value) el.value=hoy(); const fecha=cajaFechaVal();
   const tEl=document.getElementById("cajaTasa"); if(tEl) tEl.textContent=tipoCambio+" Bs/$";
   const cajas=db.list("cajas").sort((a,b)=>String(a.numero).localeCompare(String(b.numero),undefined,{numeric:true}));
@@ -3633,7 +3833,8 @@ function renderCaja(){ const el=document.getElementById("cajaFecha"); if(el&&!el
       return `<div class="py-1 border-b border-slate-100 last:border-0"><div class="flex items-center justify-between text-[11px] gap-2"><span class="truncate">🕒 ${esc(a.hora||"")} · ${esc(a.motivo||"Parcial")} · ${esc(a.cajero||"—")}</span><span class="flex gap-2 shrink-0">${puedeEditarArqueo()?`<button onclick="openArqueo('${cj.id}','${a.id}')" class="text-teal-600 font-semibold">✎ Editar</button>`:""}${esGerencia()?`<button onclick="delArqueo('${a.id}')" class="text-red-500 font-bold">✕</button>`:""}</span></div>
         <div class="grid grid-cols-3 gap-1 mt-0.5 text-center text-[10px]"><div><p class="text-slate-400">Contado</p><p class="font-semibold">${fmtBs(rr.contadoBs)}</p></div><div><p class="text-slate-400">Facturado</p><p class="font-semibold">${fmtBs(rr.facturadoBs)}</p></div><div><p class="text-slate-400">${rr.difBs<0?"Faltante":"Sobrante"}</p><p class="font-bold ${rr.difBs<0?"text-red-600":"text-emerald-600"}">${fmtBs(Math.abs(rr.difBs))}<br><span class="text-[9px] font-normal">${fmtUsd(Math.abs(rr.difUsd))}</span></p></div></div></div>`; }).join("")}
       <div class="flex items-center justify-between mt-1 text-[11px] bg-amber-50 rounded-lg px-2 py-1"><span class="text-slate-500">Total arqueos</span><span class="font-semibold">Faltante <span class="text-red-600">${fmtBs(aFalta)}</span> · Sobrante <span class="text-emerald-600">${fmtBs(aSobra)}</span></span></div></div>`:"";
-    return `<div class="bg-white rounded-2xl p-3 shadow-sm"><div class="flex items-center justify-between"><div><p class="font-semibold">Caja ${esc(cj.numero)}${cj.nombre?" · "+esc(cj.nombre):""}</p>${ci?`<p class="text-xs text-slate-500">Cajero: ${esc(ci.cajero||"—")}</p>`:`<p class="text-xs text-slate-400">Sin cierre en la fecha</p>`}</div>${esGerencia()?`<button onclick="delCaja('${cj.id}')" class="text-slate-300">🗑</button>`:""}</div>
+    const fisPill=`<button onclick="toggleCajaFiscal('${cj.id}')" title="Cambiar tipo de caja" class="text-[10px] font-bold px-2 py-0.5 rounded-full ${cajaEsFiscal(cj)?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${cajaEsFiscal(cj)?'🧾 Fiscal':'⚪ No fiscal'}</button>`;
+    return `<div class="bg-white rounded-2xl p-3 shadow-sm"><div class="flex items-center justify-between"><div><p class="font-semibold">Caja ${esc(cj.numero)}${cj.nombre?" · "+esc(cj.nombre):""} ${fisPill}</p>${ci?`<p class="text-xs text-slate-500">Cajero: ${esc(ci.cajero||"—")}</p>`:`<p class="text-xs text-slate-400">Sin cierre en la fecha</p>`}</div>${esGerencia()?`<button onclick="delCaja('${cj.id}')" class="text-slate-300">🗑</button>`:""}</div>
       ${r?`<div class="grid grid-cols-3 gap-2 mt-2 text-center text-[11px]"><div><p class="text-slate-400">Contado</p><p class="font-semibold">${fmtBs(r.contadoBs)}</p></div><div><p class="text-slate-400">Facturado</p><p class="font-semibold">${fmtBs(r.facturadoBs)}</p></div><div><p class="text-slate-400">${r.difBs<0?"Faltante":"Sobrante"}</p><p class="font-bold ${r.difBs<0?"text-red-600":"text-emerald-600"}">${fmtBs(Math.abs(r.difBs))}<br><span class="text-[10px]">${fmtUsd(Math.abs(r.difUsd))}</span></p></div></div>`:""}
       ${arqHtml}
       ${(diaCerrado(fecha) && !puedeEditarCajaCerrada())
@@ -3651,7 +3852,7 @@ function renderCaja(){ const el=document.getElementById("cajaFecha"); if(el&&!el
   } else if(esGerencia()){
     acciones=`<button onclick="cierreTotalDia()" class="w-full mt-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-2.5 rounded-xl">🔒 Cierre total del día</button><button onclick="gestionarCierresDia()" class="w-full mt-1 bg-white/15 hover:bg-white/25 text-white text-xs font-semibold py-2 rounded-xl">✎ Corregir cierres del día</button>`;
   }
-  if(tot) tot.innerHTML=`<div class="bg-slate-800 text-white rounded-2xl p-4">${grid}${acciones}</div>`;
+  if(tot) tot.innerHTML=(cierres.length?resumenFiscalHTML(cierres,"Fiscal vs. no fiscal · "+fecha):"")+`<div class="bg-slate-800 text-white rounded-2xl p-4">${grid}${acciones}</div>`;
 }
 
 /* ===================== TESORERÍA ===================== */
@@ -3667,6 +3868,7 @@ function renderTesoreria(){ const el=document.getElementById("tesFecha"); if(el&
   else { const mes=fecha.slice(0,7); cierres=cierres.filter(c=>(c.fecha||"").startsWith(mes) && (c.fecha||"")<=fecha); }
   const cont=document.getElementById("tesoreriaCont"); if(!cont) return;
   { const tb=document.getElementById("tesBancos"); if(tb) tb.innerHTML=htmlEgresosPorCuenta(fecha.slice(0,7)); }
+  { const fb=document.getElementById("tesFiscalBox"); if(fb) fb.innerHTML=cierres.length?resumenFiscalHTML(cierres, tesPeriodo==="dia"?("Fiscal vs. no fiscal · "+fecha):("Fiscal vs. no fiscal · "+MES_NOMBRES[Number(fecha.slice(5,7))-1]+" "+fecha.slice(0,4))):""; }
   let cdBanner="";
   if(tesPeriodo==="dia"){ const cd=cierreDiaDe(fecha);
     cdBanner = cd
@@ -4364,7 +4566,7 @@ function actualizarDatalists(){
 }
 function toggleMasIndicadores(){ const mi=document.getElementById("masIndicadores"), bm=document.getElementById("btnMasIndic"); if(!mi) return; const abrir=mi.style.display==="none"; mi.style.display=abrir?"grid":"none"; if(bm) bm.textContent=abrir?"▲ Ocultar indicadores":"📊 Ver más indicadores"; }
 function renderInicio(){
-  renderTiles();
+  renderTiles(); try{ renderInicioHero(); }catch(e){ console.warn("hero",e); }
   const empsAll=db.list("empleados").filter(e=>e.estado!=="Inactivo");
   const faR=document.getElementById("filtroAreaResumen");
   if(faR){ const actual=faR.value; faR.innerHTML=`<option value="">Todas las áreas</option>`+AREAS.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join(""); if(AREAS.includes(actual)) faR.value=actual; }
