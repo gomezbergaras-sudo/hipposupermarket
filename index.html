@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
@@ -100,6 +100,44 @@
   .fin-bubble img{ width:32px; height:32px; border-radius:99px; background:#fff; object-fit:contain; padding:2px; }
   .fin-bubble b{ font-size:12px; display:block; line-height:1.1; } .fin-bubble small{ font-size:9px; opacity:.9; display:flex; align-items:center; gap:4px; }
   .fin-bubble small i{ width:6px; height:6px; border-radius:99px; background:#86efac; display:inline-block; }
+  /* ===================== LUZ DE ESTADO (compartido) ===================== */
+  .hp-dot{ width:11px; height:11px; border-radius:99px; background:#94a3b8; display:inline-block; flex-shrink:0; box-shadow:0 0 0 3px rgba(148,163,184,.25); cursor:pointer; }
+  .hp-dot.on{ background:#22c55e; box-shadow:0 0 0 3px rgba(34,197,94,.28); animation:hpDot 2.4s ease-in-out infinite; }
+  .hp-dot.off{ background:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.28); }
+  @keyframes hpDot{ 0%,100%{ box-shadow:0 0 0 3px rgba(34,197,94,.28);} 50%{ box-shadow:0 0 0 6px rgba(34,197,94,.10);} }
+  /* ===================== MODO APP EN TELÉFONO (v5.9) ===================== */
+  html,body{ overscroll-behavior-y:none; -webkit-touch-callout:none; }
+  body{ touch-action:manipulation; }
+  .hp-content > header{ padding-top:env(safe-area-inset-top); }
+  #loadingZone{ padding-top:env(safe-area-inset-top); }
+  @media (max-width:899px){
+    ::-webkit-scrollbar{ width:0; height:0; }
+    main{ padding-bottom:calc(96px + env(safe-area-inset-bottom)) !important; }
+    .hp-content > header > div{ padding-top:8px; padding-bottom:8px; }
+    .hp-content > header #hSub{ display:none; }
+    .hp-content > header #hTitle{ font-size:15px; max-width:38vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .hp-content > header #rolBadge{ max-width:88px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    nav.fixed.bottom-0{ backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); background:rgba(255,255,255,.92) !important; box-shadow:0 -6px 24px rgba(15,23,42,.06); user-select:none; -webkit-user-select:none; }
+    nav.fixed.bottom-0 .tab{ min-height:58px; padding-top:7px; padding-bottom:6px; }
+    nav.fixed.bottom-0 .tab .navic{ width:38px; height:28px; border-radius:12px; display:grid; place-items:center; transition:transform .12s, background .12s; }
+    nav.fixed.bottom-0 .tab:active .navic{ transform:scale(.9); }
+    main button.w-full, #modal button.w-full, main button.flex-1, #modal button.flex-1{ min-height:44px; }
+    main .bg-white.rounded-2xl, main .bg-white.rounded-xl{ border-radius:16px; }
+    #modal > div.absolute.inset-x-0{ max-height:92vh; padding-bottom:calc(20px + env(safe-area-inset-bottom)); animation:hpSheet .28s cubic-bezier(.2,.8,.2,1); }
+    #modal > div.absolute.inset-x-0 > .w-10{ width:44px; height:5px; margin-top:-4px; margin-bottom:14px; padding:0; }
+    #toast{ bottom:calc(84px + env(safe-area-inset-bottom)) !important; }
+    .fin-bubble{ bottom:calc(88px + env(safe-area-inset-bottom)); }
+    main h2{ font-size:1.15rem; }
+  }
+  @keyframes hpSheet{ from{ transform:translateY(40px); opacity:.6; } to{ transform:translateY(0); opacity:1; } }
+  @media (prefers-reduced-motion:reduce){ *{ animation-duration:.01ms !important; transition-duration:.01ms !important; } }
+  /* Aviso para instalar la app en el teléfono */
+  #installBar{ position:fixed; left:12px; right:12px; bottom:calc(74px + env(safe-area-inset-bottom)); z-index:34; display:none; align-items:center; gap:10px; background:linear-gradient(135deg,#134e4a,#0d9488); color:#fff; border-radius:16px; padding:10px 12px; box-shadow:0 12px 30px rgba(13,148,136,.35); }
+  #installBar.on{ display:flex; }
+  #installBar img{ width:36px; height:36px; border-radius:10px; background:#fff; object-fit:contain; padding:2px; }
+  #installBar b{ font-size:13px; display:block; } #installBar small{ font-size:11px; opacity:.9; }
+  #installBar button{ background:#fff; color:#0f766e; font-weight:700; font-size:12px; border-radius:10px; padding:8px 12px; white-space:nowrap; }
+  #installBar .x{ background:transparent; color:#fff; font-size:16px; padding:4px 6px; opacity:.8; }
   /* ===================== SISTEMA DE DISEÑO HIPPO (v5) ===================== */
   :root{ --hp-bg:#f2f6f7; --hp-card:#ffffff; --hp-line:#e4ebee; --hp-ink:#0f172a; --hp-muted:#64748b; --hp-teal:#0d9488; --hp-teal-700:#0f766e; --hp-teal-900:#134e4a; --hp-mint:#e6f7f5; --hp-sh:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05); }
   body{ background:var(--hp-bg); font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; color:var(--hp-ink); }
@@ -289,7 +327,7 @@
       <button id="btnMoneda" onclick="toggleMoneda()" title="Cambiar entre $ y Bs (todos los dispositivos)" class="w-8 h-8 rounded-lg bg-white/15 grid place-items-center text-sm font-bold">$</button>
       <button id="btnCampana" onclick="abrirNotificaciones()" class="relative w-8 h-8 rounded-lg bg-white/15 grid place-items-center text-base hidden">🔔<span id="campanaBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 grid place-items-center hidden">0</span></button>
       <button id="rolBadge" onclick="logout()" class="text-[10px] font-semibold px-2 py-1 rounded-full bg-white/15">—</button>
-      <span id="modeBadge" class="text-[10px] font-semibold px-2 py-1 rounded-full bg-white/15">local</span>
+      <span id="modeBadge" class="hp-dot" title="Estado de la conexión" onclick="toast(this.title)"></span>
     </div>
   </div>
 </header>
@@ -857,6 +895,7 @@
   </div>
 </nav>
 
+<div id="installBar"><img id="installLogo" alt=""><div class="flex-1 min-w-0"><b>Instala Hippo en tu teléfono</b><small>Ábrela como una app, a pantalla completa.</small></div><button onclick="instalarApp()">Instalar</button><button class="x" onclick="cerrarInstallBar()">✕</button></div>
 <div id="modal" class="fixed inset-0 z-40 hidden">
   <div class="absolute inset-0 bg-black/40" onclick="closeModal()"></div>
   <div class="absolute inset-x-0 bottom-0 bg-white rounded-t-3xl p-5 max-w-3xl mx-auto max-h-[90vh] overflow-y-auto">
@@ -887,7 +926,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="5.8"; // se incrementa con cada mejora
+const APP_VERSION="5.9"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1129,6 +1168,25 @@ function pintarMoneda(){ const b=document.getElementById("btnMoneda"); if(b) b.t
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.style.opacity=1; setTimeout(()=>t.style.opacity=0,1800); }
 function openModal(h){ document.getElementById("modalContent").innerHTML=h; document.getElementById("modal").classList.remove("hidden"); }
 function closeModal(){ document.getElementById("modal").classList.add("hidden"); }
+/* Hoja inferior: deslizar hacia abajo desde el asa para cerrar (teléfono) */
+(function(){ const sheet=document.querySelector("#modal > div.absolute.inset-x-0"); if(!sheet) return; let y0=null;
+  sheet.addEventListener("touchstart",e=>{ if(window.innerWidth>=900){ y0=null; return; } y0=(sheet.scrollTop<=0 && e.touches[0].clientY-sheet.getBoundingClientRect().top<56)?e.touches[0].clientY:null; },{passive:true});
+  sheet.addEventListener("touchmove",e=>{ if(y0===null) return; const dy=e.touches[0].clientY-y0; if(dy>0) sheet.style.transform="translateY("+Math.min(dy,160)+"px)"; },{passive:true});
+  sheet.addEventListener("touchend",e=>{ if(y0===null) return; const dy=e.changedTouches[0].clientY-y0; sheet.style.transform=""; y0=null; if(dy>90) closeModal(); },{passive:true}); })();
+/* ---- Instalar como app (PWA): Android muestra el diálogo nativo; iPhone recibe instrucciones ---- */
+let _installEvt=null;
+function esStandalone(){ try{ return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone===true; }catch(_){ return false; } }
+function esIOS(){ return /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream; }
+window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); _installEvt=e; mostrarInstallBar(); });
+window.addEventListener("appinstalled",()=>{ _installEvt=null; cerrarInstallBar(true); toast("Hippo instalada en tu teléfono"); });
+function mostrarInstallBar(){ if(esStandalone() || window.innerWidth>=900 || !currentUser) return; let dis=0; try{ dis=Number(localStorage.getItem("hp_install_dismiss")||0); }catch(_){}
+  if(Date.now()-dis<7*86400000) return; if(!_installEvt && !esIOS()) return; const bar=document.getElementById("installBar"); if(!bar) return; const lg=document.getElementById("installLogo"); if(lg) lg.src=(ajustes&&ajustes.logo)||LOGO_DEFAULT; bar.classList.add("on"); }
+function cerrarInstallBar(sinRecordar){ const bar=document.getElementById("installBar"); if(bar) bar.classList.remove("on"); if(!sinRecordar){ try{ localStorage.setItem("hp_install_dismiss",String(Date.now())); }catch(_){} } }
+async function instalarApp(){ if(_installEvt){ try{ _installEvt.prompt(); const r=await _installEvt.userChoice; if(r&&r.outcome==="accepted"){ cerrarInstallBar(true); } }catch(_){} return; }
+  cerrarInstallBar(true); openModal(`<h3 class="font-bold text-lg mb-1">📲 Instalar Hippo en iPhone</h3><p class="text-xs text-slate-500 mb-3">Safari no muestra el botón de instalar: se hace así.</p>
+    <ol class="space-y-2 text-sm"><li class="bg-slate-50 rounded-xl p-3"><b>1.</b> Toca el botón <b>Compartir</b> <span class="inline-block px-1.5 rounded bg-slate-200">⬆︎</span> en la barra de abajo de Safari.</li><li class="bg-slate-50 rounded-xl p-3"><b>2.</b> Desliza y elige <b>«Añadir a pantalla de inicio»</b>.</li><li class="bg-slate-50 rounded-xl p-3"><b>3.</b> Toca <b>Añadir</b>. Verás el logo de Hippo entre tus apps y abrirá a pantalla completa.</li></ol>
+    <button onclick="closeModal()" class="w-full mt-4 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Entendido</button>`); }
+if(esStandalone()) document.documentElement.classList.add("standalone");
 /* ---- Zona de carga: logo + barra mientras se dibuja una vista o corre una tarea pesada ---- */
 let _lzTimer=null, _lzShownAt=0;
 function showLoader(txt){ const z=document.getElementById("loadingZone"); if(!z) return; const lg=document.getElementById("lzLogo");
@@ -1318,7 +1376,7 @@ function loginManual(){ const nom=(document.getElementById("userInput").value||"
   setUser(u); }
 function setUser(u){ currentUser=u; localStorage.setItem("supergestion_user",u.id);
   document.getElementById("login").style.display="none";
-  aplicarPermisos(); iniciarSesion(); pedirPermisoNotif(); show("inicio"); }
+  aplicarPermisos(); iniciarSesion(); pedirPermisoNotif(); show("inicio"); setTimeout(()=>{ try{ mostrarInstallBar(); }catch(_){} },2500); }
 function mostrarLogin(){ renderLoginRoles(); pintarMarca(); document.getElementById("login").style.display="flex"; }
 async function logout(){ if(confirm("¿Cerrar sesión?")){ await desregistrarPush(); await finalizarSesion(); currentUser=null; localStorage.removeItem("supergestion_user"); mostrarLogin(); } }
 /* ---------- REGISTRO DE CONEXIONES (sesiones) ---------- */
@@ -1519,7 +1577,7 @@ function gruposNavegacion(){ const g=[]; const t=(l)=>window.t?window.t(l):l;
 function navIr(v){ if(NAV_ACCIONES[v]){ closeModal(); try{ eval(NAV_ACCIONES[v]); }catch(_){} return; } closeModal(); show(v); }
 function renderSideNav(){ const el=document.getElementById("sideNav"); if(!el) return; if(!currentUser){ el.innerHTML=""; return; }
   const logo=(ajustes&&ajustes.logo)?ajustes.logo:(typeof LOGO_DEFAULT!=="undefined"?LOGO_DEFAULT:""); const mod=MODULES[currentView]; const act=currentView;
-  el.innerHTML=`<div class="brand"><img src="${logo}" alt=""><div><b>${esc(ajustes.nombre||"Hipposupermarket")}</b><small>v${APP_VERSION} · ${USE_CLOUD?"compartido":"local"}</small></div></div>
+  el.innerHTML=`<div class="brand"><img src="${logo}" alt=""><div><b>${esc(ajustes.nombre||"Hipposupermarket")}</b><small class="flex items-center gap-1.5">v${APP_VERSION} <span id="modeDotSide" class="hp-dot ${USE_CLOUD?(navigator.onLine!==false?"on":"off"):"local"}" style="width:9px;height:9px" title="${USE_CLOUD?"Compartido":"Modo local"}"></span></small></div></div>
     ${gruposNavegacion().map(gr=>(gr.titulo?`<div class="grp">${esc(gr.titulo)}</div>`:"")+gr.items.map(([v,ic,l])=>`<button class="it ${v===act?"on":""}" onclick="navIr('${v}')"><span class="ic">${ic}</span><span>${esc(l)}</span></button>`).join("")).join("")}
     <div class="foot"><span class="truncate">👤 ${esc(currentUser.nombre||"")}</span><button onclick="logout()">Salir</button></div>`; }
 function abrirMenuCompleto(){ if(!currentUser) return; const act=currentView;
@@ -3691,6 +3749,10 @@ function escanearRecepcion(){ abrirEscaner((code)=>{ const c=String(code).trim()
 async function sincronizarMaestro(){ toast("Sincronizando…"); try{ await db.recargar(); purgarFotosVencidas(); render(); toast("✔ Sincronizado con todos los dispositivos"); }catch(e){ toast("Error al sincronizar: "+e.message); } }
 function tiempoRel(ts){ const s=Math.floor((Date.now()-ts)/1000); if(s<10) return "justo ahora"; if(s<60) return "hace "+s+" s"; const m=Math.floor(s/60); if(m<60) return "hace "+m+" min"; const h=Math.floor(m/60); return "hace "+h+" h"; }
 function pintarUltSync(){ const el=document.getElementById("ultSync"); if(!el) return; el.textContent="Última sincronización: "+tiempoRel(ultimaSyncTs); const fresco=(Date.now()-ultimaSyncTs)<120000; el.className="text-[11px] text-center mt-1 "+(fresco?"text-emerald-600":"text-amber-600"); }
+/* Luz de estado en el encabezado: verde = compartido y en línea · ámbar = sin internet (se sincroniza al volver) · gris = modo local */
+function pintarModeDot(){ const online=navigator.onLine!==false; const st=USE_CLOUD?(online?"on":"off"):"local"; const ds=document.getElementById("modeDotSide"); if(ds) ds.className="hp-dot "+st; const d=document.getElementById("modeBadge"); if(!d) return;
+  d.className="hp-dot "+st; d.title=USE_CLOUD?(online?"Compartido · en línea":"Sin internet: los cambios se guardan aquí y se sincronizan al volver la conexión"):"Modo local (solo este dispositivo)"; }
+window.addEventListener("online",()=>{ pintarModeDot(); }); window.addEventListener("offline",()=>{ pintarModeDot(); });
 setInterval(pintarUltSync, 20000);
 
 /* ===================== PERMISOS TAREAS/ASIGNACIONES ===================== */
@@ -4790,7 +4852,7 @@ const RENDER_VISTA={
 };
 function render(){
   pintarUltSync(); pintarMarca(); actualizarDatalists();
-  const badge=document.getElementById("modeBadge"); if(badge){ badge.textContent=USE_CLOUD?"compartido ☁":"local"; badge.className="text-[10px] font-semibold px-2 py-1 rounded-full "+(USE_CLOUD?"bg-emerald-400/30":"bg-white/15"); }
+  pintarModeDot();
   pintarCampana(); pintarMoneda(); pintarIdioma(); pintarNav();
   const fn=RENDER_VISTA[currentView]; if(fn) fn();
 }
