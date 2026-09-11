@@ -887,7 +887,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="5.2"; // se incrementa con cada mejora
+const APP_VERSION="5.3"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -3697,11 +3697,11 @@ function calcCierre(c){ const tasa=tasaDe(c); const auto=sumFacturas(c); const f
   const fact=Number(c.facturado_bs)||0; const difBs=bs-fact; const usd=(v)=> tasa>0?v/tasa:0;
   return {contadoBs:bs, contadoUsd:usd(bs), facturadoBs:fact, facturadoUsd:usd(fact), difBs, difUsd:usd(difBs), autoriz:auto, fondos, tasa}; }
 function openCaja(id){ const c=id?db.list("cajas").find(x=>x.id===id):{};
-  openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nueva"} caja</h3><div class="space-y-3">${field("numero","Número de caja",c.numero)}${field("nombre","Nombre (opcional)",c.nombre)}${selectField("fiscal","Tipo de caja",["Fiscal","No fiscal"],c.fiscal===false?"No fiscal":"Fiscal")}</div>
+  openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nueva"} caja</h3><div class="space-y-3">${field("numero","Número de caja",c.numero)}${field("nombre","Nombre (opcional)",c.nombre)}${esGerencia()?selectField("fiscal","Tipo de caja (solo gerencia)",["Fiscal","No fiscal"],c.fiscal===false?"No fiscal":"Fiscal"):""}</div>
     <div class="flex gap-2 mt-5"><button onclick="saveCaja('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
     ${id&&esGerencia()?`<button onclick="delCaja('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`); }
-async function saveCaja(id){ if(!puede("caja")){ toast("Sin acceso"); return; } const r=readForm(["numero","nombre","fiscal"]); if(!r.numero){ toast("Falta el número"); return; } r.activa=true; r.fiscal=(r.fiscal!=="No fiscal");
+async function saveCaja(id){ if(!puede("caja")){ toast("Sin acceso"); return; } const r=readForm(["numero","nombre"]); if(!r.numero){ toast("Falta el número"); return; } r.activa=true; if(esGerencia()){ const fs=document.getElementById("f_fiscal"); if(fs) r.fiscal=(fs.value!=="No fiscal"); }
   try{ id?await db.update("cajas",id,r):await db.insert("cajas",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
 async function delCaja(id){ if(!esGerencia()){ toast("Solo gerencia puede eliminar cajas"); return; } if(confirm("¿Eliminar esta caja?")){ await db.remove("cajas",id); closeModal(); render(); } }
 function fieldEmp(id,label,val,listId){ return `<div><label class="text-xs text-slate-500">${label}</label><input id="f_${id}" list="${listId||"dlEmpleados"}" value="${esc(val??"")}" placeholder="Selecciona o escribe" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>`; }
@@ -3812,7 +3812,7 @@ async function reabrirCierreTotal(){ if(!esGerencia()){ toast("Solo gerencia"); 
   if(confirm("¿Reabrir el día "+fecha+"? Se quitará el cierre definitivo (podrás volver a hacerlo).")){ await db.remove("cierres_dia",cd.id); closeModal(); render(); toast("Día reabierto"); } }
 /* ---- Cajas fiscales / no fiscales ---- */
 function cajaEsFiscal(cj){ return !cj || cj.fiscal!==false; }
-async function toggleCajaFiscal(id){ if(!puede("caja")){ toast("Sin acceso"); return; } const cj=db.list("cajas").find(x=>x.id===id); if(!cj) return; const nuevo=!cajaEsFiscal(cj); try{ await db.update("cajas",id,{fiscal:nuevo}); render(); toast("Caja "+cj.numero+" marcada como "+(nuevo?"FISCAL":"NO fiscal")); }catch(e){ toast("Error: "+e.message); } }
+async function toggleCajaFiscal(id){ if(!esGerencia()){ toast("Solo gerencia puede cambiar el tipo de caja"); return; } const cj=db.list("cajas").find(x=>x.id===id); if(!cj) return; const nuevo=!cajaEsFiscal(cj); try{ await db.update("cajas",id,{fiscal:nuevo}); render(); toast("Caja "+cj.numero+" marcada como "+(nuevo?"FISCAL":"NO fiscal")); }catch(e){ toast("Error: "+e.message); } }
 function resumenFiscalHTML(cierres, titulo){ const cajasMap={}; db.list("cajas").forEach(c=>{ cajasMap[c.id]=c; });
   const acc={tot:{n:0,fact:0,cont:0,factUsd:0,contUsd:0}, fis:{n:0,fact:0,cont:0,factUsd:0,contUsd:0}, nof:{n:0,fact:0,cont:0,factUsd:0,contUsd:0}};
   const cajasF=new Set(), cajasN=new Set();
@@ -3821,7 +3821,7 @@ function resumenFiscalHTML(cierres, titulo){ const cajasMap={}; db.list("cajas")
   const col=(lbl,ic,a,cls,sub)=>`<div class="rounded-xl p-3 ${cls}"><p class="text-[10px] font-bold uppercase tracking-wide opacity-70">${ic} ${lbl}</p><p class="text-[10px] opacity-60">${sub}</p><p class="text-lg font-extrabold mt-1 leading-tight">${fmtBs(a.fact)}</p><p class="text-[11px] opacity-80">${fmtUsd(a.factUsd)} facturado</p><p class="text-[10px] opacity-60 mt-0.5">Contado ${fmtBs(a.cont)}</p></div>`;
   return `<div class="bg-white rounded-2xl p-3 shadow-sm mb-3"><div class="flex items-center justify-between mb-2"><p class="text-xs font-bold text-slate-600">🧾 ${esc(titulo||"Fiscal vs. no fiscal")}</p><span class="text-[10px] text-slate-400">${cierres.length} cierre(s)</span></div>
     <div class="grid grid-cols-3 gap-2 text-center">${col("Total","Σ",acc.tot,"bg-slate-800 text-white",acc.tot.n+" cierre(s)")}${col("Fiscal","🧾",acc.fis,"bg-emerald-50 text-emerald-900",cajasF.size+" caja(s)")}${col("No fiscal","⚪",acc.nof,"bg-amber-50 text-amber-900",cajasN.size+" caja(s)")}</div>
-    <p class="text-[10px] text-slate-400 mt-2">Marca cada caja como fiscal o no fiscal con el botón de su tarjeta (o al editarla).</p></div>`; }
+    ${esGerencia()?`<p class="text-[10px] text-slate-400 mt-2">Marca cada caja como fiscal o no fiscal con el botón de su tarjeta (o al editarla).</p>`:""}</div>`; }
 function renderCaja(){ const el=document.getElementById("cajaFecha"); if(el&&!el.value) el.value=hoy(); const fecha=cajaFechaVal();
   const tEl=document.getElementById("cajaTasa"); if(tEl) tEl.textContent=tipoCambio+" Bs/$";
   const cajas=db.list("cajas").sort((a,b)=>String(a.numero).localeCompare(String(b.numero),undefined,{numeric:true}));
@@ -3833,7 +3833,7 @@ function renderCaja(){ const el=document.getElementById("cajaFecha"); if(el&&!el
       return `<div class="py-1 border-b border-slate-100 last:border-0"><div class="flex items-center justify-between text-[11px] gap-2"><span class="truncate">🕒 ${esc(a.hora||"")} · ${esc(a.motivo||"Parcial")} · ${esc(a.cajero||"—")}</span><span class="flex gap-2 shrink-0">${puedeEditarArqueo()?`<button onclick="openArqueo('${cj.id}','${a.id}')" class="text-teal-600 font-semibold">✎ Editar</button>`:""}${esGerencia()?`<button onclick="delArqueo('${a.id}')" class="text-red-500 font-bold">✕</button>`:""}</span></div>
         <div class="grid grid-cols-3 gap-1 mt-0.5 text-center text-[10px]"><div><p class="text-slate-400">Contado</p><p class="font-semibold">${fmtBs(rr.contadoBs)}</p></div><div><p class="text-slate-400">Facturado</p><p class="font-semibold">${fmtBs(rr.facturadoBs)}</p></div><div><p class="text-slate-400">${rr.difBs<0?"Faltante":"Sobrante"}</p><p class="font-bold ${rr.difBs<0?"text-red-600":"text-emerald-600"}">${fmtBs(Math.abs(rr.difBs))}<br><span class="text-[9px] font-normal">${fmtUsd(Math.abs(rr.difUsd))}</span></p></div></div></div>`; }).join("")}
       <div class="flex items-center justify-between mt-1 text-[11px] bg-amber-50 rounded-lg px-2 py-1"><span class="text-slate-500">Total arqueos</span><span class="font-semibold">Faltante <span class="text-red-600">${fmtBs(aFalta)}</span> · Sobrante <span class="text-emerald-600">${fmtBs(aSobra)}</span></span></div></div>`:"";
-    const fisPill=`<button onclick="toggleCajaFiscal('${cj.id}')" title="Cambiar tipo de caja" class="text-[10px] font-bold px-2 py-0.5 rounded-full ${cajaEsFiscal(cj)?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${cajaEsFiscal(cj)?'🧾 Fiscal':'⚪ No fiscal'}</button>`;
+    const fisPill=esGerencia()?`<button onclick="toggleCajaFiscal('${cj.id}')" title="Cambiar tipo de caja (solo gerencia)" class="text-[10px] font-bold px-2 py-0.5 rounded-full ${cajaEsFiscal(cj)?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${cajaEsFiscal(cj)?'🧾 Fiscal':'⚪ No fiscal'}</button>`:"";
     return `<div class="bg-white rounded-2xl p-3 shadow-sm"><div class="flex items-center justify-between"><div><p class="font-semibold">Caja ${esc(cj.numero)}${cj.nombre?" · "+esc(cj.nombre):""} ${fisPill}</p>${ci?`<p class="text-xs text-slate-500">Cajero: ${esc(ci.cajero||"—")}</p>`:`<p class="text-xs text-slate-400">Sin cierre en la fecha</p>`}</div>${esGerencia()?`<button onclick="delCaja('${cj.id}')" class="text-slate-300">🗑</button>`:""}</div>
       ${r?`<div class="grid grid-cols-3 gap-2 mt-2 text-center text-[11px]"><div><p class="text-slate-400">Contado</p><p class="font-semibold">${fmtBs(r.contadoBs)}</p></div><div><p class="text-slate-400">Facturado</p><p class="font-semibold">${fmtBs(r.facturadoBs)}</p></div><div><p class="text-slate-400">${r.difBs<0?"Faltante":"Sobrante"}</p><p class="font-bold ${r.difBs<0?"text-red-600":"text-emerald-600"}">${fmtBs(Math.abs(r.difBs))}<br><span class="text-[10px]">${fmtUsd(Math.abs(r.difUsd))}</span></p></div></div>`:""}
       ${arqHtml}
