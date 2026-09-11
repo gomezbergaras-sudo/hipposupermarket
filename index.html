@@ -776,7 +776,8 @@
   <section data-view="conexiones" hidden>
     <h2 class="text-lg font-bold mb-1">Conexiones</h2>
     <p class="text-xs text-slate-500 mb-3">Quién entró a la app, desde y hasta qué hora, y cuánto tiempo estuvo conectado.</p>
-    <input id="conexFecha" type="date" onchange="renderConexiones()" class="w-full mb-3 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" />
+    <div class="flex gap-2 mb-3"><input id="conexFecha" type="date" onchange="renderConexiones()" class="flex-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" />
+      <select id="conexGeoFiltro" onchange="renderConexiones()" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm"><option value="">Todas</option><option value="fuera">🚫 Fuera del sitio</option><option value="dentro">📍 En el sitio</option><option value="otros">Sin ubicación</option></select></div>
     <div id="conexResumen" class="mb-3"></div>
     <div id="listaConexiones" class="space-y-2"></div>
   </section>
@@ -821,6 +822,11 @@
       <div id="listaBancos" class="mb-2"></div>
       <div class="flex gap-2"><input id="nuevoBanco" placeholder="Nuevo banco" class="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-sm">
         <button onclick="agregarBanco()" class="bg-teal-600 text-white text-sm font-semibold px-3 py-2 rounded-xl">Agregar</button></div>
+    </div>
+    <div class="bg-white rounded-2xl p-4 shadow-sm mb-3">
+      <p class="font-semibold text-sm mb-1">📍 Ubicación del supermercado</p>
+      <p class="text-xs text-slate-500 mb-2">Al iniciar sesión, la app toma la ubicación del teléfono y registra en <b>Conexiones</b> si el usuario está en la tienda o fuera. No bloquea el acceso: solo informa a gerencia.</p>
+      <div id="geoAjustes"></div>
     </div>
     <div class="bg-white rounded-2xl p-4 shadow-sm mb-3">
       <p class="font-semibold text-sm mb-2">Datos</p>
@@ -880,7 +886,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="5.5"; // se incrementa con cada mejora
+const APP_VERSION="5.6"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -959,7 +965,7 @@ function aplicarCambioRealtime(t, payload){
   if(t==="usuarios" && currentUser && nuevo && nuevo.id===currentUser.id){ currentUser={...currentUser,...nuevo}; aplicarPermisos(); }
   ultimaSyncTs=Date.now(); pintarUltSync();
   // los latidos de sesiones son muy frecuentes: solo re-render si se está viendo Conexiones
-  if(t==="sesiones" && currentView!=="conexiones") return;
+  if(t==="sesiones" && currentView!=="conexiones"){ if(currentView==="inicio" && esGerencia() && nuevo && nuevo.geo_estado==="fuera"){ try{ renderInicioHero(); }catch(_){} } return; }
   if(currentUser) render();
 }
 function suscribirRealtime(){
@@ -1009,6 +1015,7 @@ function cargarConfigCompartida(){ const rows=store.config||[];
   const vc=rows.find(r=>r.id==="ver_costo"); if(vc!==undefined && vc){ const v=vc.valor; verCostoCfg = (v===true||v==="true"||v===1||v==="1"); }
   const vs=rows.find(r=>r.id==="ver_sueldos"); if(vs!==undefined && vs){ const v=vs.valor; verSueldosCfg = (v===true||v==="true"||v===1||v==="1"); }
   { const ms=rows.find(r=>r.id==="mod_sueldos"); if(ms!==undefined && ms){ const v=ms.valor; modSueldosCfg = (v===true||v==="true"||v===1||v==="1"); } }
+  { const gc=rows.find(r=>r.id==="geo_cfg"); if(gc){ let v=gc.valor; if(typeof v==="string"){ try{ v=JSON.parse(v);}catch(e){ v=null; } } if(v&&typeof v==="object") geoCfg={activo:!!v.activo, lat:v.lat==null?null:Number(v.lat), lng:v.lng==null?null:Number(v.lng), radio:Number(v.radio)||50, avisar:v.avisar!==false}; } }
   { const nt=rows.find(r=>r.id==="nav_tabs"); let v=nt&&nt.valor; if(typeof v==="string"){ try{ v=JSON.parse(v); }catch(e){} } if(Array.isArray(v)&&v.length){ navTabsCfg=v.slice(0,5).map((x,i)=>({icon:x.icon||NAV_DEFAULT[i].icon, label:x.label||NAV_DEFAULT[i].label, target:x.target||NAV_DEFAULT[i].target})); } }
   const rt=rows.find(r=>r.id==="retardo_tol"); if(rt) retardoTol=Number(rt.valor)||0;
   const rm=rows.find(r=>r.id==="retardo_bsmin"); if(rm) retardoBsMin=Number(rm.valor)||0;
@@ -1316,8 +1323,72 @@ async function logout(){ if(confirm("¿Cerrar sesión?")){ await desregistrarPus
 /* ---------- REGISTRO DE CONEXIONES (sesiones) ---------- */
 let currentSesionId=null, sesionHeartbeat=null;
 async function iniciarSesion(){ if(!currentUser) return;
-  try{ const row=await db.insert("sesiones",{usuario_id:currentUser.id, usuario_nombre:currentUser.nombre||"", inicio:new Date().toISOString(), fin:new Date().toISOString(), fecha:hoy()}); currentSesionId=row.id; }catch(e){}
-  if(sesionHeartbeat) clearInterval(sesionHeartbeat); sesionHeartbeat=setInterval(latidoSesion,60000); }
+  try{ const row=await db.insert("sesiones",Object.assign({usuario_id:currentUser.id, usuario_nombre:currentUser.nombre||"", inicio:new Date().toISOString(), fin:new Date().toISOString(), fecha:hoy()}, _geoPendiente||{})); currentSesionId=row.id; }catch(e){}
+  _geoPendiente=null;
+  if(sesionHeartbeat) clearInterval(sesionHeartbeat); sesionHeartbeat=setInterval(latidoSesion,60000);
+  registrarGeoSesion(); }
+/* ===================== GEOLOCALIZACIÓN: ¿abren la app desde el supermercado? =====================
+   Gerencia fija en Ajustes las coordenadas de la tienda y el radio permitido. Al iniciar sesión se toma la
+   posición del teléfono (con permiso del usuario), se calcula la distancia y se guarda en la conexión
+   (tabla sesiones). Solo registra y avisa a gerencia: NO bloquea el uso de la app. */
+/* Valores iniciales: coordenadas de la tienda indicadas por gerencia (10.50619 N, -66.903 O), radio 50 m.
+   Se pueden cambiar en Ajustes → Ubicación del supermercado (queda guardado en config: geo_cfg). */
+let geoCfg={activo:true,lat:10.50619,lng:-66.903,radio:50,avisar:true};
+function geoConfigurada(){ return !!(geoCfg.activo && geoCfg.lat!=null && geoCfg.lng!=null && !isNaN(geoCfg.lat) && !isNaN(geoCfg.lng)); }
+function distanciaM(lat1,lng1,lat2,lng2){ const R=6371000, r=Math.PI/180; const dLat=(lat2-lat1)*r, dLng=(lng2-lng1)*r; const a=Math.sin(dLat/2)**2+Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin(dLng/2)**2; return 2*R*Math.asin(Math.sqrt(a)); }
+function obtenerPosicion(opts){ return new Promise(res=>{ if(!navigator.geolocation){ res({err:"sin_gps"}); return; }
+  let done=false; const fin=(v)=>{ if(!done){ done=true; res(v); } };
+  try{ navigator.geolocation.getCurrentPosition(p=>fin({lat:p.coords.latitude,lng:p.coords.longitude,acc:Math.round(p.coords.accuracy||0)}), e=>fin({err:(e&&e.code===1)?"sin_permiso":"sin_gps"}), Object.assign({enableHighAccuracy:true,timeout:15000,maximumAge:30000},opts||{})); }catch(e){ fin({err:"sin_gps"}); }
+  setTimeout(()=>fin({err:"sin_gps"}),20000); }); }
+/* Evalúa una posición contra la tienda. Tolerancia = precisión reportada por el teléfono (máx 100 m);
+   si la precisión es peor de 300 m no se puede afirmar nada → "impreciso" (no cuenta como fuera). */
+function evaluarGeo(pos){ if(!geoConfigurada()) return {estado:"no_config"}; if(!pos||pos.err) return {estado:(pos&&pos.err)||"sin_gps"};
+  const d=distanciaM(pos.lat,pos.lng,geoCfg.lat,geoCfg.lng); const acc=Number(pos.acc)||0; const radio=Number(geoCfg.radio)||50;
+  let estado; if(d<=radio+Math.min(acc,100)) estado="dentro"; else if(acc>300) estado="impreciso"; else estado="fuera";
+  return {estado, distancia:Math.round(d), lat:pos.lat, lng:pos.lng, acc}; }
+const GEO_LABEL={dentro:["📍","En el sitio","#dcfce7","#166534"],fuera:["🚫","Fuera del sitio","#ffe4e6","#9f1239"],impreciso:["〰️","GPS impreciso","#fef3c7","#92400e"],sin_permiso:["🙈","Ubicación denegada","#fef3c7","#92400e"],sin_gps:["📵","Sin GPS","#eef2f7","#475569"],no_config:["","","",""]};
+function geoBadge(s){ if(!s||!s.geo_estado||s.geo_estado==="no_config") return ""; const [ic,l,bg,fg]=GEO_LABEL[s.geo_estado]||GEO_LABEL.sin_gps; const dist=s.distancia_m!=null?(" · "+fmtDistancia(s.distancia_m)):""; const acc=s.precision_m?(" ±"+Math.round(s.precision_m)+"m"):"";
+  return `<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold" style="background:${bg};color:${fg}">${ic} ${l}${dist}${acc}</span>`; }
+function fmtDistancia(m){ m=Number(m)||0; return m>=1000?(m/1000).toFixed(m>=10000?0:1)+" km":Math.round(m)+" m"; }
+function geoMapaLink(lat,lng){ return `https://www.google.com/maps?q=${Number(lat).toFixed(6)},${Number(lng).toFixed(6)}`; }
+let _geoPendiente=null;
+async function registrarGeoSesion(){ if(!currentUser || !geoConfigurada()) return; try{ const pos=await obtenerPosicion(); const ev=evaluarGeo(pos);
+    const data={geo_estado:ev.estado, lat:ev.lat??null, lng:ev.lng??null, precision_m:ev.acc??null, distancia_m:ev.distancia??null, geo_hora:new Date().toISOString()};
+    if(currentSesionId){ await db.update("sesiones",currentSesionId,data); } else { _geoPendiente=data; }
+    if(currentView==="conexiones") try{ renderConexiones(); }catch(_){}
+    if(currentView==="inicio" && esGerencia()) try{ renderInicioHero(); }catch(_){}
+  }catch(e){ console.warn("geo",e); } }
+function accesosFueraHoy(){ const f=hoy(); return db.list("sesiones").filter(s=>(s.fecha||(s.inicio||"").slice(0,10))===f && s.geo_estado==="fuera"); }
+function accesosFueraMes(mes){ return db.list("sesiones").filter(s=>String(s.fecha||(s.inicio||"").slice(0,10)).startsWith(mes) && s.geo_estado==="fuera"); }
+/* --- Ajustes (solo gerencia) --- */
+function renderGeoAjustes(){ const c=document.getElementById("geoAjustes"); if(!c) return; if(!esGerencia()){ c.innerHTML=""; return; }
+  const ok=geoConfigurada(); const hoyFuera=accesosFueraHoy().length;
+  c.innerHTML=`<label class="flex items-center justify-between gap-2 text-sm mb-2"><span class="font-semibold text-slate-700">Control de ubicación activo</span><input type="checkbox" id="geoActivo" ${geoCfg.activo?"checked":""} class="w-5 h-5"></label>
+    <div class="grid grid-cols-2 gap-2 mb-2">
+      <div><label class="block text-[11px] text-slate-500 mb-1">Latitud</label><input id="geoLat" type="number" step="any" value="${geoCfg.lat??""}" placeholder="10.480600" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"></div>
+      <div><label class="block text-[11px] text-slate-500 mb-1">Longitud</label><input id="geoLng" type="number" step="any" value="${geoCfg.lng??""}" placeholder="-66.903600" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"></div>
+    </div>
+    <label class="block text-[11px] text-slate-500 mb-1">Radio permitido alrededor de la tienda (metros)</label>
+    <input id="geoRadio" type="number" min="5" step="5" value="${geoCfg.radio||50}" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm mb-2">
+    <p class="text-[10px] text-slate-400 mb-2">El GPS de un teléfono dentro de un local suele tener 20–60 m de error. Se recomienda 50 m; la app además suma la precisión que reporta el teléfono (máx. 100 m) para no marcar como «fuera» a quien sí está en la tienda.</p>
+    <div class="flex flex-wrap gap-2 mb-2">
+      <button onclick="geoUsarMiUbicacion()" class="bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-xl">📍 Usar mi ubicación actual</button>
+      <button onclick="geoProbar()" class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl">🧪 Probar desde aquí</button>
+      ${ok?`<a href="${geoMapaLink(geoCfg.lat,geoCfg.lng)}" target="_blank" class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl">🗺 Ver en el mapa</a>`:""}
+    </div>
+    <p id="geoTest" class="text-xs text-slate-600 mb-2"></p>
+    <button onclick="guardarGeoCfg()" class="w-full bg-teal-600 text-white text-sm font-semibold py-2.5 rounded-xl">Guardar ubicación</button>
+    <p class="text-[10px] text-slate-400 mt-2">${ok?`Estado: <b class="text-emerald-700">configurada</b>${geoCfg.activo?"":" (desactivada)"} · hoy: ${hoyFuera} acceso(s) fuera del sitio. Los accesos se ven en <b>Conexiones</b>.`:"Sin coordenadas. Pulsa «Usar mi ubicación actual» estando en la tienda, o pega las coordenadas de Google Maps."}</p>`; }
+async function geoUsarMiUbicacion(){ const t=document.getElementById("geoTest"); if(t) t.textContent="Obteniendo ubicación…"; const pos=await obtenerPosicion({maximumAge:0}); if(pos.err){ if(t) t.textContent=pos.err==="sin_permiso"?"El navegador no dio permiso de ubicación. Actívalo en los ajustes del teléfono para este sitio.":"No se pudo obtener la ubicación (sin GPS o sin señal)."; return; }
+  const la=document.getElementById("geoLat"), lo=document.getElementById("geoLng"); if(la) la.value=pos.lat.toFixed(6); if(lo) lo.value=pos.lng.toFixed(6); if(t) t.innerHTML=`Ubicación tomada: ${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)} (precisión ±${pos.acc} m). Pulsa <b>Guardar ubicación</b>.`; }
+async function geoProbar(){ const t=document.getElementById("geoTest"); const lat=Number(document.getElementById("geoLat")?.value), lng=Number(document.getElementById("geoLng")?.value), radio=Number(document.getElementById("geoRadio")?.value)||50;
+  if(isNaN(lat)||isNaN(lng)||!document.getElementById("geoLat")?.value){ if(t) t.textContent="Primero coloca las coordenadas de la tienda."; return; } if(t) t.textContent="Midiendo distancia…";
+  const pos=await obtenerPosicion({maximumAge:0}); if(pos.err){ if(t) t.textContent=pos.err==="sin_permiso"?"Sin permiso de ubicación.":"No se pudo obtener la ubicación."; return; }
+  const bak=geoCfg; geoCfg={activo:true,lat,lng,radio,avisar:bak.avisar}; const ev=evaluarGeo(pos); geoCfg=bak; const [ic,l]=GEO_LABEL[ev.estado]||GEO_LABEL.sin_gps;
+  if(t) t.innerHTML=`${ic} <b>${l}</b> — estás a ${fmtDistancia(ev.distancia)} de la tienda (precisión ±${ev.acc} m, radio ${radio} m).`; }
+async function guardarGeoCfg(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const activo=!!document.getElementById("geoActivo")?.checked; const latS=document.getElementById("geoLat")?.value, lngS=document.getElementById("geoLng")?.value; const lat=latS===""?null:Number(latS), lng=lngS===""?null:Number(lngS); const radio=Math.max(5,Number(document.getElementById("geoRadio")?.value)||50);
+  if(activo && (lat==null||lng==null||isNaN(lat)||isNaN(lng))){ toast("Coloca latitud y longitud válidas"); return; } if(lat!=null && (Math.abs(lat)>90||Math.abs(lng)>180)){ toast("Coordenadas fuera de rango"); return; }
+  await setConfig("geo_cfg",{activo,lat,lng,radio,avisar:true}); renderGeoAjustes(); toast(activo?"Control de ubicación guardado":"Ubicación guardada (control desactivado)"); }
 async function latidoSesion(){ if(currentSesionId){ try{ await db.update("sesiones",currentSesionId,{fin:new Date().toISOString()}); }catch(e){} } }
 async function finalizarSesion(){ if(sesionHeartbeat){ clearInterval(sesionHeartbeat); sesionHeartbeat=null; } if(currentSesionId){ try{ await db.update("sesiones",currentSesionId,{fin:new Date().toISOString()}); }catch(e){} currentSesionId=null; } }
 window.addEventListener("beforeunload", ()=>{ try{ if(currentSesionId && USE_CLOUD && sb) sb.from("sesiones").update({fin:new Date().toISOString()}).eq("id",currentSesionId); else if(currentSesionId){ latidoSesion(); } }catch(e){} });
@@ -1325,13 +1396,16 @@ function fmtDuracionMin(min){ min=Math.max(0,Math.round(min)); const h=Math.floo
 function horaDe(iso){ if(!iso) return "—"; const d=new Date(iso); if(isNaN(d)) return "—"; return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
 function renderConexiones(){ const el=document.getElementById("conexFecha"); if(el&&!el.value) el.value=hoy(); const fecha=el?el.value:hoy();
   const c=document.getElementById("listaConexiones"); if(!c) return; const res=document.getElementById("conexResumen");
-  let l=db.list("sesiones").filter(s=>(s.fecha||(s.inicio||"").slice(0,10))===fecha).sort((a,b)=>String(b.inicio||"").localeCompare(String(a.inicio||"")));
-  const totalMin=l.reduce((s,x)=>s+Math.max(0,(new Date(x.fin||x.inicio)-new Date(x.inicio))/60000),0);
-  const usuarios=new Set(l.map(x=>x.usuario_nombre)).size;
-  if(res) res.innerHTML=`<div class="grid grid-cols-2 gap-2"><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Conexiones del día</p><p class="text-lg font-bold text-teal-700">${l.length}</p></div><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Usuarios / tiempo total</p><p class="text-lg font-bold text-teal-700">${usuarios} · ${fmtDuracionMin(totalMin)}</p></div></div>`;
-  if(!l.length){ c.innerHTML=empty("Sin conexiones en la fecha."); return; }
-  c.innerHTML=l.map(s=>{ const min=Math.max(0,(new Date(s.fin||s.inicio)-new Date(s.inicio))/60000); const activa=currentSesionId===s.id;
-    return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(s.usuario_nombre||"—")} ${activa?'<span class="text-[10px] text-emerald-600">● en línea</span>':''}</p><p class="text-xs text-slate-500">${horaDe(s.inicio)} → ${activa?"ahora":horaDe(s.fin)}</p></div><span class="text-sm font-semibold text-teal-700">${fmtDuracionMin(min)}</span></div>`; }).join("");
+  let todas=db.list("sesiones").filter(s=>(s.fecha||(s.inicio||"").slice(0,10))===fecha).sort((a,b)=>String(b.inicio||"").localeCompare(String(a.inicio||"")));
+  const filtro=document.getElementById("conexGeoFiltro")?.value||""; const fw=document.getElementById("conexGeoFiltro"); if(fw) fw.style.display=geoConfigurada()?"":"none";
+  let l=todas; if(filtro==="fuera") l=todas.filter(s=>s.geo_estado==="fuera"); else if(filtro==="dentro") l=todas.filter(s=>s.geo_estado==="dentro"); else if(filtro==="otros") l=todas.filter(s=>s.geo_estado!=="fuera"&&s.geo_estado!=="dentro");
+  const totalMin=todas.reduce((s,x)=>s+Math.max(0,(new Date(x.fin||x.inicio)-new Date(x.inicio))/60000),0);
+  const usuarios=new Set(todas.map(x=>x.usuario_nombre)).size; const fuera=todas.filter(s=>s.geo_estado==="fuera"); const dentro=todas.filter(s=>s.geo_estado==="dentro").length; const sinUbi=todas.length-fuera.length-dentro;
+  if(res) res.innerHTML=`<div class="grid grid-cols-2 gap-2"><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Conexiones del día</p><p class="text-lg font-bold text-teal-700">${todas.length}</p></div><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">Usuarios / tiempo total</p><p class="text-lg font-bold text-teal-700">${usuarios} · ${fmtDuracionMin(totalMin)}</p></div>
+    ${geoConfigurada()?`<div class="rounded-2xl p-3 shadow-sm ${fuera.length?"bg-rose-50":"bg-emerald-50"}"><p class="text-[11px] text-slate-500">🚫 Fuera del sitio</p><p class="text-lg font-bold ${fuera.length?"text-rose-700":"text-emerald-700"}">${fuera.length}</p><p class="text-[10px] text-slate-500 truncate">${fuera.length?[...new Set(fuera.map(x=>x.usuario_nombre))].map(esc).join(", "):"nadie fuera del sitio"}</p></div><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">📍 En el sitio / sin ubicación</p><p class="text-lg font-bold text-teal-700">${dentro} · ${sinUbi}</p><p class="text-[10px] text-slate-500">radio ${geoCfg.radio} m</p></div>`:(esGerencia()?`<div class="col-span-2 rounded-2xl p-3 bg-amber-50 text-[11px] text-amber-800">📍 Activa el control de ubicación en <b>Ajustes → Ubicación del supermercado</b> para saber si el personal abre la app desde la tienda.</div>`:"")}</div>`;
+  if(!l.length){ c.innerHTML=empty(filtro?"Sin conexiones con ese filtro.":"Sin conexiones en la fecha."); return; }
+  c.innerHTML=l.map(s=>{ const min=Math.max(0,(new Date(s.fin||s.inicio)-new Date(s.inicio))/60000); const activa=currentSesionId===s.id; const mapa=(esGerencia()&&s.lat!=null&&s.lng!=null)?`<a href="${geoMapaLink(s.lat,s.lng)}" target="_blank" class="text-[10px] text-teal-700 font-semibold ml-1">🗺 mapa</a>`:"";
+    return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 ${s.geo_estado==="fuera"?"border border-rose-200":""}"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(s.usuario_nombre||"—")} ${activa?'<span class="text-[10px] text-emerald-600">● en línea</span>':''}</p><p class="text-xs text-slate-500">${horaDe(s.inicio)} → ${activa?"ahora":horaDe(s.fin)}</p>${s.geo_estado&&s.geo_estado!=="no_config"?`<p class="mt-1">${geoBadge(s)}${mapa}</p>`:""}</div><span class="text-sm font-semibold text-teal-700">${fmtDuracionMin(min)}</span></div>`; }).join("");
 }
 function aplicarPermisos(){
   const any=(arr)=> arr.some(v=>puede(v));
@@ -1467,6 +1541,7 @@ function renderInicioHero(){ const h=document.getElementById("inicioHero"); if(!
   const inc=db.list("piso_incidencias").filter(x=>x.estado!=="Resuelta").length; if(inc&&puede("piso")) al.push(["🏬",inc+" incidencia(s) de piso abierta(s)","piso"]);
   try{ if(puedeCaja && cierresHoy.length && !cierreDiaDe(hoyF) && hora>=18) al.push(["🔒","Falta el cierre total del día","caja"]); }catch(_){}
   try{ const venc=db.list("facturas_rec").filter(f=>frPend(f)>0.005 && String(f.fecha||"")<hoyF).length; if(venc&&puedeFin) al.push(["📥",venc+" factura(s) vencida(s) por pagar","deudas"]); }catch(_){}
+  try{ if(esGerencia() && geoConfigurada()){ const fu=accesosFueraHoy(); if(fu.length){ const qn=[...new Set(fu.map(x=>x.usuario_nombre))]; al.push(["🚫",fu.length+" acceso(s) fuera del sitio hoy: "+qn.slice(0,3).join(", ")+(qn.length>3?" y "+(qn.length-3)+" más":""),"conexiones"]); } } }catch(_){}
   const acc=[]; if(puedeFin) acc.push(["🧾","Gasto","openGastos()"]); if(puedeFin) acc.push(["💵","Pago","openPagoProv()"]); if(puedeCaja) acc.push(["🏧","Caja","show('caja')"]); if(puede("inventario")) acc.push(["📤","Salida","show('inventario');setTimeout(()=>{ try{ openSalida(); }catch(_){}} ,350)"]); if(puede("tareas")) acc.push(["✅","Tarea","show('tareas');setTimeout(()=>{ try{ openTarea(); }catch(_){}} ,350)"]); if(puede("empleados")) acc.push(["👥","Personal","show('empleados')"]); if(puede("piso")) acc.push(["🏬","Piso","show('piso')"]);
   h.innerHTML=`<div class="hp-hero"><h2>${saludo}${nombre?", "+esc(nombre):""} 👋</h2><p>${esc(finFechaLarga())} · ${esc(ajustes.nombre||"Hipposupermarket")}</p>
       ${acc.length?`<div class="hp-quick">${acc.map(([ic,l,fn])=>`<button onclick="${fn.replace(/"/g,"&quot;")}"><span>${ic}</span><span>${l}</span></button>`).join("")}</div>`:""}</div>
@@ -1500,6 +1575,7 @@ function metricasRRHH(){ const {hoyF,mes,prev}=metPeriodo(); const emps=db.list(
     metChip("⏰","Retardos (mes)",String(retardos.length),retardos.length?("promedio "+Math.round(minProm)+" min · "+asis.length+" registros"):(asis.length+" registros de asistencia"),"show('asistencia')",retardos.length>10?"bad":retardos.length?"warn":"ok"),
     metChip("⭐","Evaluación promedio",evProm!==null?evProm.toFixed(1)+" / 5":"—",evs.length+" evaluación(es) este mes","show('eval')",evProm===null?"neutral":evProm>=4?"ok":evProm>=3?"warn":"bad"),
     metChip("📨","Candidatos nuevos",String(cand),prest?prest+" préstamo(s) activo(s)":"bolsa de empleo","show('candidatos')","info")];
+  if(geoConfigurada() && puede("conexiones")){ const fu=accesosFueraMes(mes); const qn=new Set(fu.map(x=>x.usuario_nombre)).size; const tot=db.list("sesiones").filter(s=>String(s.fecha||(s.inicio||"").slice(0,10)).startsWith(mes)).length; chips.push(metChip("🚫","Accesos fuera del sitio (mes)",String(fu.length),fu.length?(qn+" usuario(s) · de "+tot+" conexiones"):("todas las "+tot+" conexiones desde la tienda"),"show('conexiones')",fu.length?"bad":"ok")); }
   return metPanel("metRRHH","Personal y RRHH · métricas",chips); }
 function metricasSup(){ const {hoyF,mes,prev}=metPeriodo(); const tareas=db.list("tareas"); const tMes=tareas.filter(t=>String(t.fecha_limite||t.creado||"").slice(0,7)===mes||String(t.fecha||"").startsWith(mes));
   const hechas=tMes.filter(t=>(t.estado||"")==="Hecha").length; const pend=tareas.filter(t=>(t.estado||"Pendiente")!=="Hecha"); const venc=pend.filter(t=>t.fecha_limite && String(t.fecha_limite)<hoyF).length; const cumpl=tMes.length?hechas/tMes.length*100:0;
@@ -4656,7 +4732,7 @@ function renderAjustesView(){
   const h=document.getElementById("cfgHoraEntrada"); if(h) h.value=ajustes.horaEntrada;
   const m=document.getElementById("cfgMoneda"); if(m) m.value=ajustes.moneda;
   const lp=document.getElementById("logoPreview"); if(lp) lp.innerHTML=`<img src="${ajustes.logo||LOGO_DEFAULT}" class="w-full h-full object-contain">`;
-  renderUsuarios(); renderAreasAjustes(); renderBancosAjustes();
+  renderUsuarios(); renderAreasAjustes(); renderBancosAjustes(); try{ renderGeoAjustes(); }catch(e){ console.warn(e); }
   const est=document.getElementById("estadoBD"); if(est){ est.className="rounded-2xl p-4 text-sm "+(USE_CLOUD?"bg-emerald-50 text-emerald-800":"bg-amber-50 text-amber-800");
     est.innerHTML=USE_CLOUD?"☁ <b>Base de datos compartida activa.</b>":"📱 <b>Modo local.</b> Datos solo en este dispositivo. Configura Supabase para compartir (ver guía)."; }
 }
