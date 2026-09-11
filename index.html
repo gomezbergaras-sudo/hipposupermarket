@@ -880,7 +880,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="5.4"; // se incrementa con cada mejora
+const APP_VERSION="5.5"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1556,12 +1556,12 @@ function metricasFin(){ const {hoyF,mes,prev}=metPeriodo(); const M=finMetrics(m
     metChip("📥","Facturas recibidas (mes)",String(frMes.length),money(frMesUsd)+" en documentos","show('facturasrec')","info"),
     metChip("🏦","Pagos a proveedores (mes)",money(pagUsd),pagos.length+" pago(s)","show('deudas')","info")];
   return metPanel("metFin","Caja y Finanzas · métricas",chips); }
-function renderMetricasSecciones(){ const put=(id,sec,fn)=>{ const el=document.getElementById(id); if(!el) return; if(!puedeMetricas(sec)){ el.innerHTML=""; return; } try{ el.innerHTML=fn(); }catch(e){ el.innerHTML=""; console.warn("metricas "+sec,e); } };
-  put("metRRHH","rrhh",metricasRRHH); put("metSup","sup",metricasSup); put("metProd","prod",metricasProd); put("metFin","fin",metricasFin); }
+function renderMetricasSecciones(){ const put=(id,sec,fn,idHead)=>{ const el=document.getElementById(id); if(!el) return; const h=document.getElementById(idHead); if(!puedeMetricas(sec)){ el.innerHTML=""; if(h) h.style.display="none"; return; } try{ el.innerHTML=fn(); }catch(e){ el.innerHTML=""; console.warn("metricas "+sec,e); } if(h) h.style.display=el.innerHTML?"":"none"; };
+  put("metRRHH","rrhh",metricasRRHH,"hRRHH"); put("metSup","sup",metricasSup,"hSup"); put("metProd","prod",metricasProd,"hProd"); put("metFin","fin",metricasFin,"hFin"); }
 function renderTiles(){
   const ACC={gastos:"openGastos()"}; // tiles que abren una acción en vez de navegar a una vista
   const t=(arr)=>arr.filter(([v])=>puede(v)).map(([v,ic,l])=>`<button onclick="${ACC[v]||("show('"+v+"')")}" class="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1 active:scale-95 transition"><span class="text-2xl">${ic}</span><span class="text-[11px] font-semibold text-slate-600">${window.t?window.t(l):l}</span></button>`).join("");
-  const grp=(idTiles,idHead,arr)=>{ const html=t(arr); document.getElementById(idTiles).innerHTML=html; const h=document.getElementById(idHead); const g=document.getElementById(idTiles); const vis=!!html; if(h) h.style.display=vis?"":"none"; if(g) g.style.display=vis?"":"none"; };
+  const grp=(idTiles,idHead,arr)=>{ const g=document.getElementById(idTiles); if(g){ g.innerHTML=""; g.style.display="none"; } const h=document.getElementById(idHead); if(h) h.style.display="none"; };
   grp("tilesRRHH","hRRHH",TILES_RRHH);
   grp("tilesProd","hProd",TILES_PROD);
   grp("tilesSup","hSup",TILES_SUP);
