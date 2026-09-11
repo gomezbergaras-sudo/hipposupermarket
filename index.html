@@ -739,7 +739,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="4.63"; // se incrementa con cada mejora
+const APP_VERSION="4.64"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -4125,6 +4125,10 @@ function renderGastosModal(){ const fecha=_gtFecha; const todasList=db.list("gas
   const bancoOpts=["",...BANCOS].map(o=>`<option>${esc(o)}</option>`).join("");
   openModal(`<h3 class="font-bold text-lg mb-1">🧾 Gastos (fijos y variables)</h3><p class="text-xs text-slate-500 mb-2">Registra gastos del negocio: por banco o en efectivo, con la tasa del día. Si pagas en USDT, usa la tasa alterna.</p>
     <div class="flex gap-2 mb-2">${tab(!_gtTodas,"📅 Esta fecha",false)}${tab(_gtTodas,"🗂 Todas ("+todasList.length+")",true)}</div>
+    <div class="flex gap-2 mb-2">
+      <label class="flex-1 text-center text-xs bg-slate-700 text-white font-semibold py-2 rounded-lg cursor-pointer">📤 Importar Excel de gastos<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarGastosExcel(event)"></label>
+      <label class="flex-1 text-center text-xs bg-indigo-600 text-white font-semibold py-2 rounded-lg cursor-pointer">📷 Leer imagen / foto<input type="file" accept="image/*" class="hidden" onchange="importarGastosImagen(event)"></label>
+    </div>
     <input type="date" id="gtFechaSel" value="${fecha}" ${_gtTodas?"disabled":""} onchange="_gtFecha=this.value;renderGastosModal()" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 text-sm ${_gtTodas?"opacity-50":""}">
     ${(!_gtTodas && otras>0)?`<div class="bg-amber-50 text-amber-800 rounded-xl px-3 py-2 text-xs mb-2 flex items-center justify-between gap-2"><span>Hay <b>${otras}</b> gasto(s) en otras fechas.</span><button onclick="_gtTodas=true;renderGastosModal()" class="font-semibold underline shrink-0">Ver todos</button></div>`:""}
     <div class="bg-slate-50 rounded-xl p-2 space-y-2 mb-2">
@@ -4161,6 +4165,93 @@ async function addGasto(){ if(!puede("deudas")){ toast("Sin acceso"); return; }
   const r={ tipo:document.getElementById("gx_tipo").value, categoria:cat, descripcion:desc, monto, moneda:mon, forma_pago:forma, banco:forma==="Efectivo"?"":(document.getElementById("gx_banco").value||""), tasa:Number(document.getElementById("gx_tasa").value)||tipoCambio, tasa_alt:(String(mon).toUpperCase()==="USDT")?(Number(document.getElementById("gx_tasaalt").value)||0):0, fecha:_gtFecha, notas:(document.getElementById("gx_notas").value||"") };
   try{ await db.insert("gastos", r); renderGastosModal(); render(); toast("Gasto registrado"); }catch(e){ toast("Error: "+e.message); } }
 async function delGasto(id){ if(!puede("deudas")){ return; } if(confirm("¿Eliminar este gasto?")){ await db.remove("gastos",id); renderGastosModal(); render(); } }
+
+/* ===================== IMPORTAR GASTOS desde Excel o imagen (formato "Resumen de Pago") =====================
+   Columnas reconocidas: Fecha · Descripción · $ · Bs · Tasa Monitor · Bs-$ · Cuentas · Categorías · Total $   */
+function numDe(v){ if(typeof v==="number") return v; let s=String(v??"").trim(); if(!s||/^\*+$/.test(s)) return 0; s=s.replace(/[^\d.,\-]/g,""); if(!s||s==="-") return 0;
+  const lc=s.lastIndexOf(","), ld=s.lastIndexOf(".");
+  if(lc>=0 && ld>=0){ s = lc>ld ? s.replace(/\./g,"").replace(",",".") : s.replace(/,/g,""); }
+  else if(lc>=0){ const unica=(s.match(/,/g)||[]).length===1; const dec=s.length-lc-1; s = (unica && dec===2) ? s.replace(",",".") : s.replace(/,/g,""); }
+  else if(ld>=0){ const pts=(s.match(/\./g)||[]).length; if(pts>1){ s=s.replace(/\.(?=.*\.)/g,""); } }
+  return Number(s)||0; }
+function fechaDe(v){ if(v===null||v===undefined||v==="") return ""; if(typeof v==="number" && window.XLSX && XLSX.SSF){ try{ const d=XLSX.SSF.parse_date_code(v); if(d) return d.y+"-"+String(d.m).padStart(2,"0")+"-"+String(d.d).padStart(2,"0"); }catch(_){} }
+  if(v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
+  const t=String(v).trim(); let m=t.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/); if(m){ let y=m[3]; if(y.length===2) y="20"+y; return y+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0"); }
+  m=t.match(/(\d{4})-(\d{2})-(\d{2})/); if(m) return m[0]; return ""; }
+function limpiarTxt(v){ return String(v??"").replace(/[㐀-鿿豈-﫿　-〿]/g,"").replace(/\s+/g," ").trim(); }
+function normalizarFilaGasto(c){ const usd=numDe(c.usd), bs=numDe(c.bs), bsUsd=numDe(c.bsUsd), total=numDe(c.total), tasaM=numDe(c.tasa);
+  const fecha=fechaDe(c.fecha); const desc=limpiarTxt(c.descripcion).replace(/^\*+$/,""); const cuenta=limpiarTxt(c.cuenta); let cat=limpiarTxt(c.categoria).replace(/^\*+$/,"")||"Otros";
+  let moneda, monto, tasa;
+  if(usd>0){ moneda="USD"; monto=usd; tasa=tasaM>0?tasaM:(tipoCambio||0); }
+  else if(bs>0){ moneda="Bs"; monto=bs; const eq=bsUsd>0?bsUsd:total; tasa= eq>0 ? bs/eq : (tasaM>0?tasaM:(tipoCambio||0)); }
+  else if(total>0){ moneda="USD"; monto=total; tasa=tasaM>0?tasaM:(tipoCambio||0); }
+  else return null;
+  if(!fecha) return null;
+  let forma="Banco", banco="";
+  if(/efectivo/i.test(cuenta)){ forma="Efectivo"; } else { const cl=cuenta.toLowerCase(); const b=BANCOS.find(x=>cl.includes(x.toLowerCase()))||BANCOS.find(x=>x.toLowerCase().split(" ")[0].length>3 && cl.includes(x.toLowerCase().split(" ")[0])); banco=b||cuenta; if(!banco) forma="Efectivo"; }
+  const fijoRe=/alquiler|n[oó]mina|sueldo|internet|tel[eé]fono|servicio|luz|agua|aseo|seguridad|vigilancia/i;
+  const tipo=fijoRe.test(cat+" "+desc)?"Fijo":"Variable";
+  return { fecha, descripcion:desc, monto:Math.round(monto*100)/100, moneda, tasa:Math.round(tasa*100)/100, forma_pago:forma, banco, categoria:cat, tipo }; }
+function mapearEncabezadoGastos(hdr){ const cols={}; hdr.forEach((h,i)=>{ const t=limpiarTxt(h).toLowerCase(); if(!t) return;
+    if(cols.fecha===undefined && /fecha/.test(t)) cols.fecha=i; else if(cols.descripcion===undefined && /descrip/.test(t)) cols.descripcion=i;
+    else if(cols.bsUsd===undefined && /^bs\s*[-–—]\s*\$/.test(t)) cols.bsUsd=i; else if(cols.total===undefined && /total/.test(t)) cols.total=i;
+    else if(cols.usd===undefined && /^\$|^usd|d[oó]lar/.test(t)) cols.usd=i; else if(cols.bs===undefined && /^bs\b|bol[ií]var/.test(t)) cols.bs=i;
+    else if(cols.tasa===undefined && /tasa/.test(t)) cols.tasa=i; else if(cols.cuenta===undefined && /cuenta|banco/.test(t)) cols.cuenta=i;
+    else if(cols.categoria===undefined && /categor/.test(t)) cols.categoria=i; }); return cols; }
+async function importarGastosExcel(ev){ const f=ev.target.files[0]; ev.target.value=""; if(!f) return; if(!window.XLSX){ toast("Abre la app publicada para importar Excel"); return; }
+  showLoader("Leyendo Excel…"); try{ const wb=XLSX.read(await f.arrayBuffer(),{type:"array",cellDates:false}); const filas=[];
+    for(const name of wb.SheetNames){ const aoa=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:"",raw:true}); let hi=-1, cols=null;
+      for(let i=0;i<Math.min(aoa.length,40);i++){ const c=mapearEncabezadoGastos(aoa[i]); if(c.fecha!==undefined && c.descripcion!==undefined){ hi=i; cols=c; break; } }
+      if(hi<0) continue;
+      for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]; const get=(k)=>cols[k]===undefined?"":r[cols[k]]; const g=normalizarFilaGasto({fecha:get("fecha"),descripcion:get("descripcion"),usd:get("usd"),bs:get("bs"),tasa:get("tasa"),bsUsd:get("bsUsd"),cuenta:get("cuenta"),categoria:get("categoria"),total:get("total")}); if(g) filas.push(g); } }
+    hideLoader(); if(!filas.length){ toast("No encontré filas de gastos (busco columnas Fecha, Descripción, $, Bs, Cuentas…)"); return; } revisarGastosImport(filas,"Excel "+f.name); }catch(e){ hideLoader(); toast("Error leyendo el Excel: "+e.message); } }
+async function cargarTesseract(){ if(window.Tesseract) return true; await new Promise((res,rej)=>{ const sc=document.createElement("script"); sc.src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"; sc.onload=res; sc.onerror=()=>rej(new Error("No se pudo cargar el lector OCR (revisa tu conexión)")); document.head.appendChild(sc); }); return !!window.Tesseract; }
+async function importarGastosImagen(ev){ const f=ev.target.files[0]; ev.target.value=""; if(!f) return;
+  showLoader("Leyendo la imagen… (puede tardar unos segundos)"); try{ await cargarTesseract(); const worker=await Tesseract.createWorker("spa+eng"); const { data }=await worker.recognize(f); try{ await worker.terminate(); }catch(_){}
+    const filas=parsearOCRGastos(data); hideLoader(); if(!filas.length){ toast("No reconocí filas con fecha en la imagen. Prueba con una captura más nítida o importa el Excel."); return; } revisarGastosImport(filas,"imagen "+f.name); }
+  catch(e){ hideLoader(); toast("No se pudo leer la imagen: "+e.message); } }
+function parsearOCRGastos(data){ const esFecha=(t)=>/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/.test(t); const esNum=(t)=>/^[\$]?[\d][\d.,]*\$?$/.test(t)&&/\d/.test(t);
+  const lines=(data.lines||[]).map(l=>({text:(l.text||"").trim(), words:(l.words||[]).map(w=>({t:(w.text||"").trim(), x:(w.bbox.x0+w.bbox.x1)/2})).filter(w=>w.t)}));
+  // anclas de columnas desde el encabezado
+  const KEYS=[["fecha",/^fecha/i],["descripcion",/^descrip/i],["bsUsd",/^bs[-–—]/i],["total",/^total/i],["usd",/^\$$/],["bs",/^bs$/i],["tasa",/^tasa/i],["cuenta",/^cuentas?$/i],["categoria",/^categor/i]];
+  let anc=null; for(const l of lines){ if(/fecha/i.test(l.text) && /descrip/i.test(l.text)){ anc={}; for(const w of l.words){ const t=w.t.replace(/[^\w$\-–—]/g,""); for(const [k,re] of KEYS){ if(anc[k]===undefined && re.test(t)){ anc[k]=w.x; break; } } } break; } }
+  const filas=[];
+  for(const l of lines){ if(!l.words.length || !esFecha(l.words[0].t)) continue; const fecha=l.words[0].t; const resto=l.words.slice(1); const c={fecha, descripcion:"", usd:"", bs:"", tasa:"", bsUsd:"", cuenta:"", categoria:"", total:""};
+    if(anc && anc.usd!==undefined && anc.cuenta!==undefined){ const numCols=["usd","bs","tasa","bsUsd","total"].filter(k=>anc[k]!==undefined), txtCols=["cuenta","categoria"].filter(k=>anc[k]!==undefined);
+      const near=(x,ks)=>ks.reduce((b,k)=>Math.abs(anc[k]-x)<Math.abs(anc[b]-x)?k:b, ks[0]);
+      for(const w of resto){ if(/^\*+$/.test(w.t)) continue; if(w.x < anc.usd-20){ c.descripcion+=(c.descripcion?" ":"")+w.t; continue; }
+        if(esNum(w.t) && (w.x < anc.cuenta-15 || (anc.total!==undefined && w.x > anc.total-40))){ const k=near(w.x,numCols); c[k]=c[k]?c[k]+w.t:w.t; }
+        else { const k=near(w.x,txtCols); c[k]+=(c[k]?" ":"")+w.t; } } }
+    else { // sin encabezado: heurística por orden
+      let i=0; while(i<resto.length && !(esNum(resto[i].t) && (/[.,$]/.test(resto[i].t)||resto[i].t.length>=4))) { if(!/^\*+$/.test(resto[i].t)) c.descripcion+=(c.descripcion?" ":"")+resto[i].t; i++; }
+      const nums=[], txt=[]; for(;i<resto.length;i++){ const t=resto[i].t; if(/^\*+$/.test(t)) continue; if(esNum(t)) nums.push(t); else txt.push(t); }
+      const conDolar=nums.find(t=>t.startsWith("$")); if(conDolar) c.usd=conDolar; else if(nums.length){ c.bs=nums[0]; if(nums.length>=2) c.bsUsd=nums[1]; }
+      if(nums.length) c.total=nums[nums.length-1];
+      const tj=txt.join(" "); const m=tj.match(/(efectivo\s*\$?|efectivo\s*bs|banesco[^a-z]*\d*|mercantil|bdv|bnc|provincial|exterior|bicentenario|tesoro)/i); if(m){ c.cuenta=m[0].trim(); c.categoria=tj.replace(m[0],"").trim(); } else c.categoria=tj; }
+    const g=normalizarFilaGasto(c); if(g) filas.push(g); }
+  return filas; }
+let _giFilas=[];
+function gastoYaExiste(g){ return db.list("gastos").some(x=>x.fecha===g.fecha && (x.descripcion||"")===(g.descripcion||"") && Math.abs((Number(x.monto)||0)-(Number(g.monto)||0))<0.005 && (x.moneda||"Bs")===g.moneda); }
+function revisarGastosImport(filas, origen){ _giFilas=filas.map(f=>({...f, ok:!gastoYaExiste(f)})); _giOrigen=origen; pintarRevisionGastos(); }
+let _giOrigen="";
+function pintarRevisionGastos(){ const bancoDl=`<datalist id="dlBancosGi">${BANCOS.map(b=>`<option value="${esc(b)}">`).join("")}</datalist><datalist id="dlCatGi">${GASTO_CATS.concat(["PAGO COMISION BANCO"]).map(c=>`<option value="${esc(c)}">`).join("")}</datalist>`;
+  const inp=(i,k,type="text",cls="")=>`<input type="${type}" ${type==="number"?'step="any"':""} value="${esc(_giFilas[i][k]??"")}" oninput="_giFilas[${i}].${k}=this.value" class="px-2 py-1 rounded-lg border border-slate-200 text-xs w-full ${cls}" ${k==="banco"?'list="dlBancosGi"':""} ${k==="categoria"?'list="dlCatGi"':""}>`;
+  const sel=(i,k,opts)=>`<select onchange="_giFilas[${i}].${k}=this.value" class="px-2 py-1 rounded-lg border border-slate-200 text-xs w-full bg-white">${opts.map(o=>`<option ${_giFilas[i][k]===o?"selected":""}>${o}</option>`).join("")}</select>`;
+  const cards=_giFilas.map((g,i)=>{ const dup=gastoYaExiste(g); return `<div class="bg-white border ${dup?'border-amber-300':'border-slate-100'} rounded-xl p-2 space-y-1">
+      <div class="flex items-center justify-between gap-2"><label class="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" ${g.ok?"checked":""} onchange="_giFilas[${i}].ok=this.checked"> Fila ${i+1}${dup?' <span class="text-amber-600 font-normal">· ya existe</span>':""}</label><span class="text-[11px] font-bold">${g.moneda==="USD"?"$"+fmt2(g.monto):fmt2(g.monto)+" Bs"}</span></div>
+      <div class="grid grid-cols-2 gap-1">${inp(i,"fecha","date")}${inp(i,"descripcion")}</div>
+      <div class="grid grid-cols-3 gap-1">${inp(i,"monto","number")}${sel(i,"moneda",["Bs","USD","USDT"])}${inp(i,"tasa","number")}</div>
+      <div class="grid grid-cols-3 gap-1">${sel(i,"forma_pago",["Banco","Efectivo"])}${inp(i,"banco")}${sel(i,"tipo",["Variable","Fijo"])}</div>
+      ${inp(i,"categoria")}</div>`; }).join("");
+  const tot=_giFilas.reduce((a,g)=>{ const m=gastoMontos({monto:g.monto,moneda:g.moneda,tasa:g.tasa,tasa_alt:0}); a.usd+=m.usd; return a; },{usd:0});
+  openModal(`<h3 class="font-bold text-lg mb-1">📥 Revisar gastos leídos</h3><p class="text-xs text-slate-500 mb-2">Origen: ${esc(_giOrigen)} · ${_giFilas.length} fila(s) · ≈ $${fmt2(tot.usd)}. Corrige lo que haga falta y guarda. Las filas marcadas "ya existe" quedan desmarcadas para no duplicar.</p>
+    ${bancoDl}<div class="space-y-2 max-h-[60vh] overflow-y-auto pr-1">${cards}</div>
+    <div class="flex gap-2 mt-3"><button onclick="guardarGastosImport()" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">💾 Guardar seleccionados</button><button onclick="renderGastosModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`); }
+async function guardarGastosImport(){ if(!puede("deudas")){ toast("Sin acceso"); return; } const sel=_giFilas.filter(g=>g.ok); if(!sel.length){ toast("No hay filas seleccionadas"); return; }
+  showLoader("Guardando gastos…"); let n=0; const err=[];
+  for(const g of sel){ const monto=Number(g.monto)||0; if(!monto||!g.fecha) continue; const mon=String(g.moneda||"Bs"); const r={ tipo:g.tipo||"Variable", categoria:g.categoria||"Otros", descripcion:g.descripcion||"", monto, moneda:mon, forma_pago:g.forma_pago||"Banco", banco:g.forma_pago==="Efectivo"?"":(g.banco||""), tasa:Number(g.tasa)||tipoCambio||0, tasa_alt:mon.toUpperCase()==="USDT"?(Number(g.tasa)||0):0, fecha:g.fecha, notas:"Importado de "+_giOrigen };
+    try{ await db.insert("gastos",r); n++; }catch(e){ err.push(e.message); } }
+  hideLoader(); _gtTodas=true; renderGastosModal(); render(); toast(n+" gasto(s) importados"+(err.length?" · "+err.length+" con error":"")); if(err.length) alert("Errores:\n"+err.slice(0,5).join("\n")); }
 
 /* --- Vista propia de Facturas recibidas (mosaico de Caja y Finanzas) --- */
 function renderFacturasRecView(){ if(!puede("deudas")) return; const c=document.getElementById("listaFacturasRec"); if(!c) return;
