@@ -642,7 +642,7 @@
       <button id="btnPlantillaProd" onclick="plantillaProductos()" class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl">⬇ Plantilla</button>
     </div>
     <p id="impProdMsg" class="text-xs mb-2"></p>
-    <input id="buscarProd" oninput="renderInventario()" placeholder="Buscar por nombre, categoría o código…" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 bg-white" />
+    <input id="buscarProd" oninput="buscarInvInput()" onkeydown="if(event.key==='Enter'){event.preventDefault();buscarInvEnter();}" placeholder="Buscar por nombre, categoría o código… (o escanea con el lector)" autocomplete="off" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 bg-white" />
     <select id="filtroProvInv" onchange="renderInventario()" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm"></select>
     <label class="flex items-center gap-2 text-xs text-slate-600 mb-2"><input type="checkbox" id="soloBajo" onchange="renderInventario()"> Mostrar solo bajo mínimo</label>
     <div id="contadorProd" class="mb-2"></div>
@@ -938,7 +938,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="6.1"; // se incrementa con cada mejora
+const APP_VERSION="6.2"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -2699,7 +2699,14 @@ function renderPPModal(provId){ const prov=provById(provId); if(!prov) return; c
 async function togglePP(prodId, provId, checked){ if(!puede("proveedores")){ toast("Sin acceso"); return; } try{ await db.update("productos",prodId,{proveedor_id: checked?provId:null}); }catch(e){ toast("Error: "+e.message); } }
 
 /* ===================== INVENTARIO ===================== */
-function prodById(id){ return db.list("productos").find(p=>p.id===id); }
+/* Índices de productos (14.000+ filas): búsqueda por id y por código de barras en tiempo constante.
+   Se reconstruyen solos cuando cambia la lista; si un dato quedó viejo se verifica y se vuelve a indexar. */
+const _pIdx={ arr:null, len:-1, byId:new Map(), byCode:new Map() };
+function _prodIndex(){ const l=db.list("productos"); if(_pIdx.arr!==l || _pIdx.len!==l.length){ _pIdx.arr=l; _pIdx.len=l.length; _pIdx.byId=new Map(); _pIdx.byCode=new Map(); for(const p of l){ _pIdx.byId.set(p.id,p); const c=String(p.codigo||"").trim(); if(c && !_pIdx.byCode.has(c)) _pIdx.byCode.set(c,p); } } return _pIdx; }
+function prodById(id){ const ix=_prodIndex(); let p=ix.byId.get(id); if(p && ix.arr.includes(p)) return p; p=ix.arr.find(x=>x.id===id); if(p){ ix.byId.set(id,p); } else ix.byId.delete(id); return p; }
+function prodByCodigo(code){ const c=String(code||"").trim(); if(!c) return null; const ix=_prodIndex(); let p=ix.byCode.get(c); if(p && String(p.codigo||"").trim()===c && ix.arr.includes(p)) return p; p=ix.arr.find(x=>String(x.codigo||"").trim()===c)||null; if(p) ix.byCode.set(c,p); else ix.byCode.delete(c); return p; }
+const _pTxt=new WeakMap();
+function prodTexto(p){ let t=_pTxt.get(p); if(t===undefined){ t=[p.nombre,p.categoria,p.codigo].join(" ").toLowerCase(); _pTxt.set(p,t); } return t; }
 function optionsProductos(sel,provId){ let l=db.list("productos"); if(provId) l=l.filter(p=>p.proveedor_id===provId); return l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(p=>`<option value="${p.id}" ${p.id===sel?"selected":""}>${esc(p.nombre)}</option>`).join(""); }
 function optionsProveedores(sel){ return `<option value="">(ninguno)</option>`+db.list("proveedores").map(p=>`<option value="${p.id}" ${p.id===sel?"selected":""}>${esc(p.nombre)}</option>`).join(""); }
 function openProducto(id){ const p=id?prodById(id):{};
@@ -2783,7 +2790,7 @@ function resolverSalProd(){ const txt=document.getElementById("sal_prod_txt"), h
   const q=(txt.value||"").trim().toLowerCase(); const p=q?db.list("productos").find(x=>(x.nombre||"").trim().toLowerCase()===q):null; hid.value=p?p.id:""; pintarSalInfo(p); }
 function pintarSalInfo(p){ const el=document.getElementById("sal_info"); if(!el) return; if(!p){ el.textContent=""; return; }
   el.innerHTML=`Stock actual: <b>${Number(p.stock)||0}</b> ${esc(p.unidad||"")} · mín ${Number(p.stock_min)||0} · ${abcBadge(abcDe(p.id))}`; }
-function escanearSalida(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c);
+function escanearSalida(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=prodByCodigo(c);
   const hid=document.getElementById("sal_prod"), txt=document.getElementById("sal_prod_txt");
   if(p && hid){ hid.value=p.id; if(txt) txt.value=p.nombre; pintarSalInfo(p); const cant=document.getElementById("sal_cant"); if(cant) cant.focus(); toast("✔ "+p.nombre); }
   else { toast("Código "+c+" no está en inventario. Cárgalo primero."); } }); }
@@ -2886,25 +2893,43 @@ function renderInventario(){ const q=(document.getElementById("buscarProd")?.val
   { const bs=document.getElementById("btnSalidaProd"); if(bs) bs.style.display=puedeRegistrarSalida()?"":"none"; }
   // Filtro por proveedor (para hacer inventario del proveedor seleccionado)
   const fp=document.getElementById("filtroProvInv"); let provSel="";
-  if(fp){ provSel=fp.value; const provs=db.list("proveedores").sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
-    fp.innerHTML=`<option value="">🚚 Todos los proveedores</option><option value="__none__">— Sin proveedor asignado —</option>`+provs.map(pr=>`<option value="${pr.id}">${esc(pr.nombre)}</option>`).join("");
-    if([...fp.options].some(o=>o.value===provSel)) fp.value=provSel; else { fp.value=""; provSel=""; } }
-  const todos=db.list("productos"); const bajoMin=todos.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0)).length;
-  let l=todos.filter(p=>[p.nombre,p.categoria,p.codigo].join(" ").toLowerCase().includes(q)); if(soloBajo) l=l.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0));
-  if(provSel==="__none__") l=l.filter(p=>!p.proveedor_id); else if(provSel) l=l.filter(p=>p.proveedor_id===provSel);
-  l=l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+  if(fp){ provSel=fp.value; const provsL=db.list("proveedores"); if(fp.dataset.n!==String(provsL.length)){ const provs=provsL.slice().sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+      fp.innerHTML=`<option value="">🚚 Todos los proveedores</option><option value="__none__">— Sin proveedor asignado —</option>`+provs.map(pr=>`<option value="${pr.id}">${esc(pr.nombre)}</option>`).join(""); fp.dataset.n=String(provsL.length);
+      if([...fp.options].some(o=>o.value===provSel)) fp.value=provSel; else { fp.value=""; provSel=""; } } }
+  const todos=db.list("productos"); let bajoMin=0; for(const p of todos){ if((Number(p.stock)||0)<=(Number(p.stock_min)||0)) bajoMin++; }
+  let l; const exacto=q?prodByCodigo(q):null;
+  if(exacto && !soloBajo && !provSel){ l=[exacto]; } else { l=q?todos.filter(p=>prodTexto(p).includes(q)):todos.slice(); if(soloBajo) l=l.filter(p=>(Number(p.stock)||0)<=(Number(p.stock_min)||0));
+    if(provSel==="__none__") l=l.filter(p=>!p.proveedor_id); else if(provSel) l=l.filter(p=>p.proveedor_id===provSel);
+    l.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")); }
+  const totalFiltrado=l.length; const LIM=_invLimite||150; const truncado=l.length>LIM; if(truncado) l=l.slice(0,LIM);
   const cnt=document.getElementById("contadorProd");
   if(cnt){ const filtrando=q||soloBajo||provSel;
     const toggle=esGerencia()?`<label class="flex items-center justify-between gap-2 bg-white rounded-xl px-3 py-2 text-xs shadow-sm mb-2"><span class="text-slate-600 font-semibold">👁 Mostrar precio costo al personal</span><input type="checkbox" ${verCostoCfg?"checked":""} onchange="toggleVerCosto(this)" class="w-4 h-4"></label>`:"";
     const provNom=provSel==="__none__"?"sin proveedor":provSel?(provById(provSel)?.nombre||""):"";
     const provBanner=provSel?`<div class="bg-amber-50 text-amber-800 rounded-xl px-3 py-2 text-xs mb-2 flex items-center justify-between"><span>🚚 Inventario del proveedor: <b>${esc(provNom)}</b> · ${l.length.toLocaleString("es-VE")} producto(s)</span><button onclick="document.getElementById('filtroProvInv').value='';renderInventario()" class="font-semibold underline shrink-0">Ver todos</button></div>`:"";
-    cnt.innerHTML=toggle+provBanner+`<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-xs flex items-center justify-between"><span>📦 <b>${todos.length.toLocaleString("es-VE")}</b> productos en total${bajoMin?` · <span class="text-red-600">${bajoMin} bajo mínimo</span>`:""}</span>${filtrando?`<span class="text-slate-500">${l.length.toLocaleString("es-VE")} mostrados</span>`:""}</div>`; }
+    cnt.innerHTML=toggle+provBanner+`<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-xs flex items-center justify-between"><span>📦 <b>${todos.length.toLocaleString("es-VE")}</b> productos en total${bajoMin?` · <span class="text-red-600">${bajoMin} bajo mínimo</span>`:""}</span>${filtrando?`<span class="text-slate-500">${totalFiltrado.toLocaleString("es-VE")} encontrados${truncado?" · mostrando "+LIM:""}</span>`:`<span class="text-slate-500">mostrando ${Math.min(LIM,todos.length)}</span>`}</div>`; }
   const c=document.getElementById("listaInventario"); if(!l.length){ c.innerHTML=empty(q||soloBajo||provSel?"Sin resultados.":"Sin productos."); return; }
   const vco=verCosto(); const abc=abcMap(); const puedeQuitar=provSel && provSel!=="__none__" && puedeEditarInv();
   c.innerHTML=l.map(p=>{ const bajo=(Number(p.stock)||0)<=(Number(p.stock_min)||0);
     return `<div onclick="openProducto('${p.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(p.nombre)} ${abcBadge(abc[p.id]||"C")}</p><p class="text-xs text-slate-500 truncate">${p.codigo?"🏷 "+esc(p.codigo)+" · ":""}${esc(p.categoria||"—")}${vco?" · "+money(p.precio_compra):""}${(Number(p.unidades_empaque)||0)>0?" · 📦 "+esc(p.empaque||"Bulto")+" x"+(Number(p.unidades_empaque)||0):""}</p>${puedeQuitar?`<button onclick="quitarProdDeProveedor('${p.id}',event)" class="text-[11px] text-red-600 font-semibold mt-1">✕ Quitar de este proveedor</button>`:""}</div>
-    <div class="text-right"><p class="text-sm font-bold ${bajo?"text-red-600":"text-slate-700"}">${Number(p.stock)||0} ${esc(p.unidad||"")}</p>${bajo?`<span class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700">Bajo mínimo</span>`:`<span class="text-[10px] text-slate-400">mín: ${Number(p.stock_min)||0}</span>`}</div></div>`; }).join("");
+    <div class="text-right"><p class="text-sm font-bold ${bajo?"text-red-600":"text-slate-700"}">${Number(p.stock)||0} ${esc(p.unidad||"")}</p>${bajo?`<span class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700">Bajo mínimo</span>`:`<span class="text-[10px] text-slate-400">mín: ${Number(p.stock_min)||0}</span>`}</div></div>`; }).join("")
+    +(truncado?`<button onclick="_invLimite=(${LIM})+300;renderInventario()" class="w-full bg-white border border-slate-200 text-teal-700 font-semibold py-2.5 rounded-xl">Mostrar más (${(totalFiltrado-LIM).toLocaleString("es-VE")} restantes)</button>`:"");
 }
+/* ---- Búsqueda del inventario: espera a que dejes de escribir (o a que el lector termine) antes de dibujar ---- */
+let _invLimite=150, _invTimer=null;
+function buscarInvInput(){ _invLimite=150; clearTimeout(_invTimer); _invTimer=setTimeout(renderInventario,140); }
+function buscarInvEnter(){ clearTimeout(_invTimer); const el=document.getElementById("buscarProd"); const q=(el?el.value:"").trim(); renderInventario(); if(!q) return;
+  const p=prodByCodigo(q); if(p){ openProducto(p.id); toast("📦 "+(p.nombre||"")); if(el){ el.select(); } } else if(/^\d{6,}$/.test(q)){ toast("Código "+q+" no está registrado. Usa + Producto para crearlo."); if(el) el.select(); } }
+/* ---- Lector de código de barras físico (USB / inalámbrico, tipo teclado): captura la ráfaga de dígitos + Enter
+   aunque no esté seleccionado el cuadro de búsqueda. En Inventario busca y abre el producto. ---- */
+(function(){ let buf="", t0=0, timer=null;
+  document.addEventListener("keydown",(e)=>{ if(!currentUser) return; const tgt=e.target; const enInput=tgt && (tgt.tagName==="INPUT"||tgt.tagName==="TEXTAREA"||tgt.tagName==="SELECT"||tgt.isContentEditable);
+    if(enInput) return; const now=Date.now(); if(now-t0>80) buf=""; t0=now;
+    if(e.key==="Enter"){ if(buf.length>=6){ const code=buf; buf=""; e.preventDefault(); codigoDesdeLector(code); } else buf=""; return; }
+    if(e.key.length===1 && /[0-9A-Za-z\-]/.test(e.key)){ buf+=e.key; clearTimeout(timer); timer=setTimeout(()=>{ buf=""; },300); } });
+})();
+function codigoDesdeLector(code){ if(currentView!=="inventario"){ if(puede("inventario")){ show("inventario"); setTimeout(()=>codigoDesdeLector(code),400); } return; }
+  const el=document.getElementById("buscarProd"); if(el) el.value=code; buscarInvEnter(); }
 
 /* ===================== ÓRDENES DE COMPRA ===================== */
 let tempItems=[], ordenPrefill=null;
@@ -2945,7 +2970,7 @@ function addItem(){ const pid=document.getElementById("oi_prod").value; const ca
   tempItems.push({ producto_id:pid, nombre:p?p.nombre:"?", cantidad:cant, precio:p?Number(p.precio_compra)||0:0, unidad:p?p.unidad:"" });
   document.getElementById("oi_cant").value=""; const ot=document.getElementById("oi_prod_txt"); if(ot) ot.value=""; const oh=document.getElementById("oi_prod"); if(oh) oh.value=""; renderItems(); }
 function removeItem(i){ tempItems.splice(i,1); renderItems(); }
-function escanearOrden(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c);
+function escanearOrden(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=prodByCodigo(c);
   if(!p){ toast("Código "+c+" no está en productos"); return; }
   const cant=Number(document.getElementById("oi_cant")?.value)||1;
   const ex=tempItems.find(it=>it.producto_id===p.id);
@@ -3018,7 +3043,7 @@ function openMerma(id){ const m=id?db.list("merma").find(x=>x.id===id):{};
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
 }
 function mermaProd(){ const pid=document.getElementById("f_producto_id")?.value; const p=prodById(pid); if(p && p.proveedor_id){ const ps=document.getElementById("f_proveedor_id"); const pt=document.getElementById("f_proveedor_id_txt"); const prov=provById(p.proveedor_id); if(ps) ps.value=p.proveedor_id; if(pt&&prov) pt.value=prov.nombre; } }
-function escanearMerma(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c);
+function escanearMerma(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=prodByCodigo(c);
   if(p){ const hid=document.getElementById("f_producto_id"), txt=document.getElementById("f_producto_id_txt"); if(hid) hid.value=p.id; if(txt) txt.value=p.nombre; mermaProd(); toast("✔ "+p.nombre); const cant=document.getElementById("f_cantidad"); if(cant) cant.focus(); }
   else toast("Código "+c+" no está en productos."); }); }
 function mermaCosto(m){ const pc=(m.precio_compra!=null&&m.precio_compra!=="")?Number(m.precio_compra):(Number(prodById(m.producto_id)?.precio_compra)||0); return { pc, costo:(m.costo!=null&&m.costo!=="")?Number(m.costo):+(pc*(Number(m.cantidad)||0)).toFixed(2) }; }
@@ -3057,7 +3082,7 @@ function addQuiebreItem(){ const pid=document.getElementById("qb_prod")?.value; 
   if(quiebreItems.some(x=>x.producto_id===pid)){ toast("Ese producto ya está en la lista"); return; }
   quiebreItems.push({producto_id:pid, nombre:p.nombre||"", proveedor_id:p.proveedor_id||""});
   const t=document.getElementById("qb_prod_txt"); if(t) t.value=""; const h=document.getElementById("qb_prod"); if(h) h.value=""; renderQuiebreItems(); }
-function escanearQuiebre(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c);
+function escanearQuiebre(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=prodByCodigo(c);
   if(p){ const h=document.getElementById("qb_prod"), t=document.getElementById("qb_prod_txt"); if(h) h.value=p.id; if(t) t.value=p.nombre; addQuiebreItem(); }
   else toast("Código "+c+" no está en productos."); }, {continuo:true}); }
 function openQuiebre(id){ if(!puede("quiebre")){ toast("Sin acceso"); return; } const q=id?db.list("quiebres").find(x=>x.id===id):null;
@@ -3743,18 +3768,18 @@ function toggleTorch(){ if(!scanTrack) return; torchOn=!torchOn; try{ scanTrack.
 function cerrarEscaner(){ try{ if(torchOn && scanTrack) scanTrack.applyConstraints({advanced:[{torch:false}]}); }catch(e){} try{ if(scanReader) scanReader.reset(); }catch(e){} scanReader=null; scannerOnResult=null; scanContinuo=false; scanTrack=null; torchOn=false; const bt=document.getElementById("btnTorch"); if(bt) bt.style.display="none"; const o=document.getElementById("scanner"); if(o) o.style.display="none"; }
 function escanearACampo(id){ abrirEscaner((code)=>{ const el=document.getElementById(id); if(el) el.value=code; toast("Código: "+code); }); }
 function escanearBuscarProducto(){ abrirEscaner((code)=>{
-  const p=db.list("productos").find(x=>String(x.codigo||"")===String(code));
+  const p=prodByCodigo(code);
   if(p){ toast("Producto encontrado"); openProducto(p.id); }
   else { openProducto(); const el=document.getElementById("f_codigo"); if(el) el.value=code; toast("Código nuevo: "+code+". Completa el producto."); }
 }); }
 function escanearPPProveedor(provId){ abrirEscaner(async(code)=>{ const c=String(code).trim();
-  const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c);
+  const p=prodByCodigo(c);
   if(p){ if(p.proveedor_id===provId){ toast("✔ "+p.nombre+" ya está asignado a este proveedor"); }
     else { await togglePP(p.id,provId,true); toast("✔ "+p.nombre+" asignado a este proveedor"); }
     _ppSearch=p.nombre; renderPPModal(provId); }
   else { _ppSearch=c; renderPPModal(provId); toast("Código "+c+" no está en inventario"+(puedeEditarInv()?". Créalo primero en Inventario.":"."));  }
 }); }
-function escanearRecepcion(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=db.list("productos").find(x=>String(x.codigo||"").trim()===c);
+function escanearRecepcion(){ abrirEscaner((code)=>{ const c=String(code).trim(); const p=prodByCodigo(c);
   const hid=document.getElementById("rec_prod"), txt=document.getElementById("rec_prod_txt");
   if(p && hid){ hid.value=p.id; if(txt) txt.value=p.nombre; toast("✔ "+p.nombre); const cant=document.getElementById("rec_cant"); if(cant) cant.focus(); }
   else { toast("Código "+c+" no está en productos. Cárgalo primero en Inventario."); }
