@@ -673,13 +673,14 @@
     <h2 class="text-lg font-bold mb-2">Nómina</h2>
     <div class="flex flex-wrap items-center gap-2 mb-2">
       <input id="nomPeriodo" type="month" onchange="renderNomina()" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" />
+      <select id="nomQuincena" onchange="renderNomina()" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm"><option value="Q1">1ª quincena (1–15)</option><option value="Q2">2ª quincena (16–fin)</option></select>
       <select id="filtroAreaNom" onchange="renderNomina()" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm"><option value="">Todas las áreas</option></select>
       <button onclick="exportarNominaExcel()" class="bg-emerald-600 text-white text-sm font-semibold px-3 py-2 rounded-xl">⬇ Excel</button>
       <button onclick="exportarNominaPDF()" class="bg-slate-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">📄 PDF</button>
     </div>
     <p id="contadorNom" class="text-xs text-slate-400 mb-1"></p>
     <div id="nomGerencia"></div>
-    <p class="text-xs text-slate-500 mb-3">Descuentos y bonos se toman de «Salarios y bonos» del mes elegido. Edita los días feriados y observaciones por empleado; se guardan solos.</p>
+    <p class="text-xs text-slate-500 mb-3">Misma fórmula del cuadro de nómina: <b>Total = (Quincena ÷ 15 × Días) + Puntualidad + Bono nocturno + Bono general + Feriado/otro − Deducc. − Bs ÷ Tasa</b>, redondeado a entero. Bonos y deducciones de «Salarios y bonos» de la quincena entran solos; lo que escribas a mano manda y se guarda.</p>
     <div id="listaNomina" class="space-y-2"></div>
   </section>
 
@@ -849,6 +850,8 @@
       </div>
       <label class="block text-xs text-slate-500 mb-1">Hora de entrada esperada</label>
       <input id="cfgHoraEntrada" type="time" class="px-3 py-2 rounded-xl border border-slate-200 mb-3 w-full" />
+      <label class="block text-xs text-slate-500 mb-1">RIF de la empresa (sale en el Excel de nómina)</label>
+      <input id="cfgRif" placeholder="J-00000000-0" class="px-3 py-2 rounded-xl border border-slate-200 mb-3 w-full" />
       <label class="block text-xs text-slate-500 mb-1">Moneda</label>
       <input id="cfgMoneda" placeholder="Bs / USD / $" class="px-3 py-2 rounded-xl border border-slate-200 mb-3 w-full" />
       <button onclick="guardarAjustes()" class="bg-teal-600 text-white text-sm font-semibold px-3 py-2 rounded-xl">Guardar</button>
@@ -938,7 +941,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="6.3"; // se incrementa con cada mejora
+const APP_VERSION="6.4"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1056,6 +1059,7 @@ function aplicarIconosApp(){ try{ const src=(ajustes&&ajustes.logo)?ajustes.logo
 function guardarAjustes(){
   ajustes.nombre=document.getElementById("cfgNombre").value||"Hipposupermarket";
   ajustes.horaEntrada=document.getElementById("cfgHoraEntrada").value||"08:00";
+  ajustes.rif=(document.getElementById("cfgRif")?.value||"").trim();
   ajustes.moneda=document.getElementById("cfgMoneda").value||"Bs";
   guardarConfigLS(); aplicarIconosApp(); toast("Ajustes guardados"); render();
 }
@@ -3356,25 +3360,40 @@ function renderRecepHistory(){ const l=db.list("recepciones").sort((a,b)=>(b.fec
 function nominaRec(empId,per){ return db.list("nomina").find(n=>n.empleado_id===empId&&n.periodo===per); }
 async function setNominaCampo(empId,campo,val){ if(!esGerencia()){ toast("Solo gerencia puede modificar la nómina"); render(); return; } const per=periodoNomina(); let rec=nominaRec(empId,per);
   if(rec) await db.update("nomina",rec.id,{[campo]:val}); else { const o={empleado_id:empId,periodo:per}; o[campo]=val; await db.insert("nomina",o); } }
-function periodoNomina(){ return document.getElementById("nomPeriodo")?.value || hoy().slice(0,7); }
+/* ===================== NÓMINA QUINCENAL (fórmulas del Excel de nómina) =====================
+   Periodo = mes + quincena (Q1: del 1 al 15 · Q2: del 16 al fin de mes). Por empleado:
+   QUINCENA ($) = salario mensual / 2 · DIAS (trabajados, base 15) · PUNTUALIDAD · BONO GENERAL · BONO NOCTURNO ·
+   DIAS PERMISO (informativo) · FERIADO/OTRO · DEDUCC. ($) · BS (deducción en bolívares) · TASA BCV.
+   TOTAL = (QUINCENA/15)*DIAS + PUNTUALIDAD + BONO NOCTURNO + BONO GENERAL + FERIADO/OTRO − DEDUCC − BS/TASA  →  redondeado a entero. */
+function periodoNomina(){ const m=document.getElementById("nomPeriodo")?.value || hoy().slice(0,7); const q=document.getElementById("nomQuincena")?.value || (Number(hoy().slice(8,10))<=15?"Q1":"Q2"); return m+"-"+q; }
 function areaNomina(){ return document.getElementById("filtroAreaNom")?.value || ""; }
+function rangoNomina(per){ const mes=per.slice(0,7); const q=per.endsWith("Q2")?2:1; const [a,b]=rangoQuincena(mes,q); return {mes,q,desde:a,hasta:b}; }
+function tituloNomina(per){ const {mes,desde,hasta}=rangoNomina(per); return "NOMINA DEL "+Number(desde.slice(8))+" AL "+Number(hasta.slice(8))+" DE "+MES_NOMBRES[Number(mes.slice(5,7))-1]+" "+mes.slice(0,4); }
+function tasaNomina(per){ const c=(store.config||[]).find(r=>r.id==="nomina_tasa_"+per); const v=c?Number(c.valor):0; if(v>0) return v; return tasaBCVde(rangoNomina(per).hasta)||tipoCambio||0; }
+async function setTasaNomina(v){ if(!esGerencia()){ toast("Solo gerencia"); return; } v=Number(v)||0; if(v<=0){ toast("Tasa inválida"); return; } await setConfig("nomina_tasa_"+periodoNomina(),v); renderNomina(); toast("Tasa de la nómina guardada"); }
+const NOM_NUM=(v,def)=>(v===null||v===undefined||v==="")?def:(Number(v)||0);
+function calcNominaQ(r,tasa){ const total=(r.quincena/15)*r.dias + r.puntualidad + r.bono_nocturno + r.bono_general + r.feriado_otro - r.deducc - (tasa>0?r.deducc_bs/tasa:0); return { total:+total.toFixed(4), total_red:Math.round(total) }; }
 function buildNomina(per, area){ let emps=db.list("empleados").filter(e=>e.estado!=="Inactivo"); if(area){ const s=area.trim().toLowerCase(); emps=emps.filter(e=>(e.area||"").trim().toLowerCase()===s); }
+  const {desde,hasta}=rangoNomina(per); const tasa=tasaNomina(per);
   return emps.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(e=>{
-    const bmes=db.list("bonos").filter(b=>b.empleado_id===e.id&&(b.fecha||"").startsWith(per));
-    const desc=bmes.filter(b=>b.tipo==="Deducción").reduce((s,b)=>s+(Number(b.monto)||0),0);
-    const bono=bmes.filter(b=>b.tipo!=="Deducción").reduce((s,b)=>s+(Number(b.monto)||0),0);
-    const rec=nominaRec(e.id,per); const mensual=Number(e.salario_base)||0;
-    const retardo=descuentoRetardoEmp(e.id,per);
-    return { id:e.id, nombre:e.nombre||"", cedula:e.cedula||"", ingreso:e.fecha_ingreso||"", mensual, quincenal:+(mensual/2).toFixed(2), descuentos:+(desc+retardo).toFixed(2), retardo, feriados:rec?.dias_feriados||0, bono, observaciones:rec?.observaciones||"" };
-  }); }
-function renderNomina(){ const el=document.getElementById("nomPeriodo"); if(el&&!el.value) el.value=hoy().slice(0,7);
+    const bq=db.list("bonos").filter(b=>b.empleado_id===e.id && (b.fecha||"")>=desde && (b.fecha||"")<=hasta);
+    const descAuto=bq.filter(b=>b.tipo==="Deducción").reduce((s,b)=>s+(Number(b.monto)||0),0); const bonoAuto=bq.filter(b=>b.tipo!=="Deducción").reduce((s,b)=>s+(Number(b.monto)||0),0);
+    const retardo=descuentoRetardoEmp(e.id,per.slice(0,7)); const rec=nominaRec(e.id,per)||{}; const mensual=Number(e.salario_base)||0;
+    const r={ id:e.id, nombre:e.nombre||"", cedula:e.cedula||"", ingreso:e.fecha_ingreso||"", cargo:e.cargo||e.area||"", area:e.area||"", mensual, quincena:+(mensual/2).toFixed(2),
+      dias:NOM_NUM(rec.dias,15), puntualidad:NOM_NUM(rec.puntualidad,0), bono_general:NOM_NUM(rec.bono_general,bonoAuto), bono_nocturno:NOM_NUM(rec.bono_nocturno,0), dias_permiso:NOM_NUM(rec.dias_permiso,0),
+      feriado_otro:NOM_NUM(rec.feriado_otro,0), deducc:NOM_NUM(rec.deducc,+(descAuto+retardo).toFixed(2)), deducc_bs:NOM_NUM(rec.deducc_bs,0), observaciones:rec.observaciones||"",
+      auto:{bono:bonoAuto, desc:descAuto, retardo}, editado:{bono_general:rec.bono_general!=null&&rec.bono_general!=="", deducc:rec.deducc!=null&&rec.deducc!==""} };
+    Object.assign(r,calcNominaQ(r,tasa)); return r; }); }
+function renderNomina(){ const el=document.getElementById("nomPeriodo"); if(el&&!el.value) el.value=hoy().slice(0,7); const qs=document.getElementById("nomQuincena"); if(qs&&!qs.dataset.init){ qs.value=Number(hoy().slice(8,10))<=15?"Q1":"Q2"; qs.dataset.init="1"; }
   const fa=document.getElementById("filtroAreaNom");
   if(fa){ const actual=fa.value; fa.innerHTML=`<option value="">Todas las áreas</option>`+AREAS.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join(""); if(AREAS.includes(actual)) fa.value=actual; }
-  const per=periodoNomina(); const area=areaNomina(); const rows=buildNomina(per,area); const c=document.getElementById("listaNomina");
-  const cont=document.getElementById("contadorNom"); if(cont) cont.textContent=rows.length+" empleado"+(rows.length===1?"":"s")+(area?" · "+area:"");
-  // Panel de gerencia: mostrar/ocultar sueldos, descuento por retardo, conceptos
+  const per=periodoNomina(); const area=areaNomina(); const tasa=tasaNomina(per); const rows=buildNomina(per,area); const c=document.getElementById("listaNomina");
+  const {desde,hasta}=rangoNomina(per); const totQ=rows.reduce((s,r)=>s+r.total_red,0);
+  const cont=document.getElementById("contadorNom"); if(cont) cont.innerHTML=`<span class="font-semibold text-slate-600">${esc(tituloNomina(per))}</span> · ${rows.length} empleado${rows.length===1?"":"s"}${area?" · "+esc(area):""} · del ${esc(desde)} al ${esc(hasta)}`;
   const gp=document.getElementById("nomGerencia");
   if(gp){ gp.innerHTML = esGerencia()? `<div class="bg-white rounded-2xl shadow-sm p-3 mb-2 space-y-2">
+    <div class="flex items-center gap-2"><div class="flex-1"><label class="text-[10px] text-slate-400">Tasa BCV de esta nómina (Bs por $)</label><input id="nomTasa" type="number" step="any" value="${tasa}" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div><button onclick="setTasaNomina(document.getElementById('nomTasa').value)" class="bg-teal-700 text-white rounded-lg px-3 py-1.5 text-sm font-semibold mt-4">Guardar tasa</button></div>
+    <div class="bg-slate-800 text-white rounded-xl px-3 py-2 text-sm flex items-center justify-between"><span>Total nómina (redondeado)</span><b>${moneyS(totQ)}</b></div>
     <label class="flex items-center justify-between gap-2 text-xs"><span class="text-slate-600 font-semibold">👁 Ver sueldos (mostrar al personal)</span><input type="checkbox" ${verSueldosCfg?"checked":""} onchange="toggleVerSueldos(this)" class="w-4 h-4"></label>
     <label class="flex items-center justify-between gap-2 text-xs"><span class="text-slate-600 font-semibold">✏️ Modificar sueldos (permitir editar)</span><input type="checkbox" ${modSueldosCfg?"checked":""} onchange="toggleModSueldos(this)" class="w-4 h-4"></label>
     <div class="border-t border-slate-100 pt-2"><p class="text-[11px] font-semibold text-slate-600 mb-1">⏱ Descuento por retardo</p>
@@ -3382,37 +3401,67 @@ function renderNomina(){ const el=document.getElementById("nomPeriodo"); if(el&&
         <div class="col-span-4"><label class="text-[10px] text-slate-400">Tolerancia (min)</label><input id="cfgRetTol" type="number" value="${retardoTol}" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div>
         <div class="col-span-5"><label class="text-[10px] text-slate-400">Bs por minuto tarde</label><input id="cfgRetBs" type="number" value="${retardoBsMin}" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div>
         <div class="col-span-3"><button onclick="setRetardoCfg()" class="w-full bg-teal-700 text-white rounded-lg py-1.5 text-sm font-semibold">Guardar</button></div>
-      </div><p class="text-[10px] text-slate-400 mt-1">Se descuenta cada minuto tarde que pase la tolerancia. Se aplica solo en la nómina y el recibo.</p></div>
+      </div><p class="text-[10px] text-slate-400 mt-1">Se descuenta cada minuto tarde que pase la tolerancia. Entra en «Deducc.» automáticamente (puedes sobrescribirlo).</p></div>
     <button onclick="openConceptos()" class="w-full bg-slate-700 text-white text-xs font-semibold py-2 rounded-xl">🧾 Conceptos de pago (para el recibo)</button>
-    </div>` : ""; }
+    </div>` : `<div class="bg-slate-800 text-white rounded-xl px-3 py-2 text-sm flex items-center justify-between mb-2"><span>Tasa BCV ${bsN(tasa)}/$ · Total</span><b>${moneyS(totQ)}</b></div>`; }
   if(!rows.length){ c.innerHTML=empty(area?"Sin empleados en «"+area+"».":"Sin empleados activos."); return; }
+  const ed=esGerencia(); const inp=(r,k,label,extra)=>`<div><label class="text-[10px] text-slate-400">${label}</label><input type="number" step="any" value="${r[k]}" ${ed?"":"disabled"} onchange="setNominaCampo('${r.id}','${k}',this.value===''?null:Number(this.value)).then(renderNomina)" class="w-full px-2 py-1 rounded-lg border ${extra||"border-slate-200"} text-sm"></div>`;
   c.innerHTML=rows.map(r=>`<div class="bg-white rounded-2xl p-3 shadow-sm">
-    <div class="flex items-center justify-between"><p class="font-semibold truncate">${esc(r.nombre)}</p><p class="text-sm font-bold text-teal-700">${moneyS(r.mensual+r.bono-r.descuentos)}</p></div>
-    <p class="text-[11px] text-slate-500 mb-2">${esc(r.cedula||"—")} · ingreso ${esc(r.ingreso||"—")}</p>
-    <div class="grid grid-cols-4 gap-2 text-center text-[11px] mb-2">
-      <div><p class="text-slate-400">Mensual</p><p class="font-semibold">${moneyS(r.mensual)}</p></div>
-      <div><p class="text-slate-400">Quincenal</p><p class="font-semibold">${moneyS(r.quincenal)}</p></div>
-      <div><p class="text-slate-400">Bono</p><p class="font-semibold text-emerald-600">+${moneyS(r.bono)}</p></div>
-      <div><p class="text-slate-400">Descuentos${r.retardo>0?" ⏱":""}</p><p class="font-semibold text-red-600">−${moneyS(r.descuentos)}</p></div>
+    <div class="flex items-center justify-between gap-2"><div class="min-w-0"><p class="font-semibold truncate">${esc(r.nombre)}</p><p class="text-[11px] text-slate-500">${esc(r.cedula||"—")}${r.cargo?" · "+esc(r.cargo):""} · ingreso ${esc(r.ingreso||"—")}</p></div>
+      <div class="text-right shrink-0"><p class="text-lg font-bold text-teal-700">${moneyS(r.total_red)}</p><p class="text-[10px] text-slate-400">${verSueldos()?("exacto "+fmt2(r.total)+" · quincena "+money(r.quincena)):""}</p></div></div>
+    <div class="grid grid-cols-4 gap-2 mt-2">
+      ${inp(r,"dias","Días")}${inp(r,"puntualidad","Puntualidad $")}${inp(r,"bono_general","Bono general $",r.editado.bono_general?"border-indigo-300":(r.auto.bono?"border-emerald-300":"border-slate-200"))}${inp(r,"bono_nocturno","Bono nocturno $")}
+      ${inp(r,"dias_permiso","Días permiso")}${inp(r,"feriado_otro","Feriado / otro $")}${inp(r,"deducc","Deducc. $",r.editado.deducc?"border-indigo-300":((r.auto.desc||r.auto.retardo)?"border-rose-300":"border-slate-200"))}${inp(r,"deducc_bs","Deducc. Bs")}
     </div>
-    <div class="grid grid-cols-3 gap-2 items-center">
-      <div><label class="text-[10px] text-slate-400">Días feriados</label><input type="number" value="${r.feriados}" onchange="setNominaCampo('${r.id}','dias_feriados',Number(this.value)||0).then(render)" class="w-full px-2 py-1 rounded-lg border border-slate-200 text-sm"></div>
-      <div class="col-span-2"><label class="text-[10px] text-slate-400">Observaciones</label><input value="${esc(r.observaciones)}" onchange="setNominaCampo('${r.id}','observaciones',this.value)" class="w-full px-2 py-1 rounded-lg border border-slate-200 text-sm"></div>
-    </div></div>`).join("");
+    ${(r.auto.bono||r.auto.desc||r.auto.retardo)?`<p class="text-[10px] text-slate-400 mt-1">Automático de «Salarios y bonos»: bonos ${money(r.auto.bono)} · deducciones ${money(r.auto.desc)}${r.auto.retardo?" · retardos "+money(r.auto.retardo):""}${(r.editado.bono_general||r.editado.deducc)?" · <span class='text-indigo-600'>valor editado a mano</span>":""}</p>`:""}
+    <div class="mt-2"><label class="text-[10px] text-slate-400">Observaciones</label><input value="${esc(r.observaciones)}" ${ed?"":"disabled"} onchange="setNominaCampo('${r.id}','observaciones',this.value)" class="w-full px-2 py-1 rounded-lg border border-slate-200 text-sm"></div></div>`).join("");
 }
-const NOM_HEADERS=["Nombre completo","Cédula","Fecha de ingreso","Salario mensual","Salario quincenal","Descuentos","Días feriados","Bono","Observaciones"];
-function nominaMatriz(per, area){ return buildNomina(per, area).map(r=>[r.nombre,r.cedula,r.ingreso,r.mensual,r.quincenal,r.descuentos,r.feriados,r.bono,r.observaciones]); }
+const NOM_HEADERS=["NOMBRE","Fecha ingreso","Cedula","CARGO","QUINCENA","DIAS","PUNTUALIDAD","BONO GENERAL","BONO NOCTURNO","DIAS PERMISO","FERIADO/ OTRO","DEDUCC.","BS","TOTAL","OBSERVACIONES"];
+function nominaMatriz(per, area){ return buildNomina(per, area).map(r=>[r.nombre,r.ingreso,r.cedula,r.cargo,r.quincena,r.dias,r.puntualidad,r.bono_general,r.bono_nocturno,r.dias_permiso,r.feriado_otro,r.deducc,r.deducc_bs,r.total_red,r.observaciones]); }
 function slugArea(a){ return a?("_"+a.trim().replace(/\s+/g,"-").replace(/[^\wáéíóúñÁÉÍÓÚÑ-]/g,"")):""; }
-function exportarNominaExcel(){ if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; } const per=periodoNomina(); const area=areaNomina(); const data=[NOM_HEADERS,...nominaMatriz(per,area)];
-  if(data.length<=1){ toast("No hay empleados para exportar"); return; }
-  const ws=XLSX.utils.aoa_to_sheet(data); ws["!cols"]=[{wch:24},{wch:16},{wch:14},{wch:14},{wch:14},{wch:12},{wch:12},{wch:10},{wch:28}];
-  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Nómina"); XLSX.writeFile(wb,`nomina_${per}${slugArea(area)}.xlsx`); toast("Excel descargado"+(area?" · "+area:"")); }
-function exportarNominaPDF(){ if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; } const per=periodoNomina(); const area=areaNomina(); const mat=nominaMatriz(per,area); if(!mat.length){ toast("No hay empleados para exportar"); return; }
-  const { jsPDF }=window.jspdf; const doc=new jsPDF({orientation:"landscape"}); let y=15;
-  doc.setFontSize(14); doc.text(`Nómina — ${ajustes.nombre} — ${per}${area?" — "+area:""}`,14,y); y+=8; doc.setFontSize(7.5);
-  const xs=[14,60,88,112,134,156,176,196,212]; doc.setFont(undefined,"bold");
-  NOM_HEADERS.forEach((h,i)=>doc.text(h,xs[i],y)); doc.setFont(undefined,"normal"); y+=2; doc.line(14,y,283,y); y+=5;
-  mat.forEach(row=>{ row.forEach((v,i)=>{ let t=String(v); const m=ajustes.moneda; if([3,4,5,7].includes(i)) t=(Number(v)||0).toLocaleString("es-VE")+" "+m; if(i===0) t=t.slice(0,26); if(i===8) t=t.slice(0,22); doc.text(t,xs[i],y); }); y+=6; if(y>195){ doc.addPage(); y=20; } });
+/* Excel con la MISMA estructura y fórmulas del formato de nómina: hoja TOTAL + hoja de la tienda
+   (cuadro de nómina con fórmulas por fila y cuadro de billetes $ / Bs). */
+function exportarNominaExcel(){ if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; } const per=periodoNomina(); const area=areaNomina(); const rows=buildNomina(per,area);
+  if(!rows.length){ toast("No hay empleados para exportar"); return; } const tasa=tasaNomina(per);
+  const tienda=String(ajustes.nombre||"TIENDA").toUpperCase(); const sheetName=tienda.replace(/[\\/?*\[\]:]/g,"").slice(0,31)||"TIENDA"; const ref="'"+sheetName.replace(/'/g,"''")+"'";
+  const A=XLSX.utils.encode_cell; const ws={}; const put=(r,c,v,f)=>{ const cell={}; if(f){ cell.f=f; cell.t="n"; if(v!==undefined&&v!==null) cell.v=v; } else if(v instanceof Date){ cell.t="d"; cell.v=v; cell.z="dd/mm/yyyy"; } else if(typeof v==="number"){ cell.t="n"; cell.v=v; } else { cell.t="s"; cell.v=String(v??""); } ws[A({r,c})]=cell; };
+  const C=2,D=3,E=4,F=5,G=6,H=7,I=8,J=9,K=10,L=11,M=12,N=13,O=14,P=15,Q=16,R=17;
+  // Encabezado
+  put(1,C,"RIF"); put(1,D,ajustes.rif||""); put(1,F,"TASA BCV"); put(1,G,tasa); put(1,J,tienda);
+  put(2,C,tituloNomina(per),"TOTAL!B2");
+  NOM_HEADERS.slice(0,13).forEach((h,i)=>put(4,C+i,h)); put(4,Q,"TOTAL"); put(4,R,"OBSERVACIONES");
+  const r0=5; rows.forEach((r,i)=>{ const rr=r0+i, n=rr+1; put(rr,C,r.nombre); if(r.ingreso) put(rr,D,new Date(r.ingreso+"T00:00:00")); put(rr,E,r.cedula); put(rr,F,r.cargo); put(rr,G,r.quincena); put(rr,H,r.dias); put(rr,I,r.puntualidad); put(rr,J,r.bono_general); put(rr,K,r.bono_nocturno); put(rr,L,r.dias_permiso); put(rr,M,r.feriado_otro); put(rr,N,r.deducc); put(rr,O,r.deducc_bs);
+    put(rr,P,r.total,`((G${n}/15)*H${n})++I${n}+K${n}+J${n}+M${n}-N${n}-(O${n}/G$2)`); put(rr,Q,r.total_red,`ROUND(P${n},0)`); put(rr,R,r.observaciones); });
+  const rT=r0+rows.length; const n1=r0+1, n2=rT; // filas Excel del primer y último empleado
+  put(rT,C,"  "); put(rT,M,rows.reduce((s,r)=>s+r.feriado_otro,0),`SUM(M${n1}:M${n2})`); put(rT,Q,rows.reduce((s,r)=>s+r.total_red,0),`SUM(Q${n1}:Q${n2})`);
+  // Cuadro de billetes
+  const hb=rT+2; const nh=hb+1; put(hb,C,"NOMBRE"); put(hb,D,"$"); put(hb,E,100); put(hb,F,50); put(hb,G,20); put(hb,H,"Bs"); put(hb,I,100); put(hb,J,50); put(hb,K,20); put(hb,L,10); put(hb,M,5); put(hb,N,1); put(hb,O,"Dif");
+  rows.forEach((r,i)=>{ const rr=hb+1+i, n=rr+1, ne=r0+i+1; put(rr,C,r.nombre,`C${ne}`); put(rr,D,r.total_red,`Q${ne}`);
+    put(rr,H,tasa*r.total_red,`$G$2*(D${n}-((E${n}*$E$${nh})+(F${n}*$F$${nh})+(G${n}*$G$${nh})))`);
+    put(rr,O,tasa*r.total_red,`H${n}-((I${n}*$I$${nh})+(J${n}*$J$${nh})+(K${n}*$K$${nh})+(L${n}*$L$${nh})+(M${n}*$M$${nh})+(N${n}*$N$${nh}))`); });
+  const bt=hb+1+rows.length, nb=bt+1, b1=hb+2, b2=bt; put(bt,C,"Total $ Nomina:"); ["D","E","F","G","H","I","J","K","L","M","N"].forEach(col=>{ const ci=XLSX.utils.decode_col(col); put(bt,ci,undefined,`SUM(${col}${b1}:${col}${b2})`); });
+  put(bt,O,undefined,`H${nb}-((I${nb}*$I$${nh})+(J${nb}*$J$${nh})+(K${nb}*$K$${nh})+(L${nb}*$L$${nh})+(M${nb}*$M$${nh})+(N${nb}*$N$${nh}))`);
+  const bv=bt+1, nv=bv+1; put(bv,C,"$"); put(bv,D,undefined,`SUM(E${nv}:G${nv})`); ["E","F","G","I","J","K","L","M","N"].forEach(col=>{ const ci=XLSX.utils.decode_col(col); put(bv,ci,undefined,`${col}${nh}*${col}${nb}`); }); put(bv,H,"Bs"); put(bv,O,undefined,`SUM(I${nv}:N${nv})`);
+  ws["!ref"]=A({r:0,c:0})+":"+A({r:bv,c:R}); ws["!merges"]=[{s:{r:2,c:C},e:{r:2,c:R}},{s:{r:1,c:J},e:{r:1,c:Q}},{s:{r:rT,c:C},e:{r:rT,c:L}}];
+  ws["!cols"]=[{wch:3},{wch:3},{wch:26},{wch:13},{wch:12},{wch:16},{wch:11},{wch:7},{wch:12},{wch:13},{wch:13},{wch:12},{wch:13},{wch:10},{wch:10},{wch:11},{wch:10},{wch:34}];
+  // Hoja TOTAL
+  const wt={}; const putT=(r,c,v,f)=>{ const cell={}; if(f){ cell.f=f; cell.t="n"; if(v!==undefined) cell.v=v; } else if(typeof v==="number"){ cell.t="n"; cell.v=v; } else { cell.t="s"; cell.v=String(v??""); } wt[A({r,c})]=cell; };
+  putT(1,1,tituloNomina(per)); putT(2,1,"TASA"); putT(2,2,tasa); putT(3,1,"TIENDA"); putT(3,2,"MONTO"); putT(4,1,tienda); putT(4,2,rows.reduce((s,r)=>s+r.total_red,0),`${ref}!Q${n2+1}`); putT(5,1,"TOTAL CUADRO"); putT(5,2,undefined,"SUM(C5:C5)");
+  putT(8,1,"TOTAL BILLETES"); [[1,100],[2,50],[3,20]].forEach(([c,v])=>putT(9,c,v)); putT(9,4,"Bs"); [[5,100],[6,50],[7,20],[8,10],[9,5],[10,1]].forEach(([c,v])=>putT(9,c,v));
+  const srcCols={1:"E",2:"F",3:"G",5:"I",6:"J",7:"K",8:"L",9:"M",10:"N"}; Object.entries(srcCols).forEach(([c,col])=>{ putT(10,Number(c),undefined,`${ref}!${col}${nb}`); putT(11,Number(c),undefined,`${XLSX.utils.encode_col(Number(c))}10*${XLSX.utils.encode_col(Number(c))}11`); });
+  putT(10,0,undefined,"B12+C12+D12"); putT(11,11,undefined,"SUM(F12:K12)");
+  wt["!ref"]="A1:L12"; wt["!cols"]=[{wch:10},{wch:26},{wch:12},{wch:10},{wch:8},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:12}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,wt,"TOTAL"); XLSX.utils.book_append_sheet(wb,ws,sheetName); wb.Workbook={CalcPr:{fullCalcOnLoad:true}};
+  XLSX.writeFile(wb,`nomina_${per}${slugArea(area)}.xlsx`); toast("Excel descargado"+(area?" · "+area:"")); }
+function exportarNominaPDF(){ if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; } const per=periodoNomina(); const area=areaNomina(); const rows=buildNomina(per,area); if(!rows.length){ toast("No hay empleados para exportar"); return; }
+  const { jsPDF }=window.jspdf; const doc=new jsPDF({orientation:"landscape"}); let y=14; const tasa=tasaNomina(per);
+  doc.setFontSize(13); doc.text(`${ajustes.nombre||"Hipposupermarket"} — ${tituloNomina(per)}${area?" — "+area:""}`,10,y); y+=5; doc.setFontSize(8); doc.text("Tasa BCV: "+bsN(tasa)+"/$   ·   Total = (Quincena/15 x Dias) + Puntualidad + Bono nocturno + Bono general + Feriado/otro - Deducc. - Bs/Tasa, redondeado",10,y); y+=6;
+  const cols=[["NOMBRE",10,46],["Ingreso",56,16],["Cedula",72,16],["CARGO",88,22],["QUINC.",110,14],["DIAS",124,9],["PUNT.",133,12],["B.GRAL",145,13],["B.NOCT",158,13],["D.PERM",171,11],["FER/OTRO",182,14],["DEDUC.",196,13],["BS",209,14],["TOTAL",223,14],["OBSERV.",237,50]];
+  doc.setFontSize(6.8); doc.setFont(undefined,"bold"); cols.forEach(([h,x])=>doc.text(h,x,y)); doc.setFont(undefined,"normal"); y+=1.5; doc.line(10,y,287,y); y+=4;
+  const f=(v)=>(Number(v)||0).toLocaleString("es-VE",{maximumFractionDigits:2});
+  rows.forEach(r=>{ const vals=[r.nombre.slice(0,30),r.ingreso,r.cedula,String(r.cargo).slice(0,14),f(r.quincena),String(r.dias),f(r.puntualidad),f(r.bono_general),f(r.bono_nocturno),String(r.dias_permiso),f(r.feriado_otro),f(r.deducc),f(r.deducc_bs),f(r.total_red),String(r.observaciones||"").slice(0,34)];
+    vals.forEach((v,i)=>doc.text(String(v),cols[i][1],y)); y+=5; if(y>195){ doc.addPage(); y=15; } });
+  y+=1; doc.line(10,y,287,y); y+=5; doc.setFont(undefined,"bold"); doc.text("TOTAL",10,y); doc.text(f(rows.reduce((s,r)=>s+r.feriado_otro,0)),182,y); doc.text(f(rows.reduce((s,r)=>s+r.total_red,0)),223,y); doc.setFont(undefined,"normal");
   doc.save(`nomina_${per}${slugArea(area)}.pdf`); toast("PDF descargado"+(area?" · "+area:"")); }
 
 /* ===================== REPORTE GENERAL (PDF) ===================== */
@@ -4901,7 +4950,7 @@ function renderInicio(){
 }
 function renderAjustesView(){
   const n=document.getElementById("cfgNombre"); if(n) n.value=ajustes.nombre;
-  const h=document.getElementById("cfgHoraEntrada"); if(h) h.value=ajustes.horaEntrada;
+  const h=document.getElementById("cfgHoraEntrada"); if(h) h.value=ajustes.horaEntrada; const rf=document.getElementById("cfgRif"); if(rf) rf.value=ajustes.rif||"";
   const m=document.getElementById("cfgMoneda"); if(m) m.value=ajustes.moneda;
   const lp=document.getElementById("logoPreview"); if(lp) lp.innerHTML=`<img src="${ajustes.logo||LOGO_DEFAULT}" class="w-full h-full object-contain">`;
   renderUsuarios(); renderAreasAjustes(); renderBancosAjustes(); try{ renderGeoAjustes(); }catch(e){ console.warn(e); }
