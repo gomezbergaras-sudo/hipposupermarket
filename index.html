@@ -103,6 +103,19 @@
   .fin-bubble img{ width:32px; height:32px; border-radius:99px; background:#fff; object-fit:contain; padding:2px; }
   .fin-bubble b{ font-size:12px; display:block; line-height:1.1; } .fin-bubble small{ font-size:9px; opacity:.9; display:flex; align-items:center; gap:4px; }
   .fin-bubble small i{ width:6px; height:6px; border-radius:99px; background:#86efac; display:inline-block; }
+  /* ===================== CUADRO TIPO EXCEL (estado de cuenta) ===================== */
+  .xl-wrap{ overflow:auto; border:1px solid #cbd5e1; border-radius:10px; max-height:60vh; background:#fff; }
+  .xl{ border-collapse:separate; border-spacing:0; font-size:12px; min-width:900px; width:100%; font-variant-numeric:tabular-nums; }
+  .xl th{ position:sticky; top:0; z-index:2; background:#0f172a; color:#fff; font-weight:700; font-size:11px; text-align:center; padding:8px 8px; border-right:1px solid #334155; border-bottom:1px solid #334155; white-space:nowrap; }
+  .xl th:first-child{ left:0; z-index:3; }
+  .xl td{ padding:6px 8px; border-right:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#fff; }
+  .xl td:first-child{ position:sticky; left:0; z-index:1; font-weight:600; background:#fff; }
+  .xl tr:nth-child(even) td{ background:#f8fafc; }
+  .xl td.n{ text-align:right; } .xl td.c{ text-align:center; }
+  .xl tr.pag td{ background:#ecfdf5; } .xl tr.abo td{ background:#fffbeb; } .xl tr.pen td{ background:#fff1f2; }
+  .xl tr.tot td{ background:#e6f7f5 !important; font-weight:800; border-top:2px solid #0d9488; position:sticky; bottom:0; z-index:2; }
+  .xl .est{ display:inline-block; padding:2px 8px; border-radius:99px; font-size:10px; font-weight:700; }
+  .xl .est.pag{ background:#d1fae5; color:#065f46; } .xl .est.abo{ background:#fef3c7; color:#92400e; } .xl .est.pen{ background:#ffe4e6; color:#9f1239; }
   /* ===================== LUZ DE ESTADO (compartido) ===================== */
   .hp-dot{ width:11px; height:11px; border-radius:99px; background:#94a3b8; display:inline-block; flex-shrink:0; box-shadow:0 0 0 3px rgba(148,163,184,.25); cursor:pointer; }
   .hp-dot.on{ background:#22c55e; box-shadow:0 0 0 3px rgba(34,197,94,.28); animation:hpDot 2.4s ease-in-out infinite; }
@@ -920,6 +933,12 @@
 </nav>
 
 <div id="installBar"><img id="installLogo" alt=""><div class="flex-1 min-w-0"><b>Instala Hippo en tu teléfono</b><small>Ábrela como una app, a pantalla completa.</small></div><button onclick="instalarApp()">Instalar</button><button class="x" onclick="cerrarInstallBar()">✕</button></div>
+<div id="modal2" class="fixed inset-0 z-[45] hidden">
+  <div class="absolute inset-0 bg-black/50" onclick="closeModal2()"></div>
+  <div class="absolute inset-x-0 bottom-0 bg-white rounded-t-3xl p-5 max-w-5xl mx-auto max-h-[92vh] overflow-y-auto md:bottom-auto md:top-1/2 md:left-1/2 md:right-auto md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:w-[min(1100px,94vw)]">
+    <div id="modal2Content"></div>
+  </div>
+</div>
 <div id="modal" class="fixed inset-0 z-40 hidden">
   <div class="absolute inset-0 bg-black/40" onclick="closeModal()"></div>
   <div class="absolute inset-x-0 bottom-0 bg-white rounded-t-3xl p-5 max-w-3xl mx-auto max-h-[90vh] overflow-y-auto">
@@ -950,7 +969,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="7.0"; // se incrementa con cada mejora
+const APP_VERSION="7.1"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1193,6 +1212,8 @@ function pintarMoneda(){ const b=document.getElementById("btnMoneda"); if(b) b.t
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.style.opacity=1; setTimeout(()=>t.style.opacity=0,1800); }
 function openModal(h){ document.getElementById("modalContent").innerHTML=h; document.getElementById("modal").classList.remove("hidden"); }
 function closeModal(){ document.getElementById("modal").classList.add("hidden"); }
+function openModal2(h){ document.getElementById("modal2Content").innerHTML=h; document.getElementById("modal2").classList.remove("hidden"); }
+function closeModal2(){ document.getElementById("modal2").classList.add("hidden"); }
 /* Hoja inferior: deslizar hacia abajo desde el asa para cerrar (teléfono) */
 (function(){ const sheet=document.querySelector("#modal > div.absolute.inset-x-0"); if(!sheet) return; let y0=null;
   sheet.addEventListener("touchstart",e=>{ if(window.innerWidth>=900){ y0=null; return; } y0=(sheet.scrollTop<=0 && e.touches[0].clientY-sheet.getBoundingClientRect().top<56)?e.touches[0].clientY:null; },{passive:true});
@@ -4658,14 +4679,51 @@ function cargarPendientesPago(auto){ const provId=document.getElementById("f_pro
 function agregarPendPago(fid){ const f=db.list("facturas_rec").find(x=>x.id===fid); if(!f) return; if(pagoFacturas.some(x=>x.fid===fid)) return; const fm=esUSDmon(f.moneda)?"USD":"Bs"; const sel=document.getElementById("f_moneda"); if(sel && sel.value!==fm) sel.value=fm; pagoFacturas.push({numero:String(f.numero||""), monto:frPend(f), fecha:f.fecha||"", fid, moneda:fm}); renderPagoFacturas(); calcPago(); renderPfPend(); }
 function renderPfPend(){ const c=document.getElementById("pf_pend"); if(!c) return; const provId=document.getElementById("f_proveedor_id")?.value||""; const provTxt=(document.getElementById("f_pp_prov_txt")?.value||"").trim();
   if(!provId && !provTxt){ c.innerHTML=""; return; }
-  const pend=facturasPendientesProv(provId,provTxt); if(!pend.length){ c.innerHTML=`<p class="text-[11px] text-slate-400 mt-1">Sin facturas pendientes para este proveedor.</p>`; return; }
+  const btnEC=`<button type="button" onclick="openEstadoCuentaProv()" class="text-[11px] bg-slate-800 text-white px-2 py-0.5 rounded-md font-semibold shrink-0">📊 Estado de cuenta</button>`;
+  const pend=facturasPendientesProv(provId,provTxt); if(!pend.length){ c.innerHTML=`<div class="flex items-center justify-between gap-2 mt-1"><p class="text-[11px] text-slate-400">Sin facturas pendientes para este proveedor.</p>${btnEC}</div>`; return; }
   const mon=document.getElementById("f_moneda")?.value||"Bs"; const yaFid=new Set(pagoFacturas.map(f=>f.fid).filter(Boolean));
   const totBs=pend.filter(f=>!esUSDmon(f.moneda)).reduce((s,f)=>s+frPend(f),0); const totUsd=pend.filter(f=>esUSDmon(f.moneda)).reduce((s,f)=>s+frPend(f),0);
   const items=pend.map(f=>{ const fm=esUSDmon(f.moneda)?"USD":"Bs"; const cargada=yaFid.has(f.id); const otra=fm!==mon;
     return `<div class="flex items-center justify-between gap-2 text-xs ${cargada?'opacity-50':''}"><span class="truncate">N° ${esc(f.numero||"—")}${f.fecha?` · <span class="text-slate-500">${esc(f.fecha)}</span>`:""} · ${fmt2(frPend(f))} ${fm}</span>${cargada?`<span class="text-emerald-700 font-semibold shrink-0">✓ cargada</span>`:(otra?`<span class="text-slate-400 shrink-0">otra moneda</span>`:`<button type="button" onclick="agregarPendPago('${f.id}')" class="text-teal-700 font-semibold shrink-0">＋ agregar</button>`)}</div>`; }).join("");
-  c.innerHTML=`<div class="bg-amber-50 border border-amber-100 rounded-lg p-2 mt-1"><div class="flex items-center justify-between mb-1 gap-2"><p class="text-[11px] font-semibold text-amber-800">📌 Pendientes (${pend.length})${totBs?" · "+fmt2(totBs)+" Bs":""}${totUsd?" · $"+fmt2(totUsd):""}</p><button type="button" onclick="cargarPendientesPago(false)" class="text-[11px] bg-amber-600 text-white px-2 py-0.5 rounded-md font-semibold shrink-0">Cargar todas</button></div><div class="space-y-1">${items}</div></div>`; }
+  c.innerHTML=`<div class="bg-amber-50 border border-amber-100 rounded-lg p-2 mt-1"><div class="flex items-center justify-between mb-1 gap-2"><p class="text-[11px] font-semibold text-amber-800">📌 Pendientes (${pend.length})${totBs?" · "+fmt2(totBs)+" Bs":""}${totUsd?" · $"+fmt2(totUsd):""}</p><span class="flex gap-1 shrink-0">${btnEC}<button type="button" onclick="cargarPendientesPago(false)" class="text-[11px] bg-amber-600 text-white px-2 py-0.5 rounded-md font-semibold shrink-0">Cargar todas</button></span></div><div class="space-y-1">${items}</div></div>`; }
 function resolverPagoProv(){ const t=document.getElementById("f_pp_prov_txt"), h=document.getElementById("f_proveedor_id"); if(!t||!h) return; const nq=(t.value||"").trim().toLowerCase(); const p=nq?db.list("proveedores").find(x=>(x.nombre||"").trim().toLowerCase()===nq):null; h.value=p?p.id:""; if(p){ const rif=document.getElementById("f_rif"); if(rif && !rif.value) rif.value=p.rif||""; }
   const provKey=p?p.id:(nq||""); if(provKey && provKey!==_pagoProvCargado){ _pagoProvCargado=provKey; if(!_pagoEditando) cargarPendientesPago(true); else renderPfPend(); } else renderPfPend(); }
+/* ===================== ESTADO DE CUENTA DEL PROVEEDOR (cuadro tipo Excel) =====================
+   Todas las facturas del proveedor con su monto, lo abonado, el saldo y el estado (Pagada / Abonada / Pendiente),
+   más los pagos aplicados a cada una. Se abre desde el formulario de pago sin cerrarlo. */
+let _ecProv=null, _ecFiltro="todas";
+function facturasDeProv(provId, nombre, rif){ const nq=String(nombre||"").trim().toLowerCase(); const rq=String(rif||"").replace(/[^0-9A-Za-z]/g,"").toUpperCase();
+  return db.list("facturas_rec").filter(f=>{ if(provId && f.proveedor_id===provId) return true; const fr=String(f.rif||"").replace(/[^0-9A-Za-z]/g,"").toUpperCase(); if(rq && fr && fr===rq) return true; return nq!=="" && String(f.proveedor||"").trim().toLowerCase()===nq; })
+    .sort((a,b)=>String(b.fecha||"").localeCompare(String(a.fecha||""))||String(b.creado||"").localeCompare(String(a.creado||""))); }
+function estadoCuentaProv(provId,nombre,rif){ const facs=facturasDeProv(provId,nombre,rif); const pagos=db.list("pagos_prov").filter(pg=>{ if(provId && pg.proveedor_id===provId) return true; const r1=String(pg.rif||"").replace(/[^0-9A-Za-z]/g,"").toUpperCase(), r2=String(rif||"").replace(/[^0-9A-Za-z]/g,"").toUpperCase(); if(r1&&r2&&r1===r2) return true; return String(pg.proveedor||"").trim().toLowerCase()===String(nombre||"").trim().toLowerCase(); });
+  const porFac={}; pagos.forEach(pg=>(Array.isArray(pg.facturas)?pg.facturas:[]).forEach(cf=>{ const k=cf.fid||("n:"+String(cf.numero||"").trim().toLowerCase()); (porFac[k]||(porFac[k]=[])).push({fecha:pg.fecha_pago||"",monto:Number(cf.monto)||0,banco:pg.banco||"",id:pg.id}); }));
+  return facs.map(f=>{ const monto=Number(f.monto)||0, ab=Number(f.abonado)||0, saldo=Math.max(0,monto-ab); const est=saldo<=0.005&&monto>0?"pag":(ab>0.005?"abo":"pen"); const pg=(porFac[f.id]||[]).concat(porFac["n:"+String(f.numero||"").trim().toLowerCase()]||[]).filter((x,i,a)=>a.findIndex(y=>y.id===x.id&&y.monto===x.monto)===i).sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
+    return {id:f.id, numero:f.numero||"", fecha:f.fecha||"", venc:f.vencimiento||f.fecha_venc||"", moneda:esUSDmon(f.moneda)?"USD":"Bs", tipo:f.tipo||"Factura", monto, abonado:ab, saldo, est, pagos:pg, notas:f.notas||""}; }); }
+function openEstadoCuentaProv(provId,nombre,rif){ if(provId===undefined){ provId=document.getElementById("f_proveedor_id")?.value||""; nombre=(document.getElementById("f_pp_prov_txt")?.value||"").trim(); rif=document.getElementById("f_rif")?.value||""; }
+  const pv=provId?provById(provId):null; _ecProv={id:provId||"", nombre:pv?pv.nombre:(nombre||""), rif:rif||(pv?pv.rif:"")||""}; _ecFiltro="todas"; if(!_ecProv.nombre&&!_ecProv.id){ toast("Elige el proveedor primero"); return; }
+  openModal2(`<div class="flex items-center justify-between gap-2 mb-1"><h3 class="font-bold text-lg">📊 Estado de cuenta · ${esc(_ecProv.nombre)}</h3><button onclick="closeModal2()" class="text-slate-400 text-xl px-2">✕</button></div>
+    <p class="text-xs text-slate-500 mb-2">${esc(_ecProv.rif||"")} · facturas pagadas, abonos realizados y facturas pendientes. Toca una fila con pagos para ver el detalle.</p>
+    <div class="flex flex-wrap items-center gap-2 mb-2" id="ecFiltros"></div><div id="ecResumen" class="mb-2"></div><div id="ecTabla"></div>
+    <div class="flex gap-2 mt-3"><button onclick="exportarEstadoCuentaExcel()" class="flex-1 bg-emerald-600 text-white font-semibold py-2.5 rounded-xl">⬇ Excel</button><button onclick="closeModal2()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`); renderEstadoCuenta(); }
+function ecSetFiltro(f){ _ecFiltro=f; renderEstadoCuenta(); }
+function renderEstadoCuenta(){ const box=document.getElementById("ecTabla"); if(!box||!_ecProv) return; const todas=estadoCuentaProv(_ecProv.id,_ecProv.nombre,_ecProv.rif);
+  const cnt={todas:todas.length,pag:todas.filter(x=>x.est==="pag").length,abo:todas.filter(x=>x.est==="abo").length,pen:todas.filter(x=>x.est==="pen").length};
+  const fl=document.getElementById("ecFiltros"); if(fl) fl.innerHTML=[["todas","Todas"],["pag","✅ Pagadas"],["abo","🔸 Abonadas"],["pen","⏳ Pendientes"]].map(([k,l])=>`<button onclick="ecSetFiltro('${k}')" class="text-xs font-semibold px-3 py-1.5 rounded-full ${_ecFiltro===k?"bg-slate-800 text-white":"bg-slate-100 text-slate-600"}">${l} (${cnt[k]})</button>`).join("");
+  const l=_ecFiltro==="todas"?todas:todas.filter(x=>x.est===_ecFiltro); const sum=(arr,k,mon)=>arr.filter(x=>x.moneda===mon).reduce((s,x)=>s+x[k],0);
+  const res=document.getElementById("ecResumen"); const card=(l2,v,c)=>`<div class="rounded-xl p-2 ${c}"><p class="text-[10px] text-slate-500">${l2}</p><p class="font-bold text-sm">${v}</p></div>`;
+  const dualTxt=(bs,usd)=>[bs>0.005?fmtBs(bs):"",usd>0.005?money(usd):""].filter(Boolean).join(" + ")||"0";
+  if(res) res.innerHTML=`<div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">${card("Facturado",dualTxt(sum(l,"monto","Bs"),sum(l,"monto","USD")),"bg-slate-100")}${card("Pagado / abonado",dualTxt(sum(l,"abonado","Bs"),sum(l,"abonado","USD")),"bg-emerald-50")}${card("Saldo pendiente",dualTxt(sum(l,"saldo","Bs"),sum(l,"saldo","USD")),"bg-rose-50")}${card("Facturas",`${l.length} · ${cnt.pag} pagadas · ${cnt.abo} abonadas · ${cnt.pen} pendientes`,"bg-amber-50")}</div>`;
+  if(!l.length){ box.innerHTML=empty("Sin facturas en esta vista."); return; } const EST={pag:"Pagada",abo:"Abonada",pen:"Pendiente"}; const f2=(v)=>(Number(v)||0).toLocaleString("es-VE",{minimumFractionDigits:2,maximumFractionDigits:2});
+  box.innerHTML=`<div class="xl-wrap"><table class="xl"><thead><tr><th>N° factura</th><th>Fecha</th><th>Tipo</th><th>Moneda</th><th>Monto</th><th>Abonado</th><th>Saldo</th><th>Estado</th><th>Pagos aplicados</th><th>Notas</th></tr></thead><tbody>
+    ${l.map(x=>`<tr class="${x.est}" ${x.pagos.length?`onclick="ecDetalle('${x.id}')" style="cursor:pointer"`:""}><td>${esc(x.numero||"—")}</td><td class="c">${esc(x.fecha||"—")}</td><td class="c">${esc(x.tipo)}</td><td class="c">${x.moneda}</td><td class="n">${f2(x.monto)}</td><td class="n">${f2(x.abonado)}</td><td class="n">${f2(x.saldo)}</td><td class="c"><span class="est ${x.est}">${EST[x.est]}</span></td><td>${x.pagos.length?x.pagos.map(pg=>esc(pg.fecha||"—")+" · "+f2(pg.monto)+(pg.banco?" · "+esc(pg.banco):"")).join(" | "):'<span class="text-slate-400">—</span>'}</td><td>${esc(x.notas).slice(0,40)}</td></tr>`).join("")}
+    <tr class="tot"><td>TOTAL</td><td class="c">${l.length} fact.</td><td></td><td class="c">Bs</td><td class="n">${f2(sum(l,"monto","Bs"))}</td><td class="n">${f2(sum(l,"abonado","Bs"))}</td><td class="n">${f2(sum(l,"saldo","Bs"))}</td><td></td><td></td><td></td></tr>
+    ${sum(l,"monto","USD")>0.005?`<tr class="tot"><td></td><td></td><td></td><td class="c">USD</td><td class="n">${f2(sum(l,"monto","USD"))}</td><td class="n">${f2(sum(l,"abonado","USD"))}</td><td class="n">${f2(sum(l,"saldo","USD"))}</td><td></td><td></td><td></td></tr>`:""}</tbody></table></div>`; }
+function ecDetalle(fid){ const x=estadoCuentaProv(_ecProv.id,_ecProv.nombre,_ecProv.rif).find(y=>y.id===fid); if(!x) return; const f2=(v)=>(Number(v)||0).toLocaleString("es-VE",{minimumFractionDigits:2,maximumFractionDigits:2});
+  toast(`Factura N° ${x.numero}: ${x.pagos.length} pago(s) → `+x.pagos.map(pg=>pg.fecha+" "+f2(pg.monto)+" "+x.moneda).join(" · ")+` · saldo ${f2(x.saldo)} ${x.moneda}`); }
+function exportarEstadoCuentaExcel(){ if(!_ecProv) return; const todas=estadoCuentaProv(_ecProv.id,_ecProv.nombre,_ecProv.rif); const l=_ecFiltro==="todas"?todas:todas.filter(x=>x.est===_ecFiltro); if(!l.length){ toast("Sin facturas"); return; } const EST={pag:"Pagada",abo:"Abonada",pen:"Pendiente"};
+  const rows=l.map(x=>[x.numero,x.fecha,x.tipo,x.moneda,x.monto,x.abonado,x.saldo,EST[x.est],x.pagos.map(pg=>pg.fecha+" · "+(Number(pg.monto)||0).toFixed(2)+(pg.banco?" · "+pg.banco:"")).join(" | "),x.notas]);
+  const ws=hojaPro({titulo:"ESTADO DE CUENTA · "+String(_ecProv.nombre).toUpperCase(), subtitulo:subtituloPro((_ecProv.rif?"RIF "+_ecProv.rif+" · ":"")+l.length+" factura(s)"+(_ecFiltro!=="todas"?" · "+({pag:"pagadas",abo:"abonadas",pen:"pendientes"})[_ecFiltro]:"")), headers:["N° factura","Fecha","Tipo","Moneda","Monto","Abonado","Saldo","Estado","Pagos aplicados","Notas"], rows, totales:["TOTAL",l.length+" fact.","","",l.reduce((s,x)=>s+x.monto,0),l.reduce((s,x)=>s+x.abonado,0),l.reduce((s,x)=>s+x.saldo,0),"","",""], formatos:[null,null,null,null,"#,##0.00","#,##0.00","#,##0.00",null,null,null]});
+  libroPro([[ws,"Estado de cuenta"]],`estado_cuenta_${String(_ecProv.nombre).replace(/[^\w]+/g,"_").slice(0,30)}.xlsx`); toast("Excel descargado"); }
 /* ===================== HISTORIAL DE PAGOS POR PROVEEDOR =====================
    Se arma a partir de los pagos ya registrados (pagos_prov) y de las facturas recibidas (facturas_rec):
    · Pago total de factura N° X      → el pago cubre el monto completo de la factura
