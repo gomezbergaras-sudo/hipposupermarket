@@ -941,7 +941,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="6.4"; // se incrementa con cada mejora
+const APP_VERSION="6.5"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -3419,40 +3419,56 @@ function renderNomina(){ const el=document.getElementById("nomPeriodo"); if(el&&
 const NOM_HEADERS=["NOMBRE","Fecha ingreso","Cedula","CARGO","QUINCENA","DIAS","PUNTUALIDAD","BONO GENERAL","BONO NOCTURNO","DIAS PERMISO","FERIADO/ OTRO","DEDUCC.","BS","TOTAL","OBSERVACIONES"];
 function nominaMatriz(per, area){ return buildNomina(per, area).map(r=>[r.nombre,r.ingreso,r.cedula,r.cargo,r.quincena,r.dias,r.puntualidad,r.bono_general,r.bono_nocturno,r.dias_permiso,r.feriado_otro,r.deducc,r.deducc_bs,r.total_red,r.observaciones]); }
 function slugArea(a){ return a?("_"+a.trim().replace(/\s+/g,"-").replace(/[^\wáéíóúñÁÉÍÓÚÑ-]/g,"")):""; }
-/* Excel con la MISMA estructura y fórmulas del formato de nómina: hoja TOTAL + hoja de la tienda
-   (cuadro de nómina con fórmulas por fila y cuadro de billetes $ / Bs). */
-function exportarNominaExcel(){ if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; } const per=periodoNomina(); const area=areaNomina(); const rows=buildNomina(per,area);
-  if(!rows.length){ toast("No hay empleados para exportar"); return; } const tasa=tasaNomina(per);
+/* Librería de Excel con estilos (colores, bordes, formatos). Se carga solo al exportar y NO reemplaza la XLSX normal. */
+async function cargarXlsxStyle(){ if(window.XLSXS) return window.XLSXS; const prev=window.XLSX; try{ await new Promise((res,rej)=>{ const sc=document.createElement("script"); sc.src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"; sc.onload=res; sc.onerror=()=>rej(new Error("sin conexión")); document.head.appendChild(sc); }); window.XLSXS=window.XLSX; }catch(e){ window.XLSXS=null; } window.XLSX=prev; return window.XLSXS; }
+/* Excel de nómina: misma estructura y fórmulas del cuadro de nómina (sin cuadro de billetes), con formato profesional. */
+async function exportarNominaExcel(){ if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; } const per=periodoNomina(); const area=areaNomina(); const rows=buildNomina(per,area);
+  if(!rows.length){ toast("No hay empleados para exportar"); return; } const tasa=tasaNomina(per); const {desde,hasta}=rangoNomina(per);
+  showLoader("Generando Excel…"); const X=(await cargarXlsxStyle())||XLSX; const conEstilo=!!window.XLSXS; hideLoader();
   const tienda=String(ajustes.nombre||"TIENDA").toUpperCase(); const sheetName=tienda.replace(/[\\/?*\[\]:]/g,"").slice(0,31)||"TIENDA"; const ref="'"+sheetName.replace(/'/g,"''")+"'";
-  const A=XLSX.utils.encode_cell; const ws={}; const put=(r,c,v,f)=>{ const cell={}; if(f){ cell.f=f; cell.t="n"; if(v!==undefined&&v!==null) cell.v=v; } else if(v instanceof Date){ cell.t="d"; cell.v=v; cell.z="dd/mm/yyyy"; } else if(typeof v==="number"){ cell.t="n"; cell.v=v; } else { cell.t="s"; cell.v=String(v??""); } ws[A({r,c})]=cell; };
-  const C=2,D=3,E=4,F=5,G=6,H=7,I=8,J=9,K=10,L=11,M=12,N=13,O=14,P=15,Q=16,R=17;
-  // Encabezado
-  put(1,C,"RIF"); put(1,D,ajustes.rif||""); put(1,F,"TASA BCV"); put(1,G,tasa); put(1,J,tienda);
-  put(2,C,tituloNomina(per),"TOTAL!B2");
-  NOM_HEADERS.slice(0,13).forEach((h,i)=>put(4,C+i,h)); put(4,Q,"TOTAL"); put(4,R,"OBSERVACIONES");
-  const r0=5; rows.forEach((r,i)=>{ const rr=r0+i, n=rr+1; put(rr,C,r.nombre); if(r.ingreso) put(rr,D,new Date(r.ingreso+"T00:00:00")); put(rr,E,r.cedula); put(rr,F,r.cargo); put(rr,G,r.quincena); put(rr,H,r.dias); put(rr,I,r.puntualidad); put(rr,J,r.bono_general); put(rr,K,r.bono_nocturno); put(rr,L,r.dias_permiso); put(rr,M,r.feriado_otro); put(rr,N,r.deducc); put(rr,O,r.deducc_bs);
-    put(rr,P,r.total,`((G${n}/15)*H${n})++I${n}+K${n}+J${n}+M${n}-N${n}-(O${n}/G$2)`); put(rr,Q,r.total_red,`ROUND(P${n},0)`); put(rr,R,r.observaciones); });
-  const rT=r0+rows.length; const n1=r0+1, n2=rT; // filas Excel del primer y último empleado
-  put(rT,C,"  "); put(rT,M,rows.reduce((s,r)=>s+r.feriado_otro,0),`SUM(M${n1}:M${n2})`); put(rT,Q,rows.reduce((s,r)=>s+r.total_red,0),`SUM(Q${n1}:Q${n2})`);
-  // Cuadro de billetes
-  const hb=rT+2; const nh=hb+1; put(hb,C,"NOMBRE"); put(hb,D,"$"); put(hb,E,100); put(hb,F,50); put(hb,G,20); put(hb,H,"Bs"); put(hb,I,100); put(hb,J,50); put(hb,K,20); put(hb,L,10); put(hb,M,5); put(hb,N,1); put(hb,O,"Dif");
-  rows.forEach((r,i)=>{ const rr=hb+1+i, n=rr+1, ne=r0+i+1; put(rr,C,r.nombre,`C${ne}`); put(rr,D,r.total_red,`Q${ne}`);
-    put(rr,H,tasa*r.total_red,`$G$2*(D${n}-((E${n}*$E$${nh})+(F${n}*$F$${nh})+(G${n}*$G$${nh})))`);
-    put(rr,O,tasa*r.total_red,`H${n}-((I${n}*$I$${nh})+(J${n}*$J$${nh})+(K${n}*$K$${nh})+(L${n}*$L$${nh})+(M${n}*$M$${nh})+(N${n}*$N$${nh}))`); });
-  const bt=hb+1+rows.length, nb=bt+1, b1=hb+2, b2=bt; put(bt,C,"Total $ Nomina:"); ["D","E","F","G","H","I","J","K","L","M","N"].forEach(col=>{ const ci=XLSX.utils.decode_col(col); put(bt,ci,undefined,`SUM(${col}${b1}:${col}${b2})`); });
-  put(bt,O,undefined,`H${nb}-((I${nb}*$I$${nh})+(J${nb}*$J$${nh})+(K${nb}*$K$${nh})+(L${nb}*$L$${nh})+(M${nb}*$M$${nh})+(N${nb}*$N$${nh}))`);
-  const bv=bt+1, nv=bv+1; put(bv,C,"$"); put(bv,D,undefined,`SUM(E${nv}:G${nv})`); ["E","F","G","I","J","K","L","M","N"].forEach(col=>{ const ci=XLSX.utils.decode_col(col); put(bv,ci,undefined,`${col}${nh}*${col}${nb}`); }); put(bv,H,"Bs"); put(bv,O,undefined,`SUM(I${nv}:N${nv})`);
-  ws["!ref"]=A({r:0,c:0})+":"+A({r:bv,c:R}); ws["!merges"]=[{s:{r:2,c:C},e:{r:2,c:R}},{s:{r:1,c:J},e:{r:1,c:Q}},{s:{r:rT,c:C},e:{r:rT,c:L}}];
-  ws["!cols"]=[{wch:3},{wch:3},{wch:26},{wch:13},{wch:12},{wch:16},{wch:11},{wch:7},{wch:12},{wch:13},{wch:13},{wch:12},{wch:13},{wch:10},{wch:10},{wch:11},{wch:10},{wch:34}];
-  // Hoja TOTAL
-  const wt={}; const putT=(r,c,v,f)=>{ const cell={}; if(f){ cell.f=f; cell.t="n"; if(v!==undefined) cell.v=v; } else if(typeof v==="number"){ cell.t="n"; cell.v=v; } else { cell.t="s"; cell.v=String(v??""); } wt[A({r,c})]=cell; };
-  putT(1,1,tituloNomina(per)); putT(2,1,"TASA"); putT(2,2,tasa); putT(3,1,"TIENDA"); putT(3,2,"MONTO"); putT(4,1,tienda); putT(4,2,rows.reduce((s,r)=>s+r.total_red,0),`${ref}!Q${n2+1}`); putT(5,1,"TOTAL CUADRO"); putT(5,2,undefined,"SUM(C5:C5)");
-  putT(8,1,"TOTAL BILLETES"); [[1,100],[2,50],[3,20]].forEach(([c,v])=>putT(9,c,v)); putT(9,4,"Bs"); [[5,100],[6,50],[7,20],[8,10],[9,5],[10,1]].forEach(([c,v])=>putT(9,c,v));
-  const srcCols={1:"E",2:"F",3:"G",5:"I",6:"J",7:"K",8:"L",9:"M",10:"N"}; Object.entries(srcCols).forEach(([c,col])=>{ putT(10,Number(c),undefined,`${ref}!${col}${nb}`); putT(11,Number(c),undefined,`${XLSX.utils.encode_col(Number(c))}10*${XLSX.utils.encode_col(Number(c))}11`); });
-  putT(10,0,undefined,"B12+C12+D12"); putT(11,11,undefined,"SUM(F12:K12)");
-  wt["!ref"]="A1:L12"; wt["!cols"]=[{wch:10},{wch:26},{wch:12},{wch:10},{wch:8},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:12}];
-  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,wt,"TOTAL"); XLSX.utils.book_append_sheet(wb,ws,sheetName); wb.Workbook={CalcPr:{fullCalcOnLoad:true}};
-  XLSX.writeFile(wb,`nomina_${per}${slugArea(area)}.xlsx`); toast("Excel descargado"+(area?" · "+area:"")); }
+  const TEAL="0F766E", TEAL2="0D9488", INK="0F172A", LINE="CBD5E1", ZEBRA="F1F5F9", MINT="E6F7F5", MUTED="64748B";
+  const bd=(c)=>({style:"thin",color:{rgb:c||LINE}}); const borde={top:bd(),bottom:bd(),left:bd(),right:bd()};
+  const ST={ title:{font:{bold:true,sz:16,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:TEAL}},alignment:{horizontal:"left",vertical:"center",indent:1}},
+    sub:{font:{sz:10,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:TEAL2}},alignment:{horizontal:"left",vertical:"center",indent:1}},
+    infoL:{font:{bold:true,sz:10,color:{rgb:MUTED}},alignment:{horizontal:"right",vertical:"center"}}, infoV:{font:{bold:true,sz:10,color:{rgb:INK}},alignment:{horizontal:"left",vertical:"center"}},
+    head:{font:{bold:true,sz:9,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:INK}},alignment:{horizontal:"center",vertical:"center",wrapText:true},border:borde},
+    cell:(z,i,extra)=>Object.assign({font:{sz:10,color:{rgb:INK}},alignment:{horizontal:z?"right":"left",vertical:"center"},border:borde,fill:{fgColor:{rgb:i%2?ZEBRA:"FFFFFF"}}},z?{numFmt:z}:{},extra||{}),
+    tot:(z,extra)=>Object.assign({font:{bold:true,sz:10,color:{rgb:INK}},fill:{fgColor:{rgb:MINT}},alignment:{horizontal:z?"right":"left",vertical:"center"},border:{top:bd(TEAL),bottom:bd(TEAL),left:bd(),right:bd()}},z?{numFmt:z}:{},extra||{}),
+    note:{font:{italic:true,sz:9,color:{rgb:MUTED}},alignment:{wrapText:true,vertical:"top"}} };
+  const A=X.utils.encode_cell; const ws={}; const put=(r,c,v,f,st)=>{ const cell={}; if(f){ cell.f=f; cell.t="n"; if(v!==undefined&&v!==null) cell.v=v; } else if(v instanceof Date){ cell.t="d"; cell.v=v; cell.z="dd/mm/yyyy"; } else if(typeof v==="number"){ cell.t="n"; cell.v=v; } else { cell.t="s"; cell.v=String(v??""); } if(conEstilo&&st) cell.s=st; ws[A({r,c})]=cell; };
+  const B=1,C=2,D=3,E=4,F=5,G=6,H=7,I=8,J=9,K=10,L=11,M=12,N=13,O=14,P=15,Q=16,R=17; const merges=[];
+  // Título y subtítulo
+  put(1,B,tienda+"  ·  "+tituloNomina(per),null,ST.title); for(let c=C;c<=R;c++) put(1,c,"",null,ST.title); merges.push({s:{r:1,c:B},e:{r:1,c:R}});
+  put(2,B,"Periodo: del "+desde+" al "+hasta+(area?"   ·   Área: "+area:"")+"   ·   Generado: "+hoy()+"   ·   Hipposupermarket",null,ST.sub); for(let c=C;c<=R;c++) put(2,c,"",null,ST.sub); merges.push({s:{r:2,c:B},e:{r:2,c:R}});
+  // Datos generales
+  put(3,B,"RIF",null,ST.infoL); put(3,C,ajustes.rif||"",null,ST.infoV); put(3,F,"TASA BCV (Bs/$)",null,ST.infoL); put(3,G,tasa,null,Object.assign({numFmt:"#,##0.00"},ST.infoV)); put(3,J,"Fórmula: (Quincena ÷ 15 × Días) + Puntualidad + Bono nocturno + Bono general + Feriado/otro − Deducc. − Bs ÷ Tasa · redondeado",null,ST.note); merges.push({s:{r:3,c:J},e:{r:3,c:R}});
+  // Encabezados
+  const heads=["N°","NOMBRE","FECHA INGRESO","CÉDULA","CARGO","QUINCENA $","DÍAS","PUNTUALIDAD $","BONO GENERAL $","BONO NOCTURNO $","DÍAS PERMISO","FERIADO / OTRO $","DEDUCC. $","DEDUCC. Bs","TOTAL EXACTO","TOTAL $","OBSERVACIONES"];
+  heads.forEach((h,i)=>put(5,B+i,h,null,ST.head));
+  const r0=6, USD="#,##0.00", BS="#,##0.00", INT="0";
+  rows.forEach((r,i)=>{ const rr=r0+i, n=rr+1; const fmt=[null,null,null,null,null,USD,INT,USD,USD,USD,INT,USD,USD,BS,USD,"#,##0",null];
+    put(rr,B,i+1,null,ST.cell(INT,i,{alignment:{horizontal:"center"}})); put(rr,C,r.nombre,null,ST.cell(null,i,{font:{bold:true,sz:10,color:{rgb:INK}}})); put(rr,D,r.ingreso?new Date(r.ingreso+"T00:00:00"):"",null,ST.cell(null,i,{alignment:{horizontal:"center"},numFmt:"dd/mm/yyyy"})); put(rr,E,r.cedula,null,ST.cell(null,i,{alignment:{horizontal:"center"}})); put(rr,F,r.cargo,null,ST.cell(null,i));
+    put(rr,G,r.quincena,null,ST.cell(USD,i)); put(rr,H,r.dias,null,ST.cell(INT,i,{alignment:{horizontal:"center"}})); put(rr,I,r.puntualidad,null,ST.cell(USD,i)); put(rr,J,r.bono_general,null,ST.cell(USD,i)); put(rr,K,r.bono_nocturno,null,ST.cell(USD,i)); put(rr,L,r.dias_permiso,null,ST.cell(INT,i,{alignment:{horizontal:"center"}})); put(rr,M,r.feriado_otro,null,ST.cell(USD,i)); put(rr,N,r.deducc,null,ST.cell(USD,i,{font:{sz:10,color:{rgb:"B91C1C"}}})); put(rr,O,r.deducc_bs,null,ST.cell(BS,i,{font:{sz:10,color:{rgb:"B91C1C"}}}));
+    put(rr,P,r.total,`((G${n}/15)*H${n})+I${n}+K${n}+J${n}+M${n}-N${n}-(O${n}/$G$4)`,ST.cell(USD,i,{font:{sz:9,color:{rgb:MUTED}}}));
+    put(rr,Q,r.total_red,`ROUND(P${n},0)`,ST.cell("#,##0",i,{font:{bold:true,sz:11,color:{rgb:TEAL}},fill:{fgColor:{rgb:MINT}}})); put(rr,R,r.observaciones,null,ST.cell(null,i,{alignment:{wrapText:true,vertical:"center"}})); });
+  const rT=r0+rows.length, n1=r0+1, n2=rT; put(rT,B,"",null,ST.tot()); put(rT,C,"TOTAL NÓMINA  ("+rows.length+" empleado"+(rows.length===1?"":"s")+")",null,ST.tot()); for(let c=D;c<=F;c++) put(rT,c,"",null,ST.tot());
+  const sumCols=[["G",G,USD],["I",I,USD],["J",J,USD],["K",K,USD],["M",M,USD],["N",N,USD],["O",O,BS],["P",P,USD],["Q",Q,"#,##0"]]; sumCols.forEach(([col,ci,z])=>put(rT,ci,undefined,`SUM(${col}${n1}:${col}${n2})`,ST.tot(z)));
+  put(rT,H,undefined,`SUM(H${n1}:H${n2})`,ST.tot(INT,{alignment:{horizontal:"center"}})); put(rT,L,undefined,`SUM(L${n1}:L${n2})`,ST.tot(INT,{alignment:{horizontal:"center"}})); put(rT,R,"",null,ST.tot());
+  put(rT+2,C,"Total en bolívares a la tasa indicada:",null,ST.infoL); put(rT+2,G,undefined,`Q${n2+1}*$G$4`,Object.assign({numFmt:'#,##0.00 "Bs"'},ST.infoV));
+  put(rT+4,C,"Elaborado por: ______________________",null,ST.note); put(rT+4,J,"Aprobado por: ______________________",null,ST.note); put(rT+6,C,"Documento generado por Hipposupermarket. Las columnas TOTAL se calculan con fórmulas: si cambias un valor, el total se actualiza solo.",null,ST.note); merges.push({s:{r:rT+6,c:C},e:{r:rT+6,c:R}});
+  ws["!ref"]=A({r:0,c:0})+":"+A({r:rT+6,c:R}); ws["!merges"]=merges;
+  ws["!cols"]=[{wch:2},{wch:5},{wch:28},{wch:13},{wch:13},{wch:18},{wch:12},{wch:7},{wch:13},{wch:14},{wch:14},{wch:9},{wch:14},{wch:12},{wch:13},{wch:12},{wch:11},{wch:36}];
+  ws["!rows"]=[]; ws["!rows"][1]={hpt:30}; ws["!rows"][2]={hpt:18}; ws["!rows"][5]={hpt:32};
+  // Hoja TOTAL (resumen por tienda, sin cuadro de billetes)
+  const wt={}; const putT=(r,c,v,f,st)=>{ const cell={}; if(f){ cell.f=f; cell.t="n"; if(v!==undefined) cell.v=v; } else if(typeof v==="number"){ cell.t="n"; cell.v=v; } else { cell.t="s"; cell.v=String(v??""); } if(conEstilo&&st) cell.s=st; wt[A({r,c})]=cell; };
+  putT(1,1,tituloNomina(per),null,ST.title); putT(1,2,"",null,ST.title); putT(1,3,"",null,ST.title);
+  putT(2,1,"TASA BCV (Bs/$)",null,ST.infoL); putT(2,2,tasa,null,Object.assign({numFmt:"#,##0.00"},ST.infoV));
+  putT(4,1,"TIENDA",null,ST.head); putT(4,2,"MONTO $",null,ST.head); putT(4,3,"MONTO Bs",null,ST.head);
+  putT(5,1,tienda,null,ST.cell(null,0)); putT(5,2,rows.reduce((s,r)=>s+r.total_red,0),`${ref}!Q${n2+1}`,ST.cell("#,##0",0)); putT(5,3,undefined,"C6*C3",ST.cell("#,##0.00",0));
+  putT(6,1,"TOTAL CUADRO",null,ST.tot()); putT(6,2,undefined,"SUM(C6:C6)",ST.tot("#,##0")); putT(6,3,undefined,"SUM(D6:D6)",ST.tot("#,##0.00"));
+  wt["!ref"]="A1:D8"; wt["!cols"]=[{wch:2},{wch:34},{wch:16},{wch:18}]; wt["!merges"]=[{s:{r:1,c:1},e:{r:1,c:3}}]; wt["!rows"]=[]; wt["!rows"][1]={hpt:30};
+  const wb=X.utils.book_new(); X.utils.book_append_sheet(wb,wt,"TOTAL"); X.utils.book_append_sheet(wb,ws,sheetName); wb.Workbook={CalcPr:{fullCalcOnLoad:true}};
+  X.writeFile(wb,`nomina_${per}${slugArea(area)}.xlsx`); toast("Excel descargado"+(conEstilo?"":" (sin formato: sin conexión a la librería de estilos)")+(area?" · "+area:"")); }
 function exportarNominaPDF(){ if(!verSueldos()){ toast("Los sueldos están ocultos por gerencia"); return; } const per=periodoNomina(); const area=areaNomina(); const rows=buildNomina(per,area); if(!rows.length){ toast("No hay empleados para exportar"); return; }
   const { jsPDF }=window.jspdf; const doc=new jsPDF({orientation:"landscape"}); let y=14; const tasa=tasaNomina(per);
   doc.setFontSize(13); doc.text(`${ajustes.nombre||"Hipposupermarket"} — ${tituloNomina(per)}${area?" — "+area:""}`,10,y); y+=5; doc.setFontSize(8); doc.text("Tasa BCV: "+bsN(tasa)+"/$   ·   Total = (Quincena/15 x Dias) + Puntualidad + Bono nocturno + Bono general + Feriado/otro - Deducc. - Bs/Tasa, redondeado",10,y); y+=6;
