@@ -632,6 +632,7 @@
       <label id="btnCargarProv" class="bg-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelProveedores(event)"></label>
       <button onclick="plantillaProveedores()" class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl">⬇ Plantilla</button>
       <button onclick="plantillaProveedorWhatsApp()" class="bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-xl">📩 Plantilla WhatsApp</button>
+      <button onclick="openHistorialPagos()" class="bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-xl">💳 Historial de pagos</button>
     </div>
     <p id="impProvMsg" class="text-xs mb-2"></p>
     <input id="buscarProv" oninput="renderProveedores()" placeholder="Buscar…" class="w-full mb-3 px-3 py-2 rounded-xl border border-slate-200 bg-white" />
@@ -949,7 +950,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="6.8"; // se incrementa con cada mejora
+const APP_VERSION="6.9"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -2675,6 +2676,7 @@ function openProveedor(id){ const p=id?provById(id):{}; if(!id && !puedeEditarPr
     ${field("contacto","Persona de contacto",p.contacto)}${field("telefono","WhatsApp (ej: 584121112233)",p.telefono)}
     ${field("productos","Qué surte",p.productos)}
     <div><label class="text-xs text-slate-500">Condiciones / notas</label><textarea id="f_notas" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(p.notas||"")}</textarea></div></div>
+    ${id?`<button type="button" onclick="openHistorialPagos('${id}')" class="w-full mt-3 bg-slate-800 text-white text-sm font-semibold py-2.5 rounded-xl">💳 Historial de pagos de este proveedor</button>`:""}
     ${soloLectura?`<p class="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2 mt-3">👁 Solo lectura: gerencia no te ha dado permiso para modificar proveedores.</p>`:""}
     <div class="flex gap-2 mt-5">${soloLectura?"":`<button onclick="saveProveedor('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>`}
     ${(id&&!soloLectura)?`<button onclick="delProveedor('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
@@ -2697,7 +2699,7 @@ function renderProveedores(){ const q=(document.getElementById("buscarProv")?.va
   const c=document.getElementById("listaProveedores"); if(!l.length){ c.innerHTML=empty("Sin proveedores."); return; }
   c.innerHTML=l.map(p=>{ const nprod=db.list("productos").filter(x=>x.proveedor_id===p.id).length;
     return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-2"><div onclick="openProveedor('${p.id}')" class="flex-1 min-w-0 active:opacity-60"><p class="font-semibold truncate">${esc(p.nombre)}</p><p class="text-xs text-slate-500 truncate">${esc(p.productos||"—")}${p.contacto?" · "+esc(p.contacto):""}</p></div>
-    <button onclick="openProductosProveedor('${p.id}')" class="text-[10px] bg-teal-50 text-teal-700 border border-teal-200 px-2 py-1 rounded-lg font-semibold shrink-0">📦 ${nprod}</button>
+    <button onclick="openHistorialPagos('${p.id}')" title="Historial de pagos" class="text-[10px] bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1 rounded-lg font-semibold shrink-0">💳</button><button onclick="openProductosProveedor('${p.id}')" class="text-[10px] bg-teal-50 text-teal-700 border border-teal-200 px-2 py-1 rounded-lg font-semibold shrink-0">📦 ${nprod}</button>
     ${p.telefono?`<a href="https://wa.me/${esc(String(p.telefono).replace(/\D/g,''))}" target="_blank" class="text-lg shrink-0">💬</a>`:""}</div>`; }).join("");
 }
 /* -------- Asignar productos a un proveedor (se guardan al marcar) -------- */
@@ -4664,6 +4666,56 @@ function renderPfPend(){ const c=document.getElementById("pf_pend"); if(!c) retu
   c.innerHTML=`<div class="bg-amber-50 border border-amber-100 rounded-lg p-2 mt-1"><div class="flex items-center justify-between mb-1 gap-2"><p class="text-[11px] font-semibold text-amber-800">📌 Pendientes (${pend.length})${totBs?" · "+fmt2(totBs)+" Bs":""}${totUsd?" · $"+fmt2(totUsd):""}</p><button type="button" onclick="cargarPendientesPago(false)" class="text-[11px] bg-amber-600 text-white px-2 py-0.5 rounded-md font-semibold shrink-0">Cargar todas</button></div><div class="space-y-1">${items}</div></div>`; }
 function resolverPagoProv(){ const t=document.getElementById("f_pp_prov_txt"), h=document.getElementById("f_proveedor_id"); if(!t||!h) return; const nq=(t.value||"").trim().toLowerCase(); const p=nq?db.list("proveedores").find(x=>(x.nombre||"").trim().toLowerCase()===nq):null; h.value=p?p.id:""; if(p){ const rif=document.getElementById("f_rif"); if(rif && !rif.value) rif.value=p.rif||""; }
   const provKey=p?p.id:(nq||""); if(provKey && provKey!==_pagoProvCargado){ _pagoProvCargado=provKey; if(!_pagoEditando) cargarPendientesPago(true); else renderPfPend(); } else renderPfPend(); }
+/* ===================== HISTORIAL DE PAGOS POR PROVEEDOR =====================
+   Se arma a partir de los pagos ya registrados (pagos_prov) y de las facturas recibidas (facturas_rec):
+   · Pago total de factura N° X      → el pago cubre el monto completo de la factura
+   · Abono a factura N° X            → primer pago parcial de la factura
+   · Pago parcial de factura N° X    → otro pago parcial (queda saldo)
+   · Pago final de factura N° X      → pago parcial que termina de cancelarla
+   · Pago (sin factura)              → pago sin número de factura
+   Nada se duplica: es la misma información que ya está guardada, ordenada por proveedor. */
+function provClaveDe(obj){ const id=obj&&obj.proveedor_id; if(id){ const pv=provById(id); if(pv) return "id:"+pv.id; } const rif=String((obj&&obj.rif)||"").replace(/[^0-9A-Za-z]/g,"").toUpperCase(); if(rif) return "rif:"+rif; return "nom:"+String((obj&&obj.proveedor)||"").trim().toLowerCase(); }
+function provClaveDeProveedor(pv){ return "id:"+pv.id; }
+function provCoincide(obj,pv){ if(!pv) return false; if(obj.proveedor_id && obj.proveedor_id===pv.id) return true; const r1=String(obj.rif||"").replace(/[^0-9A-Za-z]/g,"").toUpperCase(), r2=String(pv.rif||"").replace(/[^0-9A-Za-z]/g,"").toUpperCase(); if(r1&&r2&&r1===r2) return true; const n1=String(obj.proveedor||"").trim().toLowerCase(), n2=String(pv.nombre||"").trim().toLowerCase(); return !!(n1&&n2&&n1===n2); }
+function historialPagosProveedor(pv){ const pagos=db.list("pagos_prov").filter(p=>provCoincide(p,pv)).sort((a,b)=>String(a.fecha_pago||a.creado||"").localeCompare(String(b.fecha_pago||b.creado||"")));
+  const facs=db.list("facturas_rec").filter(f=>provCoincide(f,pv)); const facById={}; facs.forEach(f=>{ facById[f.id]=f; }); const facByNum={}; facs.forEach(f=>{ const k=String(f.numero||"").trim().toLowerCase(); if(k&&!facByNum[k]) facByNum[k]=f; });
+  const acum={}; const items=[];
+  pagos.forEach(pg=>{ const fs=Array.isArray(pg.facturas)&&pg.facturas.length?pg.facturas:[{numero:pg.info_factura||"",monto:Number(pg.total_pagado)||0,fid:""}]; const usd=pagoUsd(pg); const totPg=Number(pg.total_pagado)||Number(pg.total_facturas)||0; const factor=totPg>0?usd/totPg:0;
+    fs.forEach(cf=>{ const num=String(cf.numero||"").trim(); const fac=(cf.fid&&facById[cf.fid])||(num&&facByNum[num.toLowerCase()])||null; const monto=Number(cf.monto)||0; let tipo,ic;
+      if(fac){ const key=fac.id; const antes=acum[key]||0; const total=Number(fac.monto)||0; acum[key]=antes+monto;
+        if(monto>=total-0.005 && antes<0.005){ tipo="Pago total de factura N° "+num; ic="✅"; } else if(acum[key]>=total-0.005){ tipo="Pago final de factura N° "+num+" (cancelada)"; ic="🏁"; } else if(antes<0.005){ tipo="Abono a factura N° "+num; ic="🔹"; } else { tipo="Pago parcial de factura N° "+num; ic="🔸"; }
+        items.push({fecha:pg.fecha_pago||String(pg.creado||"").slice(0,10), tipo, ic, numero:num, monto, moneda:pg.moneda||"Bs", usd:monto*factor, banco:pg.banco||"", pagoId:pg.id, facId:fac.id, saldo:Math.max(0,total-acum[key]), totalFac:total, notas:pg.notas||""}); }
+      else { tipo=num?"Pago de factura N° "+num:"Pago (sin número de factura)"; items.push({fecha:pg.fecha_pago||String(pg.creado||"").slice(0,10), tipo, ic:"💵", numero:num, monto, moneda:pg.moneda||"Bs", usd:monto*factor, banco:pg.banco||"", pagoId:pg.id, facId:"", saldo:null, totalFac:null, notas:pg.notas||""}); } });
+    if((Number(pg.nota_credito)||0)>0) items.push({fecha:pg.fecha_pago||"", tipo:"Nota de crédito aplicada", ic:"🧾", numero:"", monto:-(Number(pg.nota_credito)||0), moneda:pg.moneda||"Bs", usd:-(Number(pg.nota_credito)||0)*factor, banco:"", pagoId:pg.id, facId:"", saldo:null, totalFac:null, notas:""}); });
+  // abonos que constan en la factura pero no tienen pago registrado (datos anteriores o restaurados)
+  facs.forEach(f=>{ const ab=Number(f.abonado)||0; const reg=acum[f.id]||0; if(ab-reg>0.005){ const m=ab-reg; const total=Number(f.monto)||0; const usd=esUSDmon(f.moneda)?m:(tipoCambio>0?m/tipoCambio:0);
+    items.push({fecha:f.fecha||"", tipo:(ab>=total-0.005?"Pago de factura N° ":"Abono a factura N° ")+String(f.numero||"")+" (registrado en la factura)", ic:"📎", numero:String(f.numero||""), monto:m, moneda:f.moneda||"Bs", usd, banco:"", pagoId:"", facId:f.id, saldo:Math.max(0,total-ab), totalFac:total, notas:""}); } });
+  items.sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))); return {items, pagos, facs}; }
+let _hpProv="", _hpMes="";
+function openHistorialPagos(provId){ if(!puede("proveedores")&&!puede("deudas")){ toast("Sin acceso"); return; } _hpProv=provId||_hpProv||""; _hpMes="";
+  openModal(`<h3 class="font-bold text-lg mb-1">💳 Historial de pagos a proveedores</h3><p class="text-xs text-slate-500 mb-3">Pagos totales, parciales y abonos por factura, proveedor por proveedor. Incluye todo lo pagado hasta la fecha.</p>
+    <div class="flex gap-2 mb-2"><input id="hpProvTxt" list="dlProveedores" oninput="hpResolver()" placeholder="🔎 Escribe o elige el proveedor…" class="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-sm"><select id="hpMes" onchange="_hpMes=this.value;renderHistorialPagos()" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm"><option value="">Todo</option></select></div>
+    <div id="hpBody" class="max-h-[62vh] overflow-y-auto pr-1"></div>
+    <div class="flex gap-2 mt-3"><button onclick="exportarHistorialPagosExcel()" class="flex-1 bg-emerald-600 text-white font-semibold py-2.5 rounded-xl">⬇ Excel</button>${puede("deudas")?`<button onclick="hpNuevoPago()" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">➕ Registrar pago</button>`:""}<button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
+  const pv=_hpProv?provById(_hpProv):null; const t=document.getElementById("hpProvTxt"); if(t&&pv) t.value=pv.nombre; renderHistorialPagos(); if(t&&!pv) setTimeout(()=>t.focus(),50); }
+function hpResolver(){ const t=(document.getElementById("hpProvTxt")?.value||"").trim().toLowerCase(); const pv=db.list("proveedores").find(p=>(p.nombre||"").trim().toLowerCase()===t); _hpProv=pv?pv.id:""; _hpMes=""; renderHistorialPagos(); }
+function hpNuevoPago(){ const pid=_hpProv; closeModal(); openPagoProv(); setTimeout(()=>{ const pv=pid?provById(pid):null; if(!pv) return; const t=document.getElementById("f_pp_prov_txt"), h=document.getElementById("f_proveedor_id"); if(t) t.value=pv.nombre; if(h) h.value=pv.id; try{ resolverPagoProv(); }catch(_){} },80); }
+function renderHistorialPagos(){ const body=document.getElementById("hpBody"); if(!body) return; const pv=_hpProv?provById(_hpProv):null;
+  if(!pv){ // resumen general: proveedores con pagos
+    const map={}; db.list("pagos_prov").forEach(pg=>{ const pvv=pg.proveedor_id?provById(pg.proveedor_id):null; const k=pvv?pvv.id:("nom:"+String(pg.proveedor||"").trim().toLowerCase()); const o=map[k]||(map[k]={id:pvv?pvv.id:"", nombre:pvv?pvv.nombre:(pg.proveedor||"—"), n:0, usd:0, ult:""}); o.n++; o.usd+=pagoUsd(pg); if(String(pg.fecha_pago||"")>o.ult) o.ult=pg.fecha_pago||""; });
+    const lista=Object.values(map).sort((a,b)=>String(b.ult).localeCompare(String(a.ult)));
+    body.innerHTML=lista.length?`<p class="text-[11px] text-slate-500 mb-2">${lista.length} proveedor(es) con pagos registrados. Toca uno para ver su historial.</p>`+lista.map(o=>`<div onclick="${o.id?`_hpProv='${o.id}';document.getElementById('hpProvTxt').value='${esc(o.nombre).replace(/'/g,"\\'")}';renderHistorialPagos()`:""}" class="bg-white rounded-xl p-3 shadow-sm flex items-center justify-between gap-2 mb-2 ${o.id?"cursor-pointer active:bg-slate-50":""}"><div class="min-w-0"><p class="font-semibold truncate">${esc(o.nombre)}</p><p class="text-[11px] text-slate-500">${o.n} pago(s) · último ${esc(o.ult||"—")}</p></div><b class="text-teal-700 shrink-0">${money(o.usd)}</b></div>`).join(""):empty("Aún no hay pagos registrados."); return; }
+  const {items}=historialPagosProveedor(pv); const meses=[...new Set(items.map(i=>String(i.fecha||"").slice(0,7)).filter(Boolean))].sort().reverse(); const sel=document.getElementById("hpMes");
+  if(sel){ const cur=_hpMes; sel.innerHTML=`<option value="">Todo el historial</option>`+meses.map(m=>`<option value="${m}" ${m===cur?"selected":""}>${MES_NOMBRES[Number(m.slice(5,7))-1]} ${m.slice(0,4)}</option>`).join(""); }
+  const l=_hpMes?items.filter(i=>String(i.fecha||"").startsWith(_hpMes)):items; const totUsd=l.reduce((s,i)=>s+(i.usd||0),0); const nFac=new Set(l.filter(i=>i.numero).map(i=>i.numero)).size; const deuda=(()=>{ try{ return deudaProveedorUsd(pv.nombre,pv.rif||""); }catch(_){ return null; } })();
+  body.innerHTML=`<div class="bg-slate-800 text-white rounded-2xl p-3 mb-3"><p class="font-bold">${esc(pv.nombre)} <span class="text-slate-400 font-normal text-xs">${esc(pv.rif||"")}</span></p>
+      <div class="grid grid-cols-3 gap-2 mt-2 text-center text-xs"><div><p class="text-slate-400">Pagado${_hpMes?" (mes)":""}</p><p class="font-bold text-emerald-400">${money(totUsd)}</p></div><div><p class="text-slate-400">Movimientos</p><p class="font-bold">${l.length}</p><p class="text-[10px] text-slate-400">${nFac} factura(s)</p></div><div><p class="text-slate-400">Deuda actual</p><p class="font-bold ${deuda>0.005?"text-rose-400":"text-emerald-400"}">${deuda===null?"—":money(deuda)}</p></div></div></div>
+    ${l.length?l.map(i=>`<div class="bg-white rounded-xl p-3 shadow-sm mb-2 ${i.pagoId?"cursor-pointer active:bg-slate-50":""}" ${i.pagoId?`onclick="closeModal();openPagoProv('${i.pagoId}')"`:""}><div class="flex items-start justify-between gap-2"><div class="min-w-0"><p class="text-sm font-semibold">${i.ic} ${esc(i.tipo)}</p><p class="text-[11px] text-slate-500">${esc(i.fecha||"sin fecha")}${i.banco?" · "+esc(i.banco):""}${i.totalFac!=null?" · factura "+fmtMon(i.totalFac,i.moneda)+(i.saldo>0.005?" · saldo "+fmtMon(i.saldo,i.moneda):" · cancelada"):""}${i.notas?" · "+esc(i.notas):""}</p></div><div class="text-right shrink-0"><p class="font-bold ${i.monto<0?"text-amber-600":"text-teal-700"}">${fmtMon(i.monto,i.moneda)}</p><p class="text-[10px] text-slate-400">${money(i.usd)}</p></div></div></div>`).join(""):empty("Sin pagos de este proveedor"+(_hpMes?" en ese mes":"")+".")}`; }
+function fmtMon(v,mon){ return esUSDmon(mon)?money(v):fmtBs(v); }
+function exportarHistorialPagosExcel(){ const pv=_hpProv?provById(_hpProv):null; if(!pv){ toast("Elige un proveedor"); return; } const {items}=historialPagosProveedor(pv); const l=_hpMes?items.filter(i=>String(i.fecha||"").startsWith(_hpMes)):items; if(!l.length){ toast("Sin movimientos"); return; }
+  const rows=l.map(i=>[i.fecha||"", i.tipo, i.numero, i.monto, i.moneda, +(i.usd||0).toFixed(2), i.banco, i.totalFac!=null?i.totalFac:"", i.saldo!=null?i.saldo:"", i.notas]);
+  const ws=hojaPro({titulo:"HISTORIAL DE PAGOS · "+String(pv.nombre).toUpperCase(), subtitulo:subtituloPro((pv.rif?"RIF "+pv.rif+" · ":"")+l.length+" movimiento(s)"+(_hpMes?" · "+_hpMes:"")), headers:["Fecha","Concepto","N° factura","Monto","Moneda","Equiv. $","Banco / forma","Total factura","Saldo factura","Notas"], rows, totales:["","TOTAL","","","",+l.reduce((s,i)=>s+(i.usd||0),0).toFixed(2),"","","",""], formatos:[null,null,null,"#,##0.00",null,"#,##0.00",null,"#,##0.00","#,##0.00",null]});
+  libroPro([[ws,"Historial"]],`pagos_${String(pv.nombre).replace(/[^\w]+/g,"_").slice(0,30)}${_hpMes?"_"+_hpMes:""}.xlsx`); toast("Excel descargado"); }
 function openPagoProv(id){ if(!puede("deudas")){ toast("Sin acceso"); return; } const pg=id?db.list("pagos_prov").find(x=>x.id===id):{}; pagoFacturas = (id&&Array.isArray(pg.facturas))?pg.facturas.map(f=>({...f})):[]; _pagoEditando=!!id; _pagoProvCargado=id?(pg.proveedor_id||(pg.proveedor||"").trim().toLowerCase()||"__ed__"):"";
   const prov = pg.proveedor_id?provById(pg.proveedor_id):null;
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} pago a proveedor</h3><div class="space-y-3">
