@@ -20,6 +20,9 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script>try{ tailwind.config={ theme:{ extend:{ fontFamily:{ sans:["Inter","system-ui","-apple-system","Segoe UI","Roboto","sans-serif"] } } } }; }catch(_){}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>window.__XLSX_BASE=window.XLSX||null;</script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script>if(window.XLSX && window.XLSX!==window.__XLSX_BASE){ window.XLSXS=window.XLSX; } if(window.__XLSX_BASE) window.XLSX=window.__XLSX_BASE;</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Lector de código de barras por cámara -->
@@ -941,7 +944,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="6.5"; // se incrementa con cada mejora
+const APP_VERSION="6.6"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -2483,8 +2486,7 @@ async function importarExcel(ev){ const file=ev.target.files[0]; if(!file) retur
       if(!r.empleado) continue; Object.assign(r,calcAsistencia(r)); await db.insert("asistencia",r); ok++; }
     msg.textContent=`✅ ${ok} registros importados.`; msg.className="text-xs mt-2 text-emerald-600"; ev.target.value=""; render();
   }catch(e){ msg.textContent="❌ Error: "+e.message; msg.className="text-xs mt-2 text-red-600"; } }
-function descargarPlantilla(){ const ws=XLSX.utils.aoa_to_sheet([["Empleado","Fecha","Entrada","Salida","Almuerzo inicio","Almuerzo fin"],["María Pérez","01/08/2026","08:05","17:00","12:30","13:30"]]);
-  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Asistencia"); XLSX.writeFile(wb,"plantilla_asistencia.xlsx"); }
+function descargarPlantilla(){ const ws=hojaPro({headers:["Empleado","Fecha","Entrada","Salida","Almuerzo inicio","Almuerzo fin"], rows:[["María Pérez","01/08/2026","08:05","17:00","12:30","13:30"]], nota:"Fila de ejemplo: bórrala y carga la asistencia debajo. Horas en formato 24 h (hh:mm)."}); libroPro([[ws,"Asistencia"]],"plantilla_asistencia.xlsx"); }
 
 /* ===================== TAREAS ===================== */
 let tareaFiltro="Todas";
@@ -3097,14 +3099,40 @@ function renderMerma(){ const l=db.list("merma").sort((a,b)=>(b.fecha||"").local
   c.innerHTML=l.map(m=>{ const prov=provById(m.proveedor_id); const {costo}=mermaCosto(m);
     return `<div onclick="openMerma('${m.id}')" class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 active:bg-slate-50"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(m.nombre)}</p><p class="text-xs text-slate-500 truncate">${esc(m.motivo||"")} · ${esc(m.area||"")} · ${esc(m.fecha||"")}${prov?" · 🚚 "+esc(prov.nombre):""}</p></div><div class="text-right"><p class="font-semibold text-red-600">−${m.medida==="empaque"?(Number(m.cantidad_ing)||0)+" "+esc(m.empaque||"Bulto"):(Number(m.cantidad)||0)+(m.empaque?" "+esc(m.empaque):"")}</p>${m.medida==="empaque"?`<p class="text-[10px] text-slate-400">= ${Number(m.cantidad)||0} unid.</p>`:""}<p class="text-[10px] text-slate-400">${money(costo)}</p></div></div>`; }).join("");
 }
+/* ===================== EXCEL PROFESIONAL (helper común) =====================
+   hojaPro({titulo, subtitulo, headers, rows, totales, formatos, anchos}) → hoja con banda de título Hippo, encabezados
+   oscuros, filas alternadas, bordes, formatos numéricos y fila de totales. Usa xlsx-js-style si cargó; si no, sin colores. */
+function XL(){ return window.XLSXS||window.XLSX; }
+function hojaPro(o){ const X=XL(); const st=!!window.XLSXS; const TEAL="0F766E",TEAL2="0D9488",INK="0F172A",LINE="CBD5E1",ZEBRA="F1F5F9",MINT="E6F7F5",MUTED="64748B";
+  const bd=(c)=>({style:"thin",color:{rgb:c||LINE}}); const borde={top:bd(),bottom:bd(),left:bd(),right:bd()};
+  const S={ title:{font:{bold:true,sz:15,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:TEAL}},alignment:{vertical:"center",indent:1}}, sub:{font:{sz:10,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:TEAL2}},alignment:{vertical:"center",indent:1}},
+    head:{font:{bold:true,sz:9,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:INK}},alignment:{horizontal:"center",vertical:"center",wrapText:true},border:borde},
+    cell:(i,num,z)=>Object.assign({font:{sz:10,color:{rgb:INK}},alignment:{horizontal:num?"right":"left",vertical:"center"},border:borde,fill:{fgColor:{rgb:i%2?ZEBRA:"FFFFFF"}}},z?{numFmt:z}:{}),
+    tot:(num,z)=>Object.assign({font:{bold:true,sz:10,color:{rgb:INK}},fill:{fgColor:{rgb:MINT}},alignment:{horizontal:num?"right":"left",vertical:"center"},border:{top:bd(TEAL),bottom:bd(TEAL),left:bd(),right:bd()}},z?{numFmt:z}:{}),
+    note:{font:{italic:true,sz:9,color:{rgb:MUTED}}} };
+  const A=X.utils.encode_cell; const ws={}; const merges=[]; const nc=o.headers.length; const c0=1; let r=1;
+  const put=(rr,cc,v,style,z)=>{ const cell={}; if(v instanceof Date){ cell.t="d"; cell.v=v; cell.z=z||"dd/mm/yyyy"; } else if(typeof v==="number"&&isFinite(v)){ cell.t="n"; cell.v=v; if(z) cell.z=z; } else if(v&&typeof v==="object"&&v.f){ cell.t="n"; cell.f=v.f; if(v.v!==undefined) cell.v=v.v; if(z) cell.z=z; } else { cell.t="s"; cell.v=(v===null||v===undefined)?"":String(v); } if(st&&style) cell.s=style; ws[A({r:rr,c:cc})]=cell; };
+  if(o.titulo){ for(let c=0;c<nc;c++) put(r,c0+c,c?"":o.titulo,S.title); merges.push({s:{r,c:c0},e:{r,c:c0+nc-1}}); r++; }
+  if(o.subtitulo){ for(let c=0;c<nc;c++) put(r,c0+c,c?"":o.subtitulo,S.sub); merges.push({s:{r,c:c0},e:{r,c:c0+nc-1}}); r++; }
+  r++; const rh=r; o.headers.forEach((h,c)=>put(r,c0+c,h,S.head)); r++;
+  const fmt=o.formatos||[]; const esNum=(c,v)=>typeof v==="number"||(v&&typeof v==="object"&&v.f);
+  const auto=o.headers.map((h,c)=>{ if(fmt[c]) return fmt[c]; const hv=String(h).toLowerCase(); if(/\(bs\)|bs$|bolívar/.test(hv)) return "#,##0.00"; if(/\$|usd|precio|costo|monto|total|pagado|abonado|saldo|diferencia/.test(hv)) return "#,##0.00"; if(/cantidad|dias|días|stock|unid/.test(hv)) return "#,##0.##"; if(/tasa/.test(hv)) return "#,##0.00"; return null; });
+  o.rows.forEach((row,i)=>{ o.headers.forEach((h,c)=>{ const v=row[c]; const num=esNum(c,v); put(r,c0+c,v===undefined?"":v,S.cell(i,num,num?auto[c]:null),num?auto[c]:null); }); r++; });
+  if(o.totales){ o.headers.forEach((h,c)=>{ const v=o.totales[c]; const num=esNum(c,v); put(r,c0+c,v===undefined?"":v,S.tot(num,num?auto[c]:null),num?auto[c]:null); }); r++; }
+  if(o.nota){ r++; put(r,c0,o.nota,S.note); merges.push({s:{r,c:c0},e:{r,c:c0+nc-1}}); }
+  ws["!ref"]=A({r:0,c:0})+":"+A({r:r,c:c0+nc-1}); ws["!merges"]=merges;
+  const anchos=o.anchos||o.headers.map((h,c)=>{ let w=String(h).length; o.rows.slice(0,300).forEach(row=>{ const v=row[c]; const l=(v instanceof Date)?10:String(v??"").length; if(l>w) w=l; }); return Math.min(Math.max(w+2,8),46); });
+  ws["!cols"]=[{wch:2},...anchos.map(w=>({wch:w}))]; ws["!rows"]=[]; if(o.titulo) ws["!rows"][1]={hpt:28}; ws["!rows"][rh]={hpt:30};
+  return ws; }
+function libroPro(hojas, archivo){ const X=XL(); const wb=X.utils.book_new(); hojas.forEach(([ws,nombre])=>X.utils.book_append_sheet(wb,ws,String(nombre).replace(/[\/?*\[\]:]/g,"").slice(0,31)||"Hoja")); wb.Workbook={CalcPr:{fullCalcOnLoad:true}}; X.writeFile(wb,archivo); }
+function subtituloPro(extra){ return (ajustes.nombre||"Hipposupermarket")+"   ·   Generado: "+hoy()+(extra?"   ·   "+extra:""); }
 function exportarMermaExcel(){ if(!window.XLSX){ toast("Abre la app publicada para exportar"); return; }
   const l=db.list("merma").sort((a,b)=>(a.fecha||"").localeCompare(b.fecha||"")); if(!l.length){ toast("Sin merma para exportar"); return; }
   const headers=["Fecha","Producto","Proveedor","Motivo","Área","Cantidad","Precio costo","Costo total"];
   const rows=l.map(m=>{ const prov=provById(m.proveedor_id); const {pc,costo}=mermaCosto(m); return [m.fecha||"", m.nombre||"", prov?prov.nombre:"", m.motivo||"", m.area||"", Number(m.cantidad)||0, pc, costo]; });
   const totCant=rows.reduce((s,r)=>s+(Number(r[5])||0),0), totCosto=rows.reduce((s,r)=>s+(Number(r[7])||0),0);
-  const data=[headers,...rows,[],["","","","","TOTAL",totCant,"",+totCosto.toFixed(2)]];
-  const ws=XLSX.utils.aoa_to_sheet(data); ws["!cols"]=[{wch:12},{wch:36},{wch:24},{wch:10},{wch:14},{wch:10},{wch:12},{wch:12}];
-  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Merma"); XLSX.writeFile(wb,`merma_${hoy()}.xlsx`); toast("Excel descargado"); }
+  const ws=hojaPro({titulo:"MERMA · "+(ajustes.nombre||"Hipposupermarket"), subtitulo:subtituloPro(l.length+" registro(s)"), headers, rows, totales:["","","","","TOTAL",totCant,"",+totCosto.toFixed(2)], formatos:[null,null,null,null,null,"#,##0.##","#,##0.00","#,##0.00"]});
+  libroPro([[ws,"Merma"]],`merma_${hoy()}.xlsx`); toast("Excel descargado"); }
 
 /* ===================== QUIEBRE DE INVENTARIO (productos sin stock) ===================== */
 let quiebreItems=[];
@@ -3920,7 +3948,7 @@ function leerExcel(file, cb){ const rd=new FileReader(); rd.onload=()=>{ try{
       rows.push(o); }
     cb(rows);
   }catch(e){ toast("Error al leer Excel: "+e.message); } }; rd.readAsArrayBuffer(file); }
-function bajarPlantilla(nombre, headers, ejemplo){ const ws=XLSX.utils.aoa_to_sheet([headers, ejemplo]); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Datos"); XLSX.writeFile(wb, nombre); }
+function bajarPlantilla(nombre, headers, ejemplo){ const ws=hojaPro({headers, rows:[ejemplo], nota:"Fila de ejemplo: bórrala y carga tus datos debajo de los encabezados. No cambies los nombres de las columnas."}); libroPro([[ws,"Datos"]], nombre); }
 function numExcel(v){ return Number(String(v).replace(/[^\d.\-]/g,""))||0; }
 /* Importador genérico tolerante: cuenta cargados, ignora filas vacías y reporta el error exacto */
 async function insertConReintento(tabla, r){ try{ return await db.insert(tabla, r); }catch(e){ await new Promise(res=>setTimeout(res,200)); return await db.insert(tabla, r); } }
@@ -4294,9 +4322,9 @@ function exportarCierresExcel(caja){ if(!puede("tesoreria")){ toast("Sin acceso"
     tot.cashea+=Number(ci.cashea)||0; tot.biopago+=Number(ci.biopago)||0; tot.punto+=Number(ci.punto_venta)||0; tot.efectivo+=Number(ci.efectivo)||0; tot.divUsd+=dv; tot.divBs+=dv*tasa; tot.fac+=fa; tot.fondos+=fo; tot.cont+=r.contadoBs; tot.contUsd+=r.contadoUsd; tot.factdo+=r.facturadoBs; tot.dif+=r.difBs; tot.difUsd+=r.difUsd;
     return [ci.fecha||"", ci.numero_caja||"", ci.cajero||"", n2(ci.cashea), n2(ci.biopago), n2(ci.punto_venta), n2(ci.efectivo), n2(dv), n2(dv*tasa), n2(fa), n2(fo), n2(r.contadoBs), n2(r.contadoUsd), n2(r.facturadoBs), n2(r.difBs), n2(r.difUsd), Number(tasa)||""]; });
   rows.push(["TOTAL","","",n2(tot.cashea),n2(tot.biopago),n2(tot.punto),n2(tot.efectivo),n2(tot.divUsd),n2(tot.divBs),n2(tot.fac),n2(tot.fondos),n2(tot.cont),n2(tot.contUsd),n2(tot.factdo),n2(tot.dif),n2(tot.difUsd),""]);
-  const ws=XLSX.utils.aoa_to_sheet([head,...rows]); ws["!cols"]=head.map(()=>({wch:16}));
-  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Cierres");
-  const suf=tesPeriodo==="dia"?fecha:fecha.slice(0,7); XLSX.writeFile(wb,`cierres_${suf}${caja?("_caja"+caja):""}.xlsx`); toast("Excel descargado"); }
+  const totales=rows.pop(); const suf=tesPeriodo==="dia"?fecha:fecha.slice(0,7);
+  const ws=hojaPro({titulo:"CIERRES DE CAJA · "+(tesPeriodo==="dia"?fecha:MES_NOMBRES[Number(fecha.slice(5,7))-1]+" "+fecha.slice(0,4))+(caja?" · Caja "+caja:""), subtitulo:subtituloPro(rows.length+" cierre(s)"), headers:head, rows, totales, formatos:head.map(h=>/Tasa/.test(h)?"#,##0.00":(/Fecha|Caja|Cajero/.test(h)?null:"#,##0.00"))});
+  libroPro([[ws,"Cierres"]],`cierres_${suf}${caja?("_caja"+caja):""}.xlsx`); toast("Excel descargado"); }
 
 /* ===================== PRÉSTAMOS AL PERSONAL ===================== */
 function restantePrestamo(p){ return Math.max(0,(Number(p.monto)||0)-(Number(p.abonado)||0)); }
@@ -5001,11 +5029,8 @@ function exportarRespaldoFinanzas(){ if(!puede("deudas")){ toast("Sin acceso"); 
   const deu=db.list("deudas").map(d=>({Proveedor:d.proveedor||"",RIF:d.rif||"",Tipo:d.tipo||"Deuda",Monto:Number(d.monto)||0,Abonado:Number(d.abonado)||0,Fecha:d.fecha||"",Status:d.status||"",Notas:d.notas||""}));
   const pag=db.list("pagos_prov").map(p=>({Proveedor:p.proveedor||"",RIF:p.rif||"","Fecha pago":p.fecha_pago||"","Total pagado":Number(p.total_pagado)||0,Moneda:p.moneda||"Bs",Tasa:Number(p.tasa)||0,Banco:p.banco||"",Notas:p.notas||""}));
   const gas=db.list("gastos").map(g=>{ const m=gastoMontos(g); return {Fecha:g.fecha||"",Tipo:g.tipo||"",Categoria:g.categoria||"",Descripcion:g.descripcion||"",Monto:Number(g.monto)||0,Moneda:g.moneda||"Bs","Forma de pago":g.forma_pago||"",Banco:g.banco||"",Tasa:Number(g.tasa)||0,"Tasa USDT":Number(g.tasa_alt)||0,"Total Bs":Math.round(m.bs*100)/100,"Total $":Math.round(m.usd*100)/100,Notas:g.notas||""}; });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(fac.length?fac:[{Fecha:"",Proveedor:"",Total:0}]), "Facturas recibidas");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(deu.length?deu:[{Proveedor:"",Monto:0}]), "Deudas");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pag.length?pag:[{Proveedor:"","Total pagado":0}]), "Pagos");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gas.length?gas:[{Fecha:"",Tipo:"",Monto:0}]), "Gastos");
-  XLSX.writeFile(wb, "respaldo_finanzas_"+hoy()+".xlsx");
+  const deObjs=(arr,vacio,titulo)=>{ const src=arr.length?arr:[vacio]; const headers=Object.keys(src[0]); return hojaPro({titulo, subtitulo:subtituloPro(arr.length+" registro(s) · re-importable desde «Importar Excel»"), headers, rows:src.map(o=>headers.map(h=>o[h]))}); };
+  libroPro([[deObjs(fac,{Fecha:"",Proveedor:"",Total:0},"FACTURAS RECIBIDAS"),"Facturas recibidas"],[deObjs(deu,{Proveedor:"",Monto:0},"DEUDAS"),"Deudas"],[deObjs(pag,{Proveedor:"","Total pagado":0},"PAGOS A PROVEEDORES"),"Pagos"],[deObjs(gas,{Fecha:"",Tipo:"",Monto:0},"GASTOS"),"Gastos"]], "respaldo_finanzas_"+hoy()+".xlsx");
   toast("Respaldo de finanzas descargado ("+fac.length+" facturas, "+deu.length+" deudas, "+pag.length+" pagos, "+gas.length+" gastos)"); }
 async function importarJSON(ev){ const file=ev.target.files[0]; if(!file) return; let data; try{ data=JSON.parse(await file.text()); }catch(e){ toast("El archivo no es un respaldo JSON válido"); ev.target.value=""; return; }
   if(USE_CLOUD){
