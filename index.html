@@ -627,9 +627,9 @@
   <!-- ======== PROVEEDORES ======== -->
   <section data-view="proveedores" hidden>
     <div class="flex items-center justify-between mb-3"><h2 class="text-lg font-bold">Proveedores</h2>
-      <button onclick="openProveedor()" class="bg-teal-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">+ Proveedor</button></div>
+      <button id="btnNuevoProv" onclick="openProveedor()" class="bg-teal-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">+ Proveedor</button></div>
     <div class="flex flex-wrap gap-2 mb-2">
-      <label class="bg-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelProveedores(event)"></label>
+      <label id="btnCargarProv" class="bg-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelProveedores(event)"></label>
       <button onclick="plantillaProveedores()" class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl">⬇ Plantilla</button>
       <button onclick="plantillaProveedorWhatsApp()" class="bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-xl">📩 Plantilla WhatsApp</button>
     </div>
@@ -949,7 +949,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="6.7"; // se incrementa con cada mejora
+const APP_VERSION="6.8"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1226,6 +1226,8 @@ function esGerencia(){ return !!(currentUser && currentUser.es_gerencia); }
 function bloqueoEdicion(id){ if(id && !esGerencia()){ toast("Solo gerencia puede modificar un registro ya guardado"); return true; } return false; }
 function puedeEditarEmpleado(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("empleados_editar"))); }
 function puedeEditarInv(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("inventario_editar"))); }
+/* Proveedores: crear, modificar y eliminar solo gerencia o los perfiles con el permiso "proveedores_editar" */
+function puedeEditarProv(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("proveedores_editar"))); }
 function puedeRegistrarSalida(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("inventario_editar") || (currentUser.permisos||[]).includes("compras"))); }
 /* Editar un empleado concreto: gerencia siempre; o quien tenga permiso "empleados_editar"
    y sea de la MISMA área del empleado (si el usuario tiene áreas asignadas). */
@@ -1374,7 +1376,7 @@ const OPCIONES=[
   ["metricas_rrhh","📊 Ver métricas de Personal y RRHH (inicio)"],["metricas_sup","📊 Ver métricas de Supervisores (inicio)"],["metricas_prod","📊 Ver métricas de Productos y Compras (inicio)"],["metricas_fin","📊 Ver métricas de Caja y Finanzas (inicio)"],
   ["empleados","Personal"],["empleados_editar","Modificar personal (editar datos de empleados)"],["nomina","Nómina"],["nominave","Nómina y beneficios (Venezuela)"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],["candidatos","Candidatos / Bolsa de empleo"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],["incpersonal","Incidencias de personal (asistencia)"],
-  ["proveedores","Proveedores"],["inventario","Inventario"],["inventario_editar","Modificar inventario (crear/editar/eliminar productos y stock)"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],["rotacion","Rotación y clasificación ABC"],["compras","Compras (evaluación e indicadores del encargado)"],
+  ["proveedores","Proveedores"],["proveedores_editar","Modificar proveedores (crear, editar y eliminar)"],["inventario","Inventario"],["inventario_editar","Modificar inventario (crear/editar/eliminar productos y stock)"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],["rotacion","Rotación y clasificación ABC"],["compras","Compras (evaluación e indicadores del encargado)"],
   ["caja","Caja (cierres y arqueos)"],["caja_editar","Modificar cajas con día cerrado (autorizado por gerencia)"],["tesoreria","Tesorería (totales y tasa)"],["deudas","Finanzas (deudas, pagos y facturas recibidas)"],["conexiones","Conexiones (quién se conecta)"]
 ];
 const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma","quiebre"];
@@ -2660,7 +2662,7 @@ async function delIncPersonal(id,empId){ const e=empById(empId); if(e && !puedeG
 
 /* ===================== PROVEEDORES ===================== */
 function provById(id){ return db.list("proveedores").find(p=>p.id===id); }
-function openProveedor(id){ const p=id?provById(id):{};
+function openProveedor(id){ const p=id?provById(id):{}; if(!id && !puedeEditarProv()){ toast("No tienes permiso para crear proveedores"); return; } const soloLectura=!puedeEditarProv(); if(soloLectura) setTimeout(()=>{ document.querySelectorAll("#modal input, #modal textarea, #modal select").forEach(el=>{ el.disabled=true; }); },30);
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} proveedor</h3>
     <div class="bg-teal-50 rounded-xl p-2 mb-3 flex flex-wrap gap-2 items-center"><button type="button" onclick="pegarProveedor()" class="text-xs bg-teal-700 text-white px-3 py-2 rounded-lg font-semibold">📋 Pegar datos</button>
       <button type="button" onclick="plantillaProveedorWhatsApp()" class="text-xs bg-white text-teal-700 border border-teal-200 px-3 py-2 rounded-lg font-semibold">📩 Copiar plantilla WhatsApp</button>
@@ -2673,8 +2675,9 @@ function openProveedor(id){ const p=id?provById(id):{};
     ${field("contacto","Persona de contacto",p.contacto)}${field("telefono","WhatsApp (ej: 584121112233)",p.telefono)}
     ${field("productos","Qué surte",p.productos)}
     <div><label class="text-xs text-slate-500">Condiciones / notas</label><textarea id="f_notas" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-200">${esc(p.notas||"")}</textarea></div></div>
-    <div class="flex gap-2 mt-5"><button onclick="saveProveedor('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>
-    ${id?`<button onclick="delProveedor('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
+    ${soloLectura?`<p class="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2 mt-3">👁 Solo lectura: gerencia no te ha dado permiso para modificar proveedores.</p>`:""}
+    <div class="flex gap-2 mt-5">${soloLectura?"":`<button onclick="saveProveedor('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button>`}
+    ${(id&&!soloLectura)?`<button onclick="delProveedor('${id}')" class="px-4 bg-red-100 text-red-700 font-semibold py-2.5 rounded-xl">Eliminar</button>`:""}
     <button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
 }
 const PLANTILLA_PROV="Hola 👋 Para registrarte como proveedor de Hipposupermarket, por favor responde este mensaje llenando estos datos:\n\nNombre/Empresa: \nRIF: \nContacto: \nWhatsApp: \nQué surte: \nCondiciones/Notas: \n\n¡Gracias!";
@@ -2686,10 +2689,10 @@ function aplicarProveedor(d){ let n=0; const set=(id,v)=>{ if(v){ const el=docum
   set("nombre",d.nombre); set("rif",d.rif); set("contacto",d.contacto); set("telefono",d.telefono); set("productos",d.productos); set("notas",d.notas); return n; }
 function pegarProveedor(){ if(navigator.clipboard && navigator.clipboard.readText){ navigator.clipboard.readText().then(txt=>{ const n=aplicarProveedor(parsearProveedor(txt)); toast(n?("✅ "+n+" campos pegados. Revisa y guarda."):"No reconocí datos. Usa «pega el texto aquí manualmente»."); }).catch(()=>toast("Tu navegador no permite pegar directo. Usa «pega el texto aquí manualmente».")); } else toast("Usa «pega el texto aquí manualmente»."); }
 function procesarPegaProvInline(){ const t=document.getElementById("pegaProv"); if(!t) return; const n=aplicarProveedor(parsearProveedor(t.value)); toast(n?("✅ "+n+" campos pegados. Revisa y guarda."):"No reconocí datos. Revisa el formato de la plantilla."); }
-async function saveProveedor(id){ if(bloqueoEdicion(id)) return; const r=readForm(["nombre","rif","contacto","telefono","productos","notas"]); if(!r.nombre){ toast("Falta el nombre"); return; }
+async function saveProveedor(id){ if(!puedeEditarProv()){ toast("No tienes permiso para modificar proveedores"); return; } const r=readForm(["nombre","rif","contacto","telefono","productos","notas"]); if(!r.nombre){ toast("Falta el nombre"); return; }
   try{ id?await db.update("proveedores",id,r):await db.insert("proveedores",r); closeModal(); render(); toast("Guardado"); }catch(e){ toast("Error: "+e.message); } }
-async function delProveedor(id){ if(bloqueoBorrado()) return; if(confirm("¿Eliminar?")){ await db.remove("proveedores",id); closeModal(); render(); } }
-function renderProveedores(){ const q=(document.getElementById("buscarProv")?.value||"").toLowerCase();
+async function delProveedor(id){ if(!puedeEditarProv()){ toast("No tienes permiso para eliminar proveedores"); return; } if(confirm("¿Eliminar este proveedor?")){ await db.remove("proveedores",id); closeModal(); render(); toast("Proveedor eliminado"); } }
+function renderProveedores(){ const q=(document.getElementById("buscarProv")?.value||"").toLowerCase(); { const ok=puedeEditarProv(); ["btnNuevoProv","btnCargarProv"].forEach(i=>{ const el=document.getElementById(i); if(el) el.style.display=ok?"":"none"; }); }
   const l=db.list("proveedores").filter(p=>[p.nombre,p.contacto,p.productos].join(" ").toLowerCase().includes(q)).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
   const c=document.getElementById("listaProveedores"); if(!l.length){ c.innerHTML=empty("Sin proveedores."); return; }
   c.innerHTML=l.map(p=>{ const nprod=db.list("productos").filter(x=>x.proveedor_id===p.id).length;
@@ -4041,7 +4044,7 @@ function importarExcelPersonal(ev){ const f=ev.target.files[0]; if(!f) return;
     return { nombre, cedula:String(pick(raw,["cedula","cédula","ci","id","c.i","documento"])).trim().replace(/\.0$/,""), fecha_ingreso:normFecha(pick(raw,["fecha de ingreso","fecha ingreso","ingreso","fecha"])), salario_base:numExcel(pick(raw,["sueldo mensual","salario mensual","salario","mensual","sueldo"])), area:String(pick(raw,["ubicacion","ubicación","area","área","departamento","sede","sucursal"])).trim(), cargo:String(pick(raw,["cargo","puesto"])).trim(), estado:"Activo" };
   }, "impEmpMsg", e=> (String(e.cedula||"").trim()? "C:"+String(e.cedula).trim() : "N:"+String(e.nombre||"").trim().toLowerCase())); ev.target.value=""; }
 function plantillaPersonal(){ bajarPlantilla("plantilla_personal.xlsx",["Nombre completo","Cedula","Fecha de ingreso","Salario mensual","Salario quincenal","Area","Cargo"],["Juan Pérez","V-12345678","01/03/2024",300,150,"Cajas","Cajero"]); }
-function importarExcelProveedores(ev){ const f=ev.target.files[0]; if(!f) return;
+function importarExcelProveedores(ev){ const f=ev.target.files[0]; if(!puedeEditarProv()){ ev.target.value=""; toast("No tienes permiso para cargar proveedores"); return; } if(!f) return;
   importarGenerico(f, "proveedores", raw=>{
     let nombre=String(pick(raw,["nombre","empresa","proveedor","razon social","razón social","nombre proveedor","descripcion","descripción"])).trim();
     let rif=String(pick(raw,["rif","identificacion fiscal","identificación fiscal","id fiscal","cedula","cédula","documento"])).trim();
