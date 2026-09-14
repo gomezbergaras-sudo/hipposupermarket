@@ -950,7 +950,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="6.9"; // se incrementa con cada mejora
+const APP_VERSION="7.0"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -4772,10 +4772,21 @@ function enviarPagoWhatsApp(id){ const pg=db.list("pagos_prov").find(x=>x.id===i
 function enviarPagoWeChat(id){ const pg=db.list("pagos_prov").find(x=>x.id===id); if(!pg){ toast("No encontrado"); return; } const msg=mensajePago(pg);
   const ok=()=>{ toast("📋 Mensaje copiado — ábrelo en WeChat y pégalo en el chat del proveedor"); try{ window.open("weixin://","_blank"); }catch(_){} };
   if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(msg).then(ok).catch(()=>{ fallbackCopiar(msg); ok(); }); } else { fallbackCopiar(msg); ok(); } }
-function renderPagosProv(){ const c=document.getElementById("pagosProvBox"); if(!c) return; const l=db.list("pagos_prov").sort((a,b)=>String(b.creado||b.fecha_pago||"").localeCompare(String(a.creado||a.fecha_pago||""))).slice(0,40);
-  if(!l.length){ c.innerHTML=""; return; }
-  c.innerHTML=`<p class="text-xs font-semibold text-slate-600 mb-1">💵 Pagos a proveedores</p><div class="space-y-2">${l.map(pg=>{ const tasa=Number(pg.tasa)||tipoCambio; const tp=Number(pg.total_pagado)||0; const bs=pg.moneda==="USD"?tp*tasa:tp; const usd=pg.moneda==="USD"?tp:(tasa>0?tp/tasa:0);
-    return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center justify-between gap-2"><div class="min-w-0" onclick="openPagoProv('${pg.id}')"><p class="font-semibold truncate">${esc(pg.proveedor||"—")}</p><p class="text-[11px] text-slate-500 truncate">${esc(pg.fecha_pago||"")} · ${fmt2(bs)} Bs / $${fmt2(usd)}${pg.banco?" · "+esc(pg.banco):""}</p></div><div class="flex flex-col gap-1 shrink-0"><button onclick="enviarPagoWhatsApp('${pg.id}')" class="text-[11px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-semibold">💬 WhatsApp</button><button onclick="enviarPagoWeChat('${pg.id}')" class="text-[11px] px-2 py-1 rounded-lg font-semibold text-white" style="background:#07C160">💚 WeChat</button></div></div>`; }).join("")}</div>`;
+let _pagosQ="", _pagosLim=40;
+function buscarPagosProv(v){ _pagosQ=String(v||""); _pagosLim=40; renderPagosProv(true); }
+function renderPagosProv(mantenerFoco){ const c=document.getElementById("pagosProvBox"); if(!c) return; const todos=db.list("pagos_prov").sort((a,b)=>String(b.creado||b.fecha_pago||"").localeCompare(String(a.creado||a.fecha_pago||"")));
+  if(!todos.length){ c.innerHTML=""; return; }
+  const q=_pagosQ.trim().toLowerCase(); const qn=q.replace(/[^0-9a-z]/g,""); // RIF sin guiones ni puntos
+  const l=q?todos.filter(pg=>{ const nom=String(pg.proveedor||"").toLowerCase(); const rif=String(pg.rif||"").toLowerCase().replace(/[^0-9a-z]/g,""); const facs=(Array.isArray(pg.facturas)?pg.facturas.map(f=>String(f.numero||"")).join(" "):"")+" "+String(pg.info_factura||""); return nom.includes(q) || (qn&&rif.includes(qn)) || facs.toLowerCase().includes(q); }):todos;
+  const vis=l.slice(0,_pagosLim); const totUsd=l.reduce((s,pg)=>s+pagoUsd(pg),0);
+  const hadFocus=mantenerFoco && document.activeElement && document.activeElement.id==="pagosBuscar"; const pos=hadFocus?document.activeElement.selectionStart:null;
+  c.innerHTML=`<div class="flex items-center justify-between gap-2 mb-1"><p class="text-xs font-semibold text-slate-600">💵 Pagos a proveedores</p><span class="text-[10px] text-slate-400">${q?l.length+" de "+todos.length:todos.length+" pago(s)"}</span></div>
+    <div class="relative mb-2"><input id="pagosBuscar" value="${esc(_pagosQ)}" oninput="buscarPagosProv(this.value)" placeholder="🔎 Buscar pago por proveedor, RIF o N° de factura…" autocomplete="off" class="w-full px-3 py-2 pr-8 rounded-xl border border-slate-200 bg-white text-sm">${q?`<button onclick="buscarPagosProv('')" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm">✕</button>`:""}</div>
+    ${q?`<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-xs mb-2 flex items-center justify-between"><span>${l.length} pago(s) encontrado(s)</span><b>${money(totUsd)}</b></div>`:""}
+    ${vis.length?`<div class="space-y-2">${vis.map(pg=>{ const tasa=Number(pg.tasa)||tipoCambio; const tp=Number(pg.total_pagado)||0; const bs=pg.moneda==="USD"?tp*tasa:tp; const usd=pg.moneda==="USD"?tp:(tasa>0?tp/tasa:0); const nf=Array.isArray(pg.facturas)?pg.facturas.map(f=>f.numero).filter(Boolean):[];
+    return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center justify-between gap-2"><div class="min-w-0 flex-1 cursor-pointer" onclick="openPagoProv('${pg.id}')"><p class="font-semibold truncate">${esc(pg.proveedor||"—")} ${pg.rif?`<span class="text-[10px] text-slate-400 font-normal">${esc(pg.rif)}</span>`:""}</p><p class="text-[11px] text-slate-500 truncate">${esc(pg.fecha_pago||"")} · ${fmt2(bs)} Bs / $${fmt2(usd)}${pg.banco?" · "+esc(pg.banco):""}${nf.length?" · Fact. "+esc(nf.slice(0,3).join(", "))+(nf.length>3?" +"+(nf.length-3):""):""}</p></div><div class="flex flex-col gap-1 shrink-0"><button onclick="enviarPagoWhatsApp('${pg.id}')" class="text-[11px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-semibold">💬 WhatsApp</button><button onclick="enviarPagoWeChat('${pg.id}')" class="text-[11px] px-2 py-1 rounded-lg font-semibold text-white" style="background:#07C160">💚 WeChat</button></div></div>`; }).join("")}</div>
+    ${l.length>vis.length?`<button onclick="_pagosLim+=60;renderPagosProv()" class="w-full mt-2 bg-white border border-slate-200 text-teal-700 font-semibold py-2 rounded-xl text-sm">Mostrar más (${l.length-vis.length} restantes)</button>`:""}`:`<p class="text-xs text-slate-400 text-center py-3">Ningún pago coincide con «${esc(_pagosQ)}».</p>`}`;
+  if(hadFocus){ const el=document.getElementById("pagosBuscar"); if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(_){} } }
 }
 /* -------- Facturas / notas de entrega recibidas (cuadro diario) -------- */
 let _frFecha=null, _frTodas=false;
