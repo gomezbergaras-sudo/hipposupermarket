@@ -969,7 +969,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="7.6"; // se incrementa con cada mejora
+const APP_VERSION="7.7"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1109,18 +1109,18 @@ function cargarConfigCompartida(){ const rows=store.config||[];
 function verCosto(){ return !!(esGerencia() || verCostoCfg); }
 async function toggleVerCosto(el){ if(!esGerencia()){ toast("Solo gerencia"); return; } await setConfig("ver_costo", el.checked); render(); toast(el.checked?"Precio costo visible para el personal":"Precio costo oculto para el personal"); }
 /* ¿Puede el usuario actual ver los sueldos? Gerencia siempre; el resto según el ajuste de gerencia. */
-function verSueldos(){ return !!(esGerencia() || verSueldosCfg); }
+function verSueldos(){ return !!(esGerencia() || esRRHH() || verSueldosCfg); }
 function moneyS(v){ return verSueldos()?money(v):"•••"; }
 async function toggleVerSueldos(el){ if(!esGerencia()){ toast("Solo gerencia"); return; } await setConfig("ver_sueldos", el.checked); render(); toast(el.checked?"Sueldos visibles para el personal":"Sueldos ocultos para el personal"); }
 /* Bloqueo de modificación de sueldos (lo controla gerencia). Cuando está OFF, el salario base no se puede cambiar. */
-function puedeModificarSueldo(){ return !!modSueldosCfg; }
+function puedeModificarSueldo(){ return !!(modSueldosCfg || esRRHH()); }
 async function toggleModSueldos(el){ if(!esGerencia()){ toast("Solo gerencia"); return; } await setConfig("mod_sueldos", el.checked); render(); toast(el.checked?"Modificación de sueldos activada":"Modificación de sueldos bloqueada"); }
 /* Panel de interruptores de sueldos (ver / modificar) — se muestra en las dos nóminas, solo a gerencia */
 function togglesSueldosHTML(){ if(!esGerencia()) return ""; return `<div class="bg-white rounded-2xl shadow-sm p-3 mb-2 space-y-2">
   <label class="flex items-center justify-between gap-2 text-xs"><span class="text-slate-600 font-semibold">👁 Ver sueldos (mostrar al personal)</span><input type="checkbox" ${verSueldosCfg?"checked":""} onchange="toggleVerSueldos(this)" class="w-4 h-4"></label>
   <label class="flex items-center justify-between gap-2 text-xs border-t border-slate-100 pt-2"><span class="text-slate-600 font-semibold">✏️ Modificar sueldos (permitir editar)</span><input type="checkbox" ${modSueldosCfg?"checked":""} onchange="toggleModSueldos(this)" class="w-4 h-4"></label>
   <p class="text-[10px] text-slate-400">«Ver» controla quién ve los montos. «Modificar» bloquea o permite cambiar el salario base en Personal.</p></div>`; }
-async function setRetardoCfg(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const tol=Number(document.getElementById("cfgRetTol")?.value)||0; const bsm=Number(document.getElementById("cfgRetBs")?.value)||0; await setConfig("retardo_tol",tol); await setConfig("retardo_bsmin",bsm); render(); toast("Descuento por retardo actualizado"); }
+async function setRetardoCfg(){ if(!esRRHH()){ toast("Solo gerencia o RRHH"); return; } const tol=Number(document.getElementById("cfgRetTol")?.value)||0; const bsm=Number(document.getElementById("cfgRetBs")?.value)||0; await setConfig("retardo_tol",tol); await setConfig("retardo_bsmin",bsm); render(); toast("Descuento por retardo actualizado"); }
 /* Minutos tarde del periodo (pasada la tolerancia) y su descuento en Bs */
 function minutosTardePeriodo(empId, per){ const e=empById(empId); const nombre=e?e.nombre:""; return db.list("asistencia").filter(a=>(a.fecha||"").startsWith(per) && (a.empleado_id===empId || a.empleado===nombre)).reduce((s,a)=>s+Math.max(0,(Number(a.tardanza)||0)-retardoTol),0); }
 function descuentoRetardoEmp(empId, per){ return +(minutosTardePeriodo(empId,per)*retardoBsMin).toFixed(2); }
@@ -1145,6 +1145,7 @@ function openUsuario(id){ const u=id?db.list("usuarios").find(x=>x.id===id):{per
     <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_es_gerencia" ${u.es_gerencia?"checked":""} onchange="togglePermisosBox()"> <b>Gerencia</b> (acceso total y administra usuarios)</label>
     <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_es_supervisor" ${u.es_supervisor?"checked":""}> <b>Supervisor</b> (puede crear/editar tareas y asignaciones)</label>
     <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_es_asistente" ${u.es_asistente?"checked":""}> <b>Asistente supervisor</b> (como supervisor, pero sin ver el total del día/mes)</label>
+    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_es_rrhh" ${u.es_rrhh?"checked":""}> <b>Recursos Humanos</b> (acceso a todo Personal y RRHH: fichas, nóminas, sueldos y su modificación, liquidaciones, constancias)</label>
     <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_activo" ${u.activo!==false?"checked":""}> Usuario activo</label>
     <div id="permisosBox">
       <p class="text-xs font-semibold text-slate-600 mt-2 mb-1">Opciones que puede ver / usar:</p>
@@ -1167,7 +1168,7 @@ async function saveUsuario(id){
   const area=areas[0]||"";  // primera área (compatibilidad con lo anterior)
   const es_g=document.getElementById("f_es_gerencia").checked;
   const es_sup=document.getElementById("f_es_supervisor").checked;
-  const es_asis=document.getElementById("f_es_asistente").checked;
+  const es_asis=document.getElementById("f_es_asistente").checked; const es_rrhh=!!document.getElementById("f_es_rrhh")?.checked;
   const activo=document.getElementById("f_activo").checked;
   const empleado_id=(document.getElementById("f_empleado_id")?.value||"")||null;
   const idioma=(document.getElementById("f_idioma")?.value==="zh")?"zh":"es";
@@ -1176,7 +1177,7 @@ async function saveUsuario(id){
   const permisos=es_g?[]:OPCIONES.filter(([o])=>document.getElementById("perm_"+o)?.checked).map(([o])=>o);
   // no dejar el sistema sin ninguna gerencia
   if(id){ const otros=db.list("usuarios").filter(u=>u.id!==id && u.es_gerencia); if(!es_g && otros.length===0){ toast("Debe quedar al menos un usuario de gerencia"); return; } }
-  const row={nombre,clave,area,areas,empleado_id,idioma,es_gerencia:es_g,es_supervisor:es_sup,es_asistente:es_asis,permisos,activo};
+  const row={nombre,clave,area,areas,empleado_id,idioma,es_gerencia:es_g,es_supervisor:es_sup,es_asistente:es_asis,es_rrhh,permisos,activo};
   try{ if(id){ await db.update("usuarios",id,row); if(currentUser&&currentUser.id===id){ currentUser={...currentUser,...row}; aplicarPermisos(); } } else await db.insert("usuarios",row);
     closeModal(); render(); toast("Usuario guardado"); }catch(e){ toast("Error: "+e.message); }
 }
@@ -1245,15 +1246,18 @@ function withLoader(txt, fn){ showLoader(txt); return new Promise(res=>{ request
 function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 /* Bloqueo de edición: solo gerencia modifica/borra lo ya guardado */
 function esGerencia(){ return !!(currentUser && currentUser.es_gerencia); }
+/* Recursos Humanos: acceso completo al área de Personal y RRHH (sin ser gerencia) */
+function esRRHH(){ return !!(currentUser && (currentUser.es_gerencia || currentUser.es_rrhh)); }
+const RRHH_TODO=["empleados","empleados_editar","nomina","nominave","liqnom","bonos","eval","evalsup","asistencia","candidatos","diaslibres","incpersonal","metricas_rrhh","conexiones"];
 function bloqueoEdicion(id){ if(id && !esGerencia()){ toast("Solo gerencia puede modificar un registro ya guardado"); return true; } return false; }
-function puedeEditarEmpleado(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("empleados_editar"))); }
+function puedeEditarEmpleado(){ return !!(currentUser && (currentUser.es_gerencia || currentUser.es_rrhh || (currentUser.permisos||[]).includes("empleados_editar"))); }
 function puedeEditarInv(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("inventario_editar"))); }
 /* Proveedores: crear, modificar y eliminar solo gerencia o los perfiles con el permiso "proveedores_editar" */
 function puedeEditarProv(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("proveedores_editar"))); }
 function puedeRegistrarSalida(){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("inventario_editar") || (currentUser.permisos||[]).includes("compras"))); }
 /* Editar un empleado concreto: gerencia siempre; o quien tenga permiso "empleados_editar"
    y sea de la MISMA área del empleado (si el usuario tiene áreas asignadas). */
-function puedeEditarEmpleadoDe(emp){ if(!currentUser) return false; if(currentUser.es_gerencia) return true;
+function puedeEditarEmpleadoDe(emp){ if(!currentUser) return false; if(currentUser.es_gerencia || currentUser.es_rrhh) return true;
   if(!(currentUser.permisos||[]).includes("empleados_editar")) return false;
   const mias=usuarioAreas(); if(!mias.length) return true;              // con permiso pero sin área: sin restricción de área
   return emp? enAreaUsuario(emp.area) : true; }
@@ -1404,7 +1408,7 @@ const OPCIONES=[
 const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma","quiebre"];
 const OP_PERM=["tareas","asignaciones","asistencia","piso","quiebre"];
 let currentUser=null;
-function puede(view){ if(!currentUser) return false; if(view==="inicio") return true; if(view==="nomger") return !!currentUser.es_gerencia; if(view==="facturasrec"||view==="gastos") view="deudas"; if(view==="liqnom") view="nominave"; if(currentUser.es_gerencia) return true; if(view==="ajustes") return false; return (currentUser.permisos||[]).includes(view); }
+function puede(view){ if(!currentUser) return false; if(view==="inicio") return true; if(view==="nomger") return !!currentUser.es_gerencia; if(currentUser.es_rrhh && RRHH_TODO.includes(view)) return true; if(view==="facturasrec"||view==="gastos") view="deudas"; if(view==="liqnom") view="nominave"; if(currentUser.es_gerencia) return true; if(view==="ajustes") return false; return (currentUser.permisos||[]).includes(view); }
 async function seedUsuarios(){
   await db.insert("usuarios",{nombre:"Gerencia",clave:"123456",es_gerencia:true,permisos:[],activo:true});
   await db.insert("usuarios",{nombre:"Supervisor",clave:"111111",es_gerencia:false,permisos:SUP_PERM,activo:true});
@@ -1665,7 +1669,7 @@ function renderInicioHero(){ const h=document.getElementById("inicioHero"); if(!
     <div class="hp-alerts"><p class="text-xs font-bold text-slate-600 mb-1">🔔 Pendientes de hoy</p>${al.length?al.map(([ic,txt,go])=>`<div class="row" onclick="show('${go}')"><span>${ic} ${esc(txt)}</span><b>Ver ›</b></div>`).join(""):`<p class="text-sm text-emerald-600 font-semibold py-1">✓ Todo al día. Sin pendientes por ahora.</p>`}</div>`; }
 /* ===================== MÉTRICAS Y ESTADÍSTICAS POR SECCIÓN (inicio) =====================
    Gerencia ve todo. Los demás ven solo las áreas que gerencia les permita (permisos metricas_*). */
-function puedeMetricas(sec){ return !!(currentUser && (currentUser.es_gerencia || (currentUser.permisos||[]).includes("metricas_"+sec))); }
+function puedeMetricas(sec){ return !!(currentUser && (currentUser.es_gerencia || (sec==="rrhh"&&currentUser.es_rrhh) || (currentUser.permisos||[]).includes("metricas_"+sec))); }
 function metPeriodo(){ const hoyF=hoy(); const mes=hoyF.slice(0,7); return {hoyF, mes, prev:mesAnteriorYM(mes)}; }
 function metChip(ic,label,val,sub,go,tono){ const bg={ok:"#dcfce7",warn:"#fef3c7",bad:"#ffe4e6",info:"#e0f2fe",neutral:"#eef2f7"}[tono||"neutral"];
   return `<div class="met-chip" ${go?`onclick="${go.replace(/"/g,"&quot;")}"`:""}><div class="ic" style="background:${bg}">${ic}</div><div class="min-w-0"><p class="l">${label}</p><p class="v truncate">${val}</p>${sub?`<p class="s truncate">${sub}</p>`:""}</div></div>`; }
@@ -1793,8 +1797,10 @@ function montoEnLetras(v,mon){ const ent=Math.floor(Math.abs(Number(v)||0)); con
 function fechaEnLetras(iso){ if(!iso) return "—"; const d=new Date(iso+"T00:00:00"); if(isNaN(d)) return iso; return numeroALetras(d.getDate())+" ("+d.getDate()+") días del mes de "+MES_NOMBRES[d.getMonth()].toLowerCase()+" de "+numeroALetras(d.getFullYear())+" ("+d.getFullYear()+")"; }
 function fechaLarga(iso){ if(!iso) return "—"; const d=new Date(iso+"T00:00:00"); if(isNaN(d)) return iso; return d.getDate()+" de "+MES_NOMBRES[d.getMonth()].toLowerCase()+" de "+d.getFullYear(); }
 function antiguedadTxt(desde,hasta){ if(!desde) return ""; const a=new Date(desde+"T00:00:00"), b=new Date((hasta||hoy())+"T00:00:00"); let m=(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth()); if(b.getDate()<a.getDate()) m--; if(m<0) m=0; const y=Math.floor(m/12), mm=m%12; const p=[]; if(y) p.push(y+(y===1?" año":" años")); if(mm) p.push(mm+(mm===1?" mes":" meses")); return p.length?p.join(" y "):"menos de un mes"; }
+/* Datos FIJOS de la empresa para la constancia de trabajo (no se editan desde la app) */
+const CONSTANCIA_EMPRESA={ razon:"Hipermercado Casa Bera C.A", rif:"J-50251380-9" };
 function constanciaCfg(){ const c=(store.config||[]).find(r=>r.id==="constancia_cfg"); let v=c?c.valor:null; if(typeof v==="string"){ try{ v=JSON.parse(v);}catch(_){ v=null; } } return Object.assign({ciudad:"",firma_cargo:"Gerente General",firma_nombre:"",firma_cedula:"",dirigido:"A quien pueda interesar"},v||{}); }
-function openConstancia(empId){ const e=empById(empId); if(!e) return; if(!puede("empleados")){ toast("Sin acceso"); return; } const cfg=constanciaCfg(); const enBs=salariosEnBs(hoy()); const sal=Number(e.salario_base)||0;
+function openConstancia(empId){ const e=empById(empId); if(!e) return; if(!(esRRHH()||puede("empleados"))){ toast("Sin acceso"); return; } const cfg=constanciaCfg(); const enBs=salariosEnBs(hoy()); const sal=Number(e.salario_base)||0;
   openModal2(`<h3 class="font-bold text-lg mb-1">📜 Constancia de trabajo</h3><p class="text-xs text-slate-500 mb-3">${esc(e.nombre||"")} · C.I. ${esc(e.cedula||"—")}. Lo que edites aquí solo aplica al documento; la ficha del empleado no cambia.</p>
     <div class="space-y-3">
       <div class="grid grid-cols-2 gap-3"><div><label class="text-xs text-slate-500">Cargo</label><input id="ct_cargo" value="${esc(e.cargo||"")}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div><div><label class="text-xs text-slate-500">Fecha de ingreso</label><input id="ct_ingreso" type="date" value="${esc(e.fecha_ingreso||"")}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div></div>
@@ -1804,14 +1810,15 @@ function openConstancia(empId){ const e=empById(empId); if(!e) return; if(!puede
       <div class="grid grid-cols-3 gap-3"><div><label class="text-xs text-slate-500">C.I. de quien firma (opcional)</label><input id="ct_fcedula" value="${esc(cfg.firma_cedula||"")}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div><div><label class="text-xs text-slate-500">Ciudad de expedición</label><input id="ct_ciudad" value="${esc(cfg.ciudad||"")}" placeholder="Ej: Los Teques" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div><div><label class="text-xs text-slate-500">Fecha de expedición</label><input id="ct_fecha" type="date" value="${hoy()}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div></div>
       <div><label class="text-xs text-slate-500">Dirigida a</label><input id="ct_dirigido" value="${esc(cfg.dirigido||"A quien pueda interesar")}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
       <div><label class="text-xs text-slate-500">Observación adicional (opcional)</label><input id="ct_obs" placeholder="Ej: horario, tipo de contrato, para trámite bancario…" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
-      <div class="bg-amber-50 text-amber-800 rounded-xl px-3 py-2 text-[11px]">La constancia expresa la duración de la relación laboral, el cargo y el salario, conforme a la LOTTT. Verifica la razón social y el RIF en Ajustes (${esc(ajustes.nombre||"")}${ajustes.rif?" · RIF "+esc(ajustes.rif):" · sin RIF cargado"}).</div>
+      <div class="bg-slate-100 rounded-xl px-3 py-2 text-[11px] text-slate-600">🏢 Datos fijos de la empresa (no modificables): <b>${esc(CONSTANCIA_EMPRESA.razon)}</b> · RIF <b>${esc(CONSTANCIA_EMPRESA.rif)}</b></div>
+      <div class="bg-amber-50 text-amber-800 rounded-xl px-3 py-2 text-[11px]">La constancia expresa la duración de la relación laboral, el cargo y el salario, conforme a la LOTTT.</div>
     </div>
     <div class="flex gap-2 mt-4"><button onclick="pdfConstancia('${empId}')" class="flex-1 bg-indigo-600 text-white font-semibold py-2.5 rounded-xl">📄 Generar PDF</button><button onclick="closeModal2()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`); }
 function pdfConstancia(empId){ const e=empById(empId); if(!e) return; if(!window.jspdf){ toast("Abre la app publicada para generar el PDF"); return; } const v=(id)=>(document.getElementById(id)?.value||"").trim(); const chk=(id)=>!!document.getElementById(id)?.checked;
   const cargo=v("ct_cargo")||"—", ingreso=v("ct_ingreso"), salario=Number(v("ct_salario"))||0, mon=v("ct_moneda")||"USD", incSal=chk("ct_incsal"), equiv=chk("ct_equiv"), benef=chk("ct_benef"); let fcargo=v("ct_fcargo"); if(fcargo==="Otro") fcargo=v("ct_fcargo_otro")||"Representante de la empresa"; const fnombre=v("ct_fnombre"), fcedula=v("ct_fcedula"), ciudad=v("ct_ciudad"), fecha=v("ct_fecha")||hoy(), dirigido=v("ct_dirigido")||"A quien pueda interesar", obs=v("ct_obs");
   if(!fnombre){ toast("Indica el nombre de quien firma"); return; } if(!ingreso){ toast("Indica la fecha de ingreso"); return; }
   try{ setConfig("constancia_cfg",{ciudad,firma_cargo:v("ct_fcargo"),firma_nombre:fnombre,firma_cedula:fcedula,dirigido}); }catch(_){}
-  return withLoader("Generando constancia…", ()=>{ const { jsPDF }=window.jspdf; const doc=new jsPDF(); const W=210, M=25; const empresa=ajustes.nombre||"Hipposupermarket"; const rif=ajustes.rif||""; const tasa=tasaBCVde(fecha)||tipoCambio||0;
+  return withLoader("Generando constancia…", ()=>{ const { jsPDF }=window.jspdf; const doc=new jsPDF(); const W=210, M=25; const empresa=CONSTANCIA_EMPRESA.razon; const rif=CONSTANCIA_EMPRESA.rif; const tasa=tasaBCVde(fecha)||tipoCambio||0;
     let y=22; try{ if(ajustes.logo){ doc.addImage(ajustes.logo,"PNG",M,14,22,22); } }catch(_){}
     doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.text(empresa,ajustes.logo?M+27:M,y); doc.setFont("helvetica","normal"); doc.setFontSize(9); if(rif) doc.text("RIF: "+rif,ajustes.logo?M+27:M,y+5.5); y=46; doc.setDrawColor(15,118,110); doc.setLineWidth(0.8); doc.line(M,y,W-M,y); y+=14;
     doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.text("CONSTANCIA DE TRABAJO",W/2,y,{align:"center"}); y+=12;
@@ -2417,7 +2424,7 @@ async function guardarLiqEmp(empId, toggleEstado){ if(!puede("liqnom")){ toast("
   let estado=reg?(reg.estado||"Borrador"):"Borrador"; if(toggleEstado) estado=(estado==="Liquidado")?"Borrador":"Liquidado";
   const row={ empleado_id:empId, nombre:e.nombre||"", cedula:e.cedula||"", cargo:e.cargo||"", cfg, total_bs:r?Math.round(r.total*100)/100:0, total_usd:r?Math.round(r.totalUsd*100)/100:0, estado, notas:cfg.notas||"" };
   try{ if(reg) await db.update("liquidaciones",reg.id,row); else await db.insert("liquidaciones",row); toast(toggleEstado?(estado==="Liquidado"?"Marcado como liquidado":"Liquidación reabierta"):"Liquidación guardada"); openLiqEmp(empId); render(); }catch(err){ toast("Error: "+err.message); } }
-async function borrarLiqEmp(empId){ if(!esGerencia()){ toast("Solo gerencia"); return; } const reg=liqRegDe(empId); if(!reg) return; if(!confirm(String(empId).startsWith("ext_")?"¿Eliminar este trabajador externo y su liquidación?":"¿Borrar los datos de liquidación de este empleado? La ficha del empleado no se toca.")) return; await db.remove("liquidaciones",reg.id); closeModal(); render(); toast("Liquidación borrada"); }
+async function borrarLiqEmp(empId){ if(!esRRHH()){ toast("Solo gerencia o RRHH"); return; } const reg=liqRegDe(empId); if(!reg) return; if(!confirm(String(empId).startsWith("ext_")?"¿Eliminar este trabajador externo y su liquidación?":"¿Borrar los datos de liquidación de este empleado? La ficha del empleado no se toca.")) return; await db.remove("liquidaciones",reg.id); closeModal(); render(); toast("Liquidación borrada"); }
 function pdfLiqNom(empId){ if(!verSueldos()){ toast("Sueldos ocultos"); return; } if(!window.jspdf){ toast("Abre la app publicada para generar el PDF"); return; } const e=liqEmpDe(empId); if(!e) return; const cfg=document.getElementById("lq_salario")?leerLiqForm():liqCfgDe(e); const r=calcLiquidacion(cfg); if(!r){ toast("Indica las fechas de ingreso y egreso"); return; }
   return withLoader("Generando liquidación…", ()=>{ const { jsPDF }=window.jspdf; const doc=new jsPDF(); const W=210,M=14; let y=0;
     doc.setFillColor(15,118,110); doc.rect(0,0,W,30,"F"); try{ if(ajustes.logo){ const fmt=/png/i.test(ajustes.logo)?"PNG":"JPEG"; doc.addImage(ajustes.logo,fmt,M,5,18,18); } }catch(_){}
@@ -2460,7 +2467,7 @@ async function guardarParamsLegales(){ if(!esGerencia()){ toast("Solo gerencia")
     closeModal(); render(); toast("Parámetros legales guardados"); }catch(e){ toast("Error: "+e.message); } }
 
 /* --- Conceptos de nómina --- */
-function openConceptosNomina(){ if(!esGerencia()){ toast("Solo gerencia"); return; } renderConceptosNominaModal(); }
+function openConceptosNomina(){ if(!esRRHH()){ toast("Solo gerencia o RRHH"); return; } renderConceptosNominaModal(); }
 function renderConceptosNominaModal(){ const l=db.list("conceptos_nomina").sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
   const lista=l.length? l.map(c=>`<div class="bg-white border border-slate-100 rounded-lg px-2 py-1.5 flex items-center justify-between gap-2 text-sm"><div class="min-w-0"><p class="font-medium truncate">${esc(c.nombre)} <span class="text-[10px] px-1.5 py-0.5 rounded-full ${c.tipo==="deduccion"?"bg-red-100 text-red-700":"bg-emerald-100 text-emerald-700"}">${c.tipo==="deduccion"?"Deducción":"Asignación"}</span></p><p class="text-[11px] text-slate-500">${c.forma==="porcentaje"?(Number(c.valor)||0)+"% del salario":bsN(c.valor)} · ${c.base==="no_salarial"?"no salarial":"salarial"}</p></div><button onclick="delConceptoNomina('${c.id}')" class="text-red-500 font-bold shrink-0">✕</button></div>`).join("") : `<p class="text-xs text-slate-400 text-center py-3">Sin conceptos. Agrega uno abajo.</p>`;
   openModal(`<h3 class="font-bold text-lg mb-1">🧾 Conceptos de nómina</h3><p class="text-xs text-slate-500 mb-2">Asignaciones o deducciones que se aplican a todos en el cálculo VE.</p>
@@ -2476,10 +2483,10 @@ function renderConceptosNominaModal(){ const l=db.list("conceptos_nomina").sort(
       <button onclick="saveConceptoNomina()" class="w-full bg-teal-700 text-white font-semibold py-2 rounded-lg text-sm">+ Agregar concepto</button></div>
     <button onclick="closeModal()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`);
 }
-async function saveConceptoNomina(){ if(!esGerencia()){ toast("Solo gerencia"); return; } const nombre=(document.getElementById("cx_nombre").value||"").trim(); if(!nombre){ toast("Falta el nombre"); return; }
+async function saveConceptoNomina(){ if(!esRRHH()){ toast("Solo gerencia o RRHH"); return; } const nombre=(document.getElementById("cx_nombre").value||"").trim(); if(!nombre){ toast("Falta el nombre"); return; }
   const r={nombre, tipo:document.getElementById("cx_tipo").value, base:document.getElementById("cx_base").value, forma:document.getElementById("cx_forma").value, valor:Number(document.getElementById("cx_valor").value)||0, activo:true};
   try{ await db.insert("conceptos_nomina",r); renderConceptosNominaModal(); render(); toast("Concepto agregado"); }catch(e){ toast("Error: "+e.message); } }
-async function delConceptoNomina(id){ if(!esGerencia()){ toast("Solo gerencia"); return; } if(confirm("¿Eliminar este concepto?")){ await db.remove("conceptos_nomina",id); renderConceptosNominaModal(); render(); } }
+async function delConceptoNomina(id){ if(!esRRHH()){ toast("Solo gerencia o RRHH"); return; } if(confirm("¿Eliminar este concepto?")){ await db.remove("conceptos_nomina",id); renderConceptosNominaModal(); render(); } }
 
 /* --- Recibo VE en PDF --- */
 function descargarReciboVE(empId){ if(!verSueldos()){ toast("Sueldos ocultos"); return; } if(!window.jspdf){ toast("Abre la app publicada para generar el PDF"); return; } return withLoader("Generando recibo…", ()=>_descargarReciboVE(empId)); }
@@ -3528,7 +3535,7 @@ function renderRecepHistory(){ const l=db.list("recepciones").sort((a,b)=>(b.fec
 
 /* ===================== NÓMINA (Excel / PDF) ===================== */
 function nominaRec(empId,per){ return db.list("nomina").find(n=>n.empleado_id===empId&&n.periodo===per); }
-async function setNominaCampo(empId,campo,val){ if(!esGerencia()){ toast("Solo gerencia puede modificar la nómina"); render(); return; } const per=periodoNomina(); let rec=nominaRec(empId,per);
+async function setNominaCampo(empId,campo,val){ if(!esRRHH()){ toast("Solo gerencia o Recursos Humanos puede modificar la nómina"); render(); return; } const per=periodoNomina(); let rec=nominaRec(empId,per);
   if(rec) await db.update("nomina",rec.id,{[campo]:val}); else { const o={empleado_id:empId,periodo:per}; o[campo]=val; await db.insert("nomina",o); } }
 /* ===================== NÓMINA QUINCENAL (fórmulas del Excel de nómina) =====================
    Periodo = mes + quincena (Q1: del 1 al 15 · Q2: del 16 al fin de mes). Por empleado:
@@ -3540,7 +3547,7 @@ function areaNomina(){ return document.getElementById("filtroAreaNom")?.value ||
 function rangoNomina(per){ const mes=per.slice(0,7); const q=per.endsWith("Q2")?2:1; const [a,b]=rangoQuincena(mes,q); return {mes,q,desde:a,hasta:b}; }
 function tituloNomina(per){ const {mes,desde,hasta}=rangoNomina(per); return "NOMINA DEL "+Number(desde.slice(8))+" AL "+Number(hasta.slice(8))+" DE "+MES_NOMBRES[Number(mes.slice(5,7))-1]+" "+mes.slice(0,4); }
 function tasaNomina(per){ const c=(store.config||[]).find(r=>r.id==="nomina_tasa_"+per); const v=c?Number(c.valor):0; if(v>0) return v; return tasaBCVde(rangoNomina(per).hasta)||tipoCambio||0; }
-async function setTasaNomina(v){ if(!esGerencia()){ toast("Solo gerencia"); return; } v=Number(v)||0; if(v<=0){ toast("Tasa inválida"); return; } await setConfig("nomina_tasa_"+periodoNomina(),v); renderNomina(); toast("Tasa de la nómina guardada"); }
+async function setTasaNomina(v){ if(!esRRHH()){ toast("Solo gerencia o RRHH"); return; } v=Number(v)||0; if(v<=0){ toast("Tasa inválida"); return; } await setConfig("nomina_tasa_"+periodoNomina(),v); renderNomina(); toast("Tasa de la nómina guardada"); }
 /* Personas de la nómina de gerencia: viven en su propia tabla, no son empleados y no entran en ninguna estadística. */
 function openPersonaGerencia(id){ if(!esGerencia()){ toast("Solo gerencia"); return; } const p=id?db.list("personas_gerencia").find(x=>x.id===id):{};
   openModal(`<h3 class="font-bold text-lg mb-1">${id?"Editar":"➕ Nueva"} persona · Nómina gerencia</h3><p class="text-xs text-slate-500 mb-3">Solo la ve gerencia. No aparece en Personal ni en las métricas.</p><div class="space-y-3">
@@ -3577,11 +3584,11 @@ function renderNomina(){ const el=document.getElementById("nomPeriodo"); if(el&&
   const {desde,hasta}=rangoNomina(per); const totQ=rows.reduce((s,r)=>s+r.total_red,0);
   const cont=document.getElementById("contadorNom"); if(cont) cont.innerHTML=`<span class="font-semibold text-slate-600">${esc(tituloNomina(per))}</span> · ${rows.length} empleado${rows.length===1?"":"s"}${area?" · "+esc(area):""} · del ${esc(desde)} al ${esc(hasta)}`;
   const gp=document.getElementById("nomGerencia");
-  if(gp){ gp.innerHTML = esGerencia()? `<div class="bg-white rounded-2xl shadow-sm p-3 mb-2 space-y-2">
+  if(gp){ gp.innerHTML = esRRHH()? `<div class="bg-white rounded-2xl shadow-sm p-3 mb-2 space-y-2">
     <div class="flex items-center gap-2"><div class="flex-1"><label class="text-[10px] text-slate-400">Tasa BCV de esta nómina (Bs por $)</label><input id="nomTasa" type="number" step="any" value="${tasa}" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div><button onclick="setTasaNomina(document.getElementById('nomTasa').value)" class="bg-teal-700 text-white rounded-lg px-3 py-1.5 text-sm font-semibold mt-4">Guardar tasa</button></div>
     <div class="bg-slate-800 text-white rounded-xl px-3 py-2 text-sm flex items-center justify-between"><span>Total nómina (redondeado)</span><b>${moneyS(totQ)}</b></div>
-    <label class="flex items-center justify-between gap-2 text-xs"><span class="text-slate-600 font-semibold">👁 Ver sueldos (mostrar al personal)</span><input type="checkbox" ${verSueldosCfg?"checked":""} onchange="toggleVerSueldos(this)" class="w-4 h-4"></label>
-    <label class="flex items-center justify-between gap-2 text-xs"><span class="text-slate-600 font-semibold">✏️ Modificar sueldos (permitir editar)</span><input type="checkbox" ${modSueldosCfg?"checked":""} onchange="toggleModSueldos(this)" class="w-4 h-4"></label>
+    ${esGerencia()?`<label class="flex items-center justify-between gap-2 text-xs"><span class="text-slate-600 font-semibold">👁 Ver sueldos (mostrar al personal)</span><input type="checkbox" ${verSueldosCfg?"checked":""} onchange="toggleVerSueldos(this)" class="w-4 h-4"></label>
+    <label class="flex items-center justify-between gap-2 text-xs"><span class="text-slate-600 font-semibold">✏️ Modificar sueldos (permitir editar)</span><input type="checkbox" ${modSueldosCfg?"checked":""} onchange="toggleModSueldos(this)" class="w-4 h-4"></label>`:`<p class="text-[11px] text-slate-500">Perfil de Recursos Humanos: puedes ver y modificar sueldos y todos los campos de la nómina.</p>`}
     <div class="border-t border-slate-100 pt-2"><p class="text-[11px] font-semibold text-slate-600 mb-1">⏱ Descuento por retardo</p>
       <div class="grid grid-cols-12 gap-1 items-end">
         <div class="col-span-4"><label class="text-[10px] text-slate-400">Tolerancia (min)</label><input id="cfgRetTol" type="number" value="${retardoTol}" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></div>
@@ -3591,7 +3598,7 @@ function renderNomina(){ const el=document.getElementById("nomPeriodo"); if(el&&
     <button onclick="openConceptos()" class="w-full bg-slate-700 text-white text-xs font-semibold py-2 rounded-xl">🧾 Conceptos de pago (para el recibo)</button>
     </div>` : `<div class="bg-slate-800 text-white rounded-xl px-3 py-2 text-sm flex items-center justify-between mb-2"><span>Tasa BCV ${bsN(tasa)}/$ · Total</span><b>${moneyS(totQ)}</b></div>`; }
   if(!rows.length){ c.innerHTML=empty(ger?"Aún no hay personas en la nómina de gerencia. Pulsa «➕ Persona».":(area?"Sin empleados en «"+area+"».":"Sin empleados activos.")); return; }
-  const ed=esGerencia(); const inp=(r,k,label,extra)=>`<div><label class="text-[10px] text-slate-400">${label}</label><input type="number" step="any" value="${r[k]}" ${ed?"":"disabled"} onchange="setNominaCampo('${r.id}','${k}',this.value===''?null:Number(this.value)).then(renderNomina)" class="w-full px-2 py-1 rounded-lg border ${extra||"border-slate-200"} text-sm"></div>`;
+  const ed=esRRHH(); const inp=(r,k,label,extra)=>`<div><label class="text-[10px] text-slate-400">${label}</label><input type="number" step="any" value="${r[k]}" ${ed?"":"disabled"} onchange="setNominaCampo('${r.id}','${k}',this.value===''?null:Number(this.value)).then(renderNomina)" class="w-full px-2 py-1 rounded-lg border ${extra||"border-slate-200"} text-sm"></div>`;
   c.innerHTML=rows.map(r=>`<div class="bg-white rounded-2xl p-3 shadow-sm">
     <div class="flex items-center justify-between gap-2"><div class="min-w-0"><p class="font-semibold truncate">${esc(r.nombre)} ${ger?`<button onclick="openPersonaGerencia('${r.id}')" class="text-[10px] text-violet-700 underline font-normal">editar</button>`:""}</p><p class="text-[11px] text-slate-500">${esc(r.cedula||"—")}${r.cargo?" · "+esc(r.cargo):""} · ingreso ${esc(r.ingreso||"—")}</p></div>
       <div class="text-right shrink-0"><p class="text-lg font-bold text-teal-700">${moneyS(r.total_red)}</p><p class="text-[10px] text-slate-400">${verSueldos()?("exacto "+fmt2(r.total)+" · quincena "+money(r.quincena)):""}</p></div></div>
