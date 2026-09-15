@@ -969,7 +969,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="7.4"; // se incrementa con cada mejora
+const APP_VERSION="7.5"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -2587,14 +2587,45 @@ function openExportDiasLibres(){ const esGer=!!(currentUser&&currentUser.es_gere
     <div><label class="text-xs text-slate-500">Periodo</label><select id="xdl_per" onchange="document.getElementById('xdl_rango').style.display=this.value==='rango'?'':'none'" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="semana">Semana en pantalla (${dias[0]} al ${dias[6]})</option><option value="mes">Mes completo (${MES_NOMBRES[Number(mes.slice(5,7))-1]} ${mes.slice(0,4)})</option><option value="rango">Rango de fechas</option><option value="todo">Todo el historial cargado</option></select></div>
     <div id="xdl_rango" style="display:none" class="grid grid-cols-2 gap-3"><div><label class="text-xs text-slate-500">Desde</label><input id="xdl_desde" type="date" value="${dias[0]}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div><div><label class="text-xs text-slate-500">Hasta</label><input id="xdl_hasta" type="date" value="${dias[6]}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div></div>
     <label class="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" id="xdl_todos" checked class="w-4 h-4"> Incluir también a los trabajadores sin días libres en el periodo (con 0)</label></div>
-    <div class="flex gap-2 mt-4"><button onclick="exportarDiasLibresExcel()" class="flex-1 bg-emerald-600 text-white font-semibold py-2.5 rounded-xl">⬇ Descargar Excel</button><button onclick="closeModal2()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`); }
-function exportarDiasLibresExcel(){ const esGer=!!(currentUser&&currentUser.es_gerencia); const area=document.getElementById("xdl_area")?.value||""; if(!esGer && !usuarioAreas().includes(area)){ toast("Solo puedes exportar tu área"); return; }
+    <div class="flex gap-2 mt-4"><button onclick="exportarDiasLibresExcel()" class="flex-1 bg-emerald-600 text-white font-semibold py-2.5 rounded-xl">⬇ Excel</button><button onclick="exportarDiasLibresPDF()" class="flex-1 bg-slate-800 text-white font-semibold py-2.5 rounded-xl">📄 PDF</button><button onclick="closeModal2()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`); }
+/* PDF de días libres: cuadro con un día por columna y, debajo de cada día, los trabajadores libres; luego resumen por trabajador */
+function exportarDiasLibresPDF(){ if(!window.jspdf){ toast("Abre la app publicada para generar el PDF"); return; } const D=recolectarDiasLibres(); if(!D) return; const {area,desde,hasta,incluirTodos,emps,empMap,libres}=D;
+  return withLoader("Generando PDF…", ()=>{ const { jsPDF }=window.jspdf; const doc=new jsPDF({orientation:"landscape"}); const W=297, M=10; const NN=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"]; const diaNom=(iso)=>NN[new Date(iso+"T00:00:00").getDay()];
+    const titAmb=(area||"Todas las áreas").toUpperCase(); const perTxt=desde?("del "+desde+" al "+hasta):"todo el historial";
+    const cab=(y)=>{ doc.setFillColor(15,118,110); doc.rect(0,0,W,16,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.text((ajustes.nombre||"Hipposupermarket")+"  ·  DIAS LIBRES  ·  "+titAmb,M,10); doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.text("Periodo "+perTxt+"   ·   "+libres.length+" dia(s) libre(s)   ·   Generado "+hoy(),W-M,10,{align:"right"}); doc.setTextColor(30,30,30); return 22; };
+    let y=cab();
+    // días del periodo (si no hay rango: desde el primer al último día libre)
+    let d0=desde, d1=hasta; if(!d0){ if(!libres.length){ toast("Sin días libres"); return; } d0=libres[0].fecha; d1=libres[libres.length-1].fecha; }
+    const dias=[]; { const d=new Date(d0+"T00:00:00"); const fin=new Date(d1+"T00:00:00"); while(d<=fin && dias.length<400){ dias.push(fechaLocal(d)); d.setDate(d.getDate()+1); } }
+    const porDia={}; libres.forEach(l=>{ (porDia[l.fecha]||(porDia[l.fecha]=[])).push(l); });
+    // cuadro: filas de 7 días (semanas), alineadas a lunes
+    const lun0=lunesDe(dias[0]); const semanas=[]; { let cur=new Date(lun0+"T00:00:00"); const fin=new Date(d1+"T00:00:00"); while(cur<=fin){ const sem=[]; for(let i=0;i<7;i++){ sem.push(fechaLocal(cur)); cur.setDate(cur.getDate()+1); } semanas.push(sem); } }
+    const colW=(W-2*M)/7; const lineH=3.6; const maxPorCelda=40;
+    doc.setFontSize(10); doc.setFont("helvetica","bold"); doc.text("Cuadro de dias libres (trabajadores debajo de cada dia)",M,y); y+=4; doc.setFont("helvetica","normal");
+    semanas.forEach(sem=>{ const listas=sem.map(f=>(f>=d0&&f<=d1)?(porDia[f]||[]).map(l=>empMap[l.empleado_id]).filter(Boolean).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")):null);
+      const nMax=Math.max(1,...listas.map(l=>l?Math.min(l.length,maxPorCelda):0)); const cellH=7+nMax*lineH+2;
+      if(y+cellH>200){ doc.addPage(); y=cab(); }
+      sem.forEach((f,i)=>{ const x=M+i*colW; const enPer=listas[i]!==null; doc.setFillColor(enPer?15:226,enPer?23:232,enPer?42:240); doc.rect(x,y,colW,6,"F"); doc.setTextColor(enPer?255:120,enPer?255:120,enPer?255:120); doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.text(diaNom(f)+" "+f.slice(8)+"/"+f.slice(5,7),x+2,y+4.2); if(enPer) doc.text(String(listas[i].length),x+colW-2,y+4.2,{align:"right"});
+        doc.setDrawColor(203,213,225); doc.rect(x,y,colW,cellH); doc.setTextColor(30,30,30); doc.setFont("helvetica","normal"); doc.setFontSize(6.8);
+        if(enPer){ listas[i].slice(0,maxPorCelda).forEach((e,k)=>{ const nom=String(e.nombre||"").slice(0,(!area&&e.area)?19:27); doc.text("• "+nom,x+1.5,y+9.5+k*lineH); if(!area&&e.area){ doc.setTextColor(120,120,120); doc.setFontSize(5.6); doc.text(String(e.area).slice(0,14),x+colW-1.5,y+9.5+k*lineH,{align:"right"}); doc.setFontSize(6.8); doc.setTextColor(30,30,30); } }); if(listas[i].length>maxPorCelda) doc.text("+"+(listas[i].length-maxPorCelda)+" mas",x+1.5,y+9.5+maxPorCelda*lineH); } });
+      y+=cellH+3; });
+    // resumen por trabajador
+    const porEmp={}; libres.forEach(l=>{ (porEmp[l.empleado_id]||(porEmp[l.empleado_id]=[])).push(l.fecha); }); const lista=(incluirTodos?emps:emps.filter(e=>porEmp[e.id])).slice().sort((a,b)=>(a.area||"").localeCompare(b.area||"")||(a.nombre||"").localeCompare(b.nombre||""));
+    if(lista.length){ if(y+20>200){ doc.addPage(); y=cab(); } y+=4; doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.text("Resumen por trabajador",M,y); y+=5;
+      const th=()=>{ doc.setFillColor(15,23,42); doc.rect(M,y-4,W-2*M,6,"F"); doc.setTextColor(255,255,255); doc.setFontSize(7.5); doc.text("TRABAJADOR",M+2,y); doc.text("AREA",M+80,y); doc.text("DIAS",M+120,y); doc.text("FECHAS",M+135,y); doc.setTextColor(30,30,30); doc.setFont("helvetica","normal"); y+=5; };
+      th(); lista.forEach((e,i)=>{ if(y>200){ doc.addPage(); y=cab(); th(); } const f=(porEmp[e.id]||[]).sort(); if(i%2){ doc.setFillColor(241,245,249); doc.rect(M,y-3.5,W-2*M,5,"F"); } doc.setFontSize(7.5); doc.text(String(e.nombre||"").slice(0,44),M+2,y); doc.text(String(e.area||"").slice(0,22),M+80,y); doc.text(String(f.length),M+120,y); doc.text(f.map(x=>x.slice(8)+"/"+x.slice(5,7)+" "+diaNom(x)).join(", ").slice(0,120),M+135,y); y+=5; });
+      doc.setFont("helvetica","bold"); doc.text("TOTAL: "+lista.length+" trabajador(es) · "+libres.length+" dia(s) libre(s)",M+2,y+2); }
+    doc.setFontSize(7); doc.setTextColor(150,155,160); doc.text("Hipposupermarket · Dias libres · "+titAmb+" · "+perTxt,M,206);
+    doc.save(`dias_libres_${area?area.replace(/[^\w]+/g,"_"):"general"}_${desde?desde+"_"+hasta:"todo"}.pdf`); closeModal2(); toast("PDF de días libres descargado"); }); }
+function recolectarDiasLibres(){ const esGer=!!(currentUser&&currentUser.es_gerencia); const area=document.getElementById("xdl_area")?.value||""; if(!esGer && !usuarioAreas().includes(area)){ toast("Solo puedes exportar tu área"); return null; }
   const per=document.getElementById("xdl_per")?.value||"semana"; let desde="",hasta=""; if(!dlSemanaRef) dlSemanaRef=hoy(); const dias=diasSemana(lunesDe(dlSemanaRef));
-  if(per==="semana"){ desde=dias[0]; hasta=dias[6]; } else if(per==="mes"){ const m=dlSemanaRef.slice(0,7); const [y,mm]=m.split("-").map(Number); desde=m+"-01"; hasta=m+"-"+String(new Date(y,mm,0).getDate()).padStart(2,"0"); } else if(per==="rango"){ desde=document.getElementById("xdl_desde")?.value||""; hasta=document.getElementById("xdl_hasta")?.value||""; if(!desde||!hasta||hasta<desde){ toast("Revisa el rango de fechas"); return; } }
+  if(per==="semana"){ desde=dias[0]; hasta=dias[6]; } else if(per==="mes"){ const m=dlSemanaRef.slice(0,7); const [y,mm]=m.split("-").map(Number); desde=m+"-01"; hasta=m+"-"+String(new Date(y,mm,0).getDate()).padStart(2,"0"); } else if(per==="rango"){ desde=document.getElementById("xdl_desde")?.value||""; hasta=document.getElementById("xdl_hasta")?.value||""; if(!desde||!hasta||hasta<desde){ toast("Revisa el rango de fechas"); return null; } }
   const incluirTodos=!!document.getElementById("xdl_todos")?.checked;
   let emps=db.list("empleados").filter(e=>e.estado!=="Inactivo"); if(area) emps=emps.filter(e=>(e.area||"").trim().toLowerCase()===area.trim().toLowerCase()); const empIds=new Set(emps.map(e=>e.id)); const empMap={}; emps.forEach(e=>{ empMap[e.id]=e; });
   const libres=db.list("dias_libres").filter(d=>empIds.has(d.empleado_id) && (!desde||d.fecha>=desde) && (!hasta||d.fecha<=hasta)).sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha))||(empMap[a.empleado_id]?.nombre||"").localeCompare(empMap[b.empleado_id]?.nombre||""));
-  if(!libres.length && !incluirTodos){ toast("No hay días libres en ese periodo"); return; }
+  if(!libres.length && !incluirTodos){ toast("No hay días libres en ese periodo"); return null; }
+  return {area,desde,hasta,incluirTodos,emps,empMap,libres}; }
+function exportarDiasLibresExcel(){ const D=recolectarDiasLibres(); if(!D) return; const {area,desde,hasta,incluirTodos,emps,empMap,libres}=D;
   const NN=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"]; const diaNom=(iso)=>NN[new Date(iso+"T00:00:00").getDay()]; const titAmb=(area||"TODAS LAS ÁREAS").toUpperCase(); const perTxt=desde?("del "+desde+" al "+hasta):"todo el historial";
   // Hoja 1: lista
   const h1=hojaPro({titulo:"DÍAS LIBRES · "+titAmb, subtitulo:subtituloPro(perTxt+" · "+libres.length+" día(s) libre(s)"), headers:["Fecha","Día","Trabajador","Cédula","Área","Cargo"], rows:libres.map(d=>{ const e=empMap[d.empleado_id]||{}; return [d.fecha,diaNom(d.fecha),e.nombre||"",e.cedula||"",e.area||d.area||"",e.cargo||""]; }), totales:["TOTAL",libres.length+" día(s)","","","",""]});
