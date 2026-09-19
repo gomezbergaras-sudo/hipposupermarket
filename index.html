@@ -969,7 +969,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="7.9"; // se incrementa con cada mejora
+const APP_VERSION="8.0"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -5028,19 +5028,32 @@ function enviarPagoWhatsApp(id){ const pg=db.list("pagos_prov").find(x=>x.id===i
 function enviarPagoWeChat(id){ const pg=db.list("pagos_prov").find(x=>x.id===id); if(!pg){ toast("No encontrado"); return; } const msg=mensajePago(pg);
   const ok=()=>{ toast("📋 Mensaje copiado — ábrelo en WeChat y pégalo en el chat del proveedor"); try{ window.open("weixin://","_blank"); }catch(_){} };
   if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(msg).then(ok).catch(()=>{ fallbackCopiar(msg); ok(); }); } else { fallbackCopiar(msg); ok(); } }
-let _pagosQ="", _pagosLim=40;
+let _pagosQ="", _pagosLim=40, _pagosTipo="";
 function buscarPagosProv(v){ _pagosQ=String(v||""); _pagosLim=40; renderPagosProv(true); }
+function filtrarPagosTipo(v){ _pagosTipo=v||""; _pagosLim=40; renderPagosProv(); }
+/* Tipo de pago según las facturas vinculadas: Pago completo (cubre la factura entera) · Abono (parcial) ·
+   Abono final (parcial que la termina de cancelar) · Mixto (varias facturas con distinto tipo) · Sin factura (no vinculado) */
+const TIPO_PAGO_LBL={completo:["✅","Pago completo","bg-emerald-100 text-emerald-700"],abono:["🔹","Abono","bg-amber-100 text-amber-800"],final:["🏁","Abono final","bg-sky-100 text-sky-800"],mixto:["🔀","Mixto","bg-violet-100 text-violet-700"],sin:["💵","Sin factura","bg-slate-100 text-slate-600"]};
+function tipoPago(pg){ const fs=Array.isArray(pg.facturas)?pg.facturas.filter(f=>f&&f.fid):[]; if(!fs.length) return "sin"; const tipos=new Set();
+  fs.forEach(cf=>{ const fac=prodFacRec(cf.fid); if(!fac){ tipos.add("sin"); return; } const total=Number(fac.monto)||0, m=Number(cf.monto)||0; if(m>=total-0.005) tipos.add("completo"); else if((Number(fac.abonado)||0)>=total-0.005 && esUltimoPago(pg,cf)) tipos.add("final"); else tipos.add("abono"); });
+  if(tipos.size===1) return [...tipos][0]; return "mixto"; }
+const _facIdx={arr:null,map:new Map()}; function prodFacRec(id){ const l=db.list("facturas_rec"); if(_facIdx.arr!==l||_facIdx.map.size!==l.length){ _facIdx.arr=l; _facIdx.map=new Map(l.map(f=>[f.id,f])); } const f=_facIdx.map.get(id); return (f&&l.includes(f))?f:l.find(x=>x.id===id); }
+function esUltimoPago(pg,cf){ const otros=db.list("pagos_prov").filter(p=>p.id!==pg.id && Array.isArray(p.facturas) && p.facturas.some(x=>x&&x.fid===cf.fid)); const k=(p)=>String(p.fecha_pago||"")+"|"+String(p.creado||""); return !otros.some(p=>k(p)>k(pg)); }
 function renderPagosProv(mantenerFoco){ const c=document.getElementById("pagosProvBox"); if(!c) return; const todos=db.list("pagos_prov").sort((a,b)=>String(b.creado||b.fecha_pago||"").localeCompare(String(a.creado||a.fecha_pago||"")));
   if(!todos.length){ c.innerHTML=""; return; }
   const q=_pagosQ.trim().toLowerCase(); const qn=q.replace(/[^0-9a-z]/g,""); // RIF sin guiones ni puntos
-  const l=q?todos.filter(pg=>{ const nom=String(pg.proveedor||"").toLowerCase(); const rif=String(pg.rif||"").toLowerCase().replace(/[^0-9a-z]/g,""); const facs=(Array.isArray(pg.facturas)?pg.facturas.map(f=>String(f.numero||"")).join(" "):"")+" "+String(pg.info_factura||""); return nom.includes(q) || (qn&&rif.includes(qn)) || facs.toLowerCase().includes(q); }):todos;
+  let l=q?todos.filter(pg=>{ const nom=String(pg.proveedor||"").toLowerCase(); const rif=String(pg.rif||"").toLowerCase().replace(/[^0-9a-z]/g,""); const facs=(Array.isArray(pg.facturas)?pg.facturas.map(f=>String(f.numero||"")).join(" "):"")+" "+String(pg.info_factura||""); return nom.includes(q) || (qn&&rif.includes(qn)) || facs.toLowerCase().includes(q); }):todos;
+  const tipoDe=new Map(); const tpg=(pg)=>{ if(!tipoDe.has(pg.id)) tipoDe.set(pg.id,tipoPago(pg)); return tipoDe.get(pg.id); }; if(_pagosTipo) l=l.filter(pg=>tpg(pg)===_pagosTipo);
+  const cnt={}; todos.forEach(pg=>{ const t=tpg(pg); cnt[t]=(cnt[t]||0)+1; });
   const vis=l.slice(0,_pagosLim); const totUsd=l.reduce((s,pg)=>s+pagoUsd(pg),0);
   const hadFocus=mantenerFoco && document.activeElement && document.activeElement.id==="pagosBuscar"; const pos=hadFocus?document.activeElement.selectionStart:null;
   c.innerHTML=`<div class="flex items-center justify-between gap-2 mb-1"><p class="text-xs font-semibold text-slate-600">💵 Pagos a proveedores</p><span class="text-[10px] text-slate-400">${q?l.length+" de "+todos.length:todos.length+" pago(s)"}</span></div>
     <div class="relative mb-2"><input id="pagosBuscar" value="${esc(_pagosQ)}" oninput="buscarPagosProv(this.value)" placeholder="🔎 Buscar pago por proveedor, RIF o N° de factura…" autocomplete="off" class="w-full px-3 py-2 pr-8 rounded-xl border border-slate-200 bg-white text-sm">${q?`<button onclick="buscarPagosProv('')" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm">✕</button>`:""}</div>
+    <div class="flex flex-wrap gap-1 mb-2">${[["","Todos",todos.length],["completo","✅ Pagos completos",cnt.completo||0],["abono","🔹 Abonos",cnt.abono||0],["final","🏁 Abonos finales",cnt.final||0],["mixto","🔀 Mixtos",cnt.mixto||0],["sin","💵 Sin factura",cnt.sin||0]].map(([k,lb,n])=>`<button onclick="filtrarPagosTipo('${k}')" class="text-[11px] font-semibold px-2.5 py-1 rounded-full ${_pagosTipo===k?"bg-slate-800 text-white":"bg-white border border-slate-200 text-slate-600"}">${lb} <span class="opacity-70">${n}</span></button>`).join("")}</div>
     ${q?`<div class="bg-teal-50 text-teal-800 rounded-xl px-3 py-2 text-xs mb-2 flex items-center justify-between"><span>${l.length} pago(s) encontrado(s)</span><b>${money(totUsd)}</b></div>`:""}
     ${vis.length?`<div class="space-y-2">${vis.map(pg=>{ const tasa=Number(pg.tasa)||tipoCambio; const tp=Number(pg.total_pagado)||0; const bs=pg.moneda==="USD"?tp*tasa:tp; const usd=pg.moneda==="USD"?tp:(tasa>0?tp/tasa:0); const nf=Array.isArray(pg.facturas)?pg.facturas.map(f=>f.numero).filter(Boolean):[];
-    return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center justify-between gap-2"><div class="min-w-0 flex-1 cursor-pointer" onclick="openPagoProv('${pg.id}')"><p class="font-semibold truncate">${esc(pg.proveedor||"—")} ${pg.rif?`<span class="text-[10px] text-slate-400 font-normal">${esc(pg.rif)}</span>`:""}</p><p class="text-[11px] text-slate-500 truncate">${esc(pg.fecha_pago||"")} · ${fmt2(bs)} Bs / $${fmt2(usd)}${pg.banco?" · "+esc(pg.banco):""}${nf.length?" · Fact. "+esc(nf.slice(0,3).join(", "))+(nf.length>3?" +"+(nf.length-3):""):""}</p></div><div class="flex flex-col gap-1 shrink-0"><button onclick="enviarPagoWhatsApp('${pg.id}')" class="text-[11px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-semibold">💬 WhatsApp</button><button onclick="enviarPagoWeChat('${pg.id}')" class="text-[11px] px-2 py-1 rounded-lg font-semibold text-white" style="background:#07C160">💚 WeChat</button></div></div>`; }).join("")}</div>
+    const [tic,tlb,tcl]=TIPO_PAGO_LBL[tpg(pg)]||TIPO_PAGO_LBL.sin;
+    return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center justify-between gap-2"><div class="min-w-0 flex-1 cursor-pointer" onclick="openPagoProv('${pg.id}')"><p class="font-semibold truncate">${esc(pg.proveedor||"—")} ${pg.rif?`<span class="text-[10px] text-slate-400 font-normal">${esc(pg.rif)}</span>`:""} <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${tcl} align-middle">${tic} ${tlb}</span></p><p class="text-[11px] text-slate-500 truncate">${esc(pg.fecha_pago||"")} · ${fmt2(bs)} Bs / $${fmt2(usd)}${pg.banco?" · "+esc(pg.banco):""}${nf.length?" · Fact. "+esc(nf.slice(0,3).join(", "))+(nf.length>3?" +"+(nf.length-3):""):""}</p></div><div class="flex flex-col gap-1 shrink-0"><button onclick="enviarPagoWhatsApp('${pg.id}')" class="text-[11px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-semibold">💬 WhatsApp</button><button onclick="enviarPagoWeChat('${pg.id}')" class="text-[11px] px-2 py-1 rounded-lg font-semibold text-white" style="background:#07C160">💚 WeChat</button></div></div>`; }).join("")}</div>
     ${l.length>vis.length?`<button onclick="_pagosLim+=60;renderPagosProv()" class="w-full mt-2 bg-white border border-slate-200 text-teal-700 font-semibold py-2 rounded-xl text-sm">Mostrar más (${l.length-vis.length} restantes)</button>`:""}`:`<p class="text-xs text-slate-400 text-center py-3">Ningún pago coincide con «${esc(_pagosQ)}».</p>`}`;
   if(hadFocus){ const el=document.getElementById("pagosBuscar"); if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(_){} } }
 }
@@ -5283,7 +5296,8 @@ function openAbonoFactura(id){ if(!puede("deudas")){ toast("Sin acceso"); return
     <div class="grid grid-cols-2 gap-3 mb-1">
       <div><label class="text-xs text-slate-500">Monto del abono</label><input id="ab_monto" type="number" min="0" value="${pend?fmt2(pend):""}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
       <div><label class="text-xs text-slate-500">Moneda</label><select id="ab_moneda" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="${esc(f.moneda||'Bs')}" selected>${esc(f.moneda||'Bs')}</option><option value="${(f.moneda==='USD')?'Bs':'USD'}">${(f.moneda==='USD')?'Bs':'USD'}</option></select></div></div>
-    <p class="text-[10px] text-slate-400 mb-3">Si abonas en otra moneda, se convierte con la tasa actual (${tipoCambio||"—"} Bs/$).</p>
+    <div class="mb-1"><label class="text-xs text-slate-500">Banco / forma de pago</label><select id="ab_banco" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="">— Sin indicar —</option><option>Efectivo</option>${(typeof BANCOS!=="undefined"?BANCOS:[]).map(b=>`<option>${esc(b)}</option>`).join("")}</select></div>
+    <p class="text-[10px] text-slate-400 mb-3">Si abonas en otra moneda, se convierte con la tasa actual (${tipoCambio||"—"} Bs/$). El abono queda registrado también en «Pagos a proveedores».</p>
     <div class="flex gap-2"><button onclick="saveAbonoFactura('${id}')" class="flex-1 bg-emerald-600 text-white font-semibold py-2.5 rounded-xl">Registrar abono</button>
     ${pend>0?`<button onclick="abonoTotalFactura('${id}')" class="px-4 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Pagar todo</button>`:""}
     <button onclick="renderFacturasProv()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`); }
@@ -5294,10 +5308,13 @@ async function saveAbonoFactura(id){ if(!puede("deudas")){ toast("Sin acceso"); 
   const monto=Number(document.getElementById("ab_monto").value)||0; const moneda=document.getElementById("ab_moneda").value||f.moneda||"Bs";
   if(monto<=0){ toast("Indica el monto del abono"); return; }
   const add=_abonoEnMonedaFactura(monto, moneda, f.moneda||"Bs");
-  const cap=Number(f.monto)||0; const nuevoAb=Math.min(cap, (Number(f.abonado)||0)+add);
-  try{ await db.update("facturas_rec",id,{abonado:nuevoAb}); render(); toast(nuevoAb>=cap?"Factura pagada por completo":"Abono registrado"); renderFacturasProv(); }catch(e){ toast("Error: "+e.message); } }
+  const cap=Number(f.monto)||0; const nuevoAb=Math.min(cap, (Number(f.abonado)||0)+add); const aplicado=Math.max(0,nuevoAb-(Number(f.abonado)||0)); const banco=document.getElementById("ab_banco")?.value||"";
+  try{ await db.update("facturas_rec",id,{abonado:nuevoAb}); if(aplicado>0.005) await registrarPagoDesdeAbono(f,aplicado,banco,nuevoAb>=cap-0.005?"Pago completo":"Abono"); render(); toast(nuevoAb>=cap?"Factura pagada por completo":"Abono registrado"); renderFacturasProv(); }catch(e){ toast("Error: "+e.message); } }
+/* Un abono hecho desde Facturas recibidas también se registra como pago (vinculado a la factura) para que aparezca en «Pagos a proveedores» */
+async function registrarPagoDesdeAbono(f,montoFac,banco,tipo){ const prov=f.proveedor_id?provById(f.proveedor_id):(db.list("proveedores").find(p=>(p.nombre||"").trim().toLowerCase()===String(f.proveedor||"").trim().toLowerCase())||null); const mon=esUSDmon(f.moneda)?"USD":"Bs";
+  await db.insert("pagos_prov",{proveedor_id:prov?prov.id:(f.proveedor_id||""), proveedor:f.proveedor||(prov?prov.nombre:""), rif:f.rif||(prov?prov.rif:"")||"", telefono:prov?(prov.telefono||""):"", fecha_pago:hoy(), moneda:mon, tasa:tipoCambio||0, banco:banco||"", nota_credito:0, info_factura:f.numero||"", facturas:[{numero:String(f.numero||""),monto:+montoFac.toFixed(2),fecha:f.fecha||"",fid:f.id}], total_facturas:+montoFac.toFixed(2), total_pagado:+montoFac.toFixed(2), notas:(tipo==="Abono"?"Abono":"Pago completo")+" registrado desde Facturas recibidas"}); }
 async function abonoTotalFactura(id){ if(!puede("deudas")){ toast("Sin acceso"); return; } const f=db.list("facturas_rec").find(x=>x.id===id); if(!f) return;
-  const cap=Number(f.monto)||0; try{ await db.update("facturas_rec",id,{abonado:cap}); render(); toast("Factura pagada por completo"); renderFacturasProv(); }catch(e){ toast("Error: "+e.message); } }
+  const cap=Number(f.monto)||0; const aplicado=Math.max(0,cap-(Number(f.abonado)||0)); const banco=document.getElementById("ab_banco")?.value||""; try{ await db.update("facturas_rec",id,{abonado:cap}); if(aplicado>0.005) await registrarPagoDesdeAbono(f,aplicado,banco,"Pago completo"); render(); toast("Factura pagada por completo"); renderFacturasProv(); }catch(e){ toast("Error: "+e.message); } }
 /* -------- Reporte de pagos a proveedores (diario / mensual) -------- */
 let _rpModo="dia", _rpFecha=null;
 function openReportePagos(){ if(!puede("deudas")){ toast("Sin acceso"); return; } _rpFecha=_rpFecha||hoy(); renderReportePagos(); }
