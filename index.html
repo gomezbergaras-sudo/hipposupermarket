@@ -670,6 +670,7 @@
     <button id="btnSalidaProd" onclick="openSalida()" class="w-full mb-2 bg-amber-600 text-white text-sm font-semibold px-3 py-2.5 rounded-xl active:scale-95 transition">➖ Salida de producto (descuenta stock)</button>
     <div class="flex flex-wrap gap-2 mb-2">
       <label id="btnCargarProd" class="bg-teal-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarExcelProductos(event)"></label>
+      <label id="btnCargarPdfSis" class="bg-indigo-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer">📄 Cargar PDF del sistema<input type="file" accept=".pdf,application/pdf" class="hidden" onchange="importarPdfSistema(event)"></label>
       <button id="btnPlantillaProd" onclick="plantillaProductos()" class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl">⬇ Plantilla</button>
     </div>
     <p id="impProdMsg" class="text-xs mb-2"></p>
@@ -980,7 +981,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="8.4"; // se incrementa con cada mejora
+const APP_VERSION="8.5"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -3180,7 +3181,7 @@ function renderEvalComprasHist(){ const el=document.getElementById("evalComprasH
 }
 async function delEvalCompras(id){ if(!esGerencia()){ toast("Solo gerencia"); return; } if(confirm("¿Eliminar esta evaluación?")){ await db.remove("eval_compras",id); render(); } }
 function renderInventario(){ const q=(document.getElementById("buscarProd")?.value||"").toLowerCase(); const soloBajo=document.getElementById("soloBajo")?.checked;
-  const editaInv=puedeEditarInv(); ["btnNuevoProd","btnCargarProd"].forEach(bid=>{ const el=document.getElementById(bid); if(el) el.style.display=editaInv?"":"none"; });
+  const editaInv=puedeEditarInv(); ["btnNuevoProd","btnCargarProd","btnCargarPdfSis"].forEach(bid=>{ const el=document.getElementById(bid); if(el) el.style.display=editaInv?"":"none"; });
   { const bs=document.getElementById("btnSalidaProd"); if(bs) bs.style.display=puedeRegistrarSalida()?"":"none"; }
   // Filtro por proveedor (para hacer inventario del proveedor seleccionado)
   const fp=document.getElementById("filtroProvInv"); let provSel="";
@@ -4308,6 +4309,109 @@ function importarExcelProductos(ev){ if(!puedeEditarInv()){ toast("No tienes per
     return { nombre, codigo:String(pick(raw,["codigo","código","barra","barcode","codigo de barras"])).trim(), categoria:String(pick(raw,["categoria","categoría"])).trim()||"Otros", unidad:String(pick(raw,["unidad","um"])).trim()||"Unidad", empaque:String(pick(raw,["empaque","presentacion","presentación","bulto","embalaje"])).trim()||"Bulto", unidades_empaque:numExcel(pick(raw,["unidades por empaque","unidades por bulto","unidades bulto","und x bulto","cantidad por bulto","unidades caja","contenido"])), precio_compra:numExcel(pick(raw,["precio costo","precio compra","costo","precio","costo unitario","costo unita."])), precio_venta:numExcel(pick(raw,["precio venta","precio de venta","venta","precio 1","pvp"])), stock:numExcel(pick(raw,["stock","existencia","cantidad"])), stock_min:numExcel(pick(raw,["stock minimo","stock mínimo","minimo","mínimo"])) };
   }, "impProdMsg", p=> (String(p.codigo||"").trim()? "C:"+String(p.codigo).trim() : "N:"+String(p.nombre||"").trim().toLowerCase())); ev.target.value=""; }
 function plantillaProductos(){ bajarPlantilla("plantilla_productos.xlsx",["Nombre","Codigo","Categoria","Unidad","Empaque","Unidades por empaque","Precio costo","Precio venta","Stock","Stock minimo"],["Arroz 1kg","7591234567890","Abarrotes","Unidad","Bulto",24,1.2,0.07,50,20]); }
+
+/* ===================== CARGA DEL PDF DEL SISTEMA DE FACTURACIÓN (v8.5) =====================
+   Lee el reporte «Productos» del sistema (Código · Descripción · Costo Unita. · Existencia · Unidades · Costo Existencia · Precio 1)
+   directamente en el navegador, sin pasar por Excel.
+   · Costo Unita. → precio de compra (costo)      · Precio 1 → precio de venta
+   · Existencia   → existencia del sistema (se muestra en la ficha; si es positiva también queda como stock inicial)
+   · NO duplica: el código es la llave. Si el código ya existe en el inventario, se actualizan sus precios y la
+     existencia del sistema; no se crea otro. Si el PDF trae el mismo código dos veces, vale la primera fila. */
+const PDFJS_VER="3.11.174";
+function cargarPdfJs(){ if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  return new Promise((ok,fail)=>{ const s=document.createElement("script"); s.src=`https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VER}/pdf.min.js`;
+    s.onload=()=>{ try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc=`https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VER}/pdf.worker.min.js`; ok(window.pdfjsLib); }catch(e){ fail(e); } };
+    s.onerror=()=>fail(new Error("No se pudo cargar el lector de PDF (revisa la conexión a internet).")); document.head.appendChild(s); }); }
+function numSis(s){ return Number(String(s).replace(/\./g,"").replace(",","."))||0; }
+const _RX_NUM_SIS=/^-?[\d.]+,\d+$/;
+/* Une los trozos de texto de una página en renglones (misma altura) ordenados de izquierda a derecha */
+function lineasPdf(items){ const filas=[];
+  for(const it of items){ const s=(it.str||"").trim(); if(!s) continue; const y=it.transform[5], x=it.transform[4];
+    let f=filas.find(r=>Math.abs(r.y-y)<2.5); if(!f){ f={y,its:[]}; filas.push(f); } f.its.push({x,s}); }
+  filas.sort((a,b)=>b.y-a.y); return filas.map(f=>f.its.sort((a,b)=>a.x-b.x).map(i=>i.s).join(" ").replace(/\s+/g," ").trim()); }
+/* Un renglón de producto termina siempre en 5 números con formato 1.234,56 */
+function parseLineaSis(l){ const t=l.split(" "); if(t.length<7) return null; const nums=t.slice(-5); if(!nums.every(n=>_RX_NUM_SIS.test(n))) return null;
+  const codigo=t[0].trim(); const nombre=t.slice(1,-5).join(" ").trim(); if(!codigo||!nombre||/^c[oó]digo$/i.test(codigo)||/^total/i.test(codigo)) return null;
+  return {codigo,nombre,costo:numSis(nums[0]),existencia:numSis(nums[1]),precio:numSis(nums[4])}; }
+async function leerPdfSistema(file, onProg){ const pdfjs=await cargarPdfJs(); const doc=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+  const filas=[]; let fecha="";
+  for(let i=1;i<=doc.numPages;i++){ const pg=await doc.getPage(i); const tc=await pg.getTextContent();
+    for(const l of lineasPdf(tc.items)){ if(!fecha){ const m=l.match(/emisi[oó]n\s*:?\s*(\d{2})\/(\d{2})\/(\d{4})/i); if(m) fecha=m[3]+"-"+m[2]+"-"+m[1]; } const r=parseLineaSis(l); if(r) filas.push(r); }
+    if(onProg && (i%10===0||i===doc.numPages)) onProg(i,doc.numPages,filas.length); }
+  return {filas, fecha:fecha||hoy(), paginas:doc.numPages}; }
+let _pdfSis=null; // análisis pendiente de confirmar
+async function importarPdfSistema(ev){ const f=ev.target.files[0]; ev.target.value=""; if(!f) return;
+  if(!puedeEditarInv()){ toast("No tienes permiso para modificar el inventario"); return; }
+  const msg=document.getElementById("impProdMsg"); const setMsg=(t,c)=>{ if(msg){ msg.textContent=t; msg.className="text-xs mb-2 "+(c||"text-slate-500"); } };
+  let res; try{ setMsg("Leyendo PDF…"); res=await leerPdfSistema(f,(i,n,k)=>setMsg(`Leyendo PDF… página ${i} de ${n} · ${k.toLocaleString("es-VE")} productos`)); }
+  catch(e){ setMsg("❌ No se pudo leer el PDF: "+(e.message||e),"text-red-600"); return; }
+  if(!res.filas.length){ setMsg("El PDF no tiene el formato del reporte «Productos» del sistema (Código, Descripción, Costo Unita., …, Precio 1).","text-amber-600"); return; }
+  // Repetidos dentro del mismo PDF (por código) y renglones «DISPONIBLE» (códigos vacíos del sistema)
+  const vistos=new Set(), unicos=[]; let repPdf=0, disp=0;
+  for(const r of res.filas){ if(/^disponible$/i.test(r.nombre)){ disp++; continue; } if(vistos.has(r.codigo)){ repPdf++; continue; } vistos.add(r.codigo); unicos.push(r); }
+  // Comparar contra lo que ya está en el inventario (por código)
+  const nuevos=[], cambios=[]; let iguales=0; const editPrecios=puedeEditarPrecios();
+  for(const r of unicos){ const p=prodByCodigo(r.codigo);
+    if(!p){ nuevos.push(r); continue; }
+    const u=uxe(p); const pc=+(u>0?r.costo*u:r.costo).toFixed(4);
+    const difPrecio=editPrecios && ((Number(p.precio_compra)||0)!==pc || (Number(p.precio_venta)||0)!==r.precio);
+    const difSis=Number(p.existencia_sistema)!==r.existencia || Number(p.costo_sistema)!==r.costo || String(p.fecha_sistema||"")!==res.fecha;
+    if(difPrecio||difSis) cambios.push({p,r,pc,difPrecio}); else iguales++; }
+  _pdfSis={nuevos,cambios,fecha:res.fecha}; setMsg("");
+  const fmt=n=>n.toLocaleString("es-VE");
+  openModal(`<h3 class="font-bold text-lg mb-1">Cargar productos del sistema</h3>
+    <p class="text-xs text-slate-500 mb-3">${esc(f.name)} · ${res.paginas} páginas · emitido ${esc(fmtFecha(res.fecha))}</p>
+    <div class="space-y-2 text-sm">
+      <div class="flex justify-between bg-slate-50 rounded-xl px-3 py-2"><span>Productos en el PDF</span><b>${fmt(res.filas.length)}</b></div>
+      <div class="flex justify-between bg-emerald-50 rounded-xl px-3 py-2"><span>➕ Nuevos a cargar</span><b class="text-emerald-700">${fmt(nuevos.length)}</b></div>
+      <div class="flex justify-between bg-amber-50 rounded-xl px-3 py-2"><span>✏️ Ya existen (se actualizan precios y existencia del sistema)</span><b class="text-amber-700">${fmt(cambios.length)}</b></div>
+      <div class="flex justify-between bg-slate-50 rounded-xl px-3 py-2"><span>✔ Ya existen sin cambios</span><b>${fmt(iguales)}</b></div>
+      ${repPdf?`<div class="flex justify-between bg-slate-50 rounded-xl px-3 py-2"><span>↔ Código repetido en el PDF (omitidos)</span><b>${fmt(repPdf)}</b></div>`:""}
+      ${disp?`<div class="flex justify-between bg-slate-50 rounded-xl px-3 py-2"><span>Renglones «DISPONIBLE» (omitidos)</span><b>${fmt(disp)}</b></div>`:""}
+    </div>
+    <p class="text-[11px] text-slate-500 mt-3">Costo Unita. → <b>precio de compra</b> · Precio 1 → <b>precio de venta</b>. No se crea ningún producto con un código que ya exista.${editPrecios?"":" <span class='text-amber-600'>No tienes permiso de precios: en los existentes solo se actualiza la existencia del sistema.</span>"}</p>
+    ${nuevos.length?`<p class="text-[11px] text-slate-400 mt-1">Los nuevos entran con categoría «Otros» y stock = existencia del sistema cuando es positiva (si es 0 o negativa, stock 0).</p>`:""}
+    <div class="flex gap-2 mt-5">${(nuevos.length||cambios.length)?`<button onclick="confirmarPdfSistema()" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Cargar ${fmt(nuevos.length+cambios.length)}</button>`:""}
+    <button onclick="_pdfSis=null;closeModal()" class="${(nuevos.length||cambios.length)?"px-4":"flex-1"} bg-slate-200 font-semibold py-2.5 rounded-xl">${(nuevos.length||cambios.length)?"Cancelar":"Cerrar"}</button></div>`); }
+/* Inserta/actualiza por lotes (miles de filas). Si la base no tiene las columnas del sistema, las quita y sigue. */
+const CAMPOS_SIS=["existencia_sistema","costo_sistema","fecha_sistema"];
+let _sinCamposSis=false;
+function _limpiaSis(r){ if(!_sinCamposSis) return r; const o={...r}; CAMPOS_SIS.forEach(k=>delete o[k]); return o; }
+function _esErrorColumna(e){ return /column|schema cache|could not find/i.test((e&&e.message)||""); }
+async function _guardarLote(lote, modo){ // modo: "insert" | "upsert"
+  const _ix=new Map(store.productos.map((x,i)=>[x.id,i]));
+  const _pon=(fila)=>{ const i=_ix.get(fila.id); if(i!==undefined) store.productos[i]={...store.productos[i],...fila}; else { _ix.set(fila.id,store.productos.length); store.productos.push(fila); } };
+  if(!USE_CLOUD){ for(const r of lote) _pon(r); return {ok:lote.length,err:0}; }
+  const enviar=async(rows)=>{ const q=modo==="upsert"?sb.from("productos").upsert(rows.map(_limpiaSis),{onConflict:"id"}):sb.from("productos").insert(rows.map(_limpiaSis)); return await q.select(); };
+  let {data,error}=await enviar(lote);
+  if(error && !_sinCamposSis && _esErrorColumna(error)){ _sinCamposSis=true; ({data,error}=await enviar(lote)); }
+  if(!error){ const vuelto=new Map((data||[]).map(d=>[d.id,d])); for(const r of lote) _pon(vuelto.get(r.id)||r); return {ok:lote.length,err:0}; }
+  // Si el lote falla, fila por fila para salvar el resto
+  let ok=0, err=0, primer=error.message;
+  for(const r of lote){ const {data:d,error:e2}=await enviar([r]); if(e2){ err++; continue; } ok++; _pon((d&&d[0])||r); }
+  return {ok,err,primer}; }
+async function confirmarPdfSistema(){ const d=_pdfSis; if(!d) return; _pdfSis=null; closeModal();
+  if(!puedeEditarInv()){ toast("No tienes permiso para modificar el inventario"); return; }
+  const msg=document.getElementById("impProdMsg"); const setMsg=(t,c)=>{ if(msg){ msg.textContent=t; msg.className="text-xs mb-2 "+(c||"text-slate-500"); } };
+  const ahora=new Date().toISOString(), quien=currentUser?.nombre||""; const editPrecios=puedeEditarPrecios();
+  // Última verificación antes de escribir: si alguien cargó el mismo código mientras tanto, no se duplica.
+  const filasNuevas=[]; const yaEnLote=new Set();
+  for(const r of d.nuevos){ if(prodByCodigo(r.codigo)||yaEnLote.has(r.codigo)) continue; yaEnLote.add(r.codigo);
+    filasNuevas.push({ id:uid(), creado:ahora, nombre:r.nombre, codigo:r.codigo, categoria:"Otros", unidad:"Unidad", empaque:"Unidad", unidades_empaque:0,
+      precio_compra:r.costo, precio_venta:r.precio, stock:r.existencia>0?r.existencia:0, stock_min:0,
+      precios_actualizado:ahora, precios_por:quien, existencia_sistema:r.existencia, costo_sistema:r.costo, fecha_sistema:d.fecha }); }
+  const filasCambio=d.cambios.map(({p,r,pc,difPrecio})=>{ const o={...p, existencia_sistema:r.existencia, costo_sistema:r.costo, fecha_sistema:d.fecha};
+    if(editPrecios && difPrecio){ o.precio_compra=pc; o.precio_venta=r.precio; o.precios_actualizado=ahora; o.precios_por=quien; } return o; });
+  const total=filasNuevas.length+filasCambio.length; let hechos=0, nOk=0, cOk=0, err=0, primer="";
+  showLoader("Cargando productos…"); const LOTE=500;
+  try{
+    for(let i=0;i<filasNuevas.length;i+=LOTE){ const r=await _guardarLote(filasNuevas.slice(i,i+LOTE),"insert"); nOk+=r.ok; err+=r.err; if(r.primer&&!primer) primer=r.primer; hechos+=Math.min(LOTE,filasNuevas.length-i); setMsg(`Cargando… ${hechos.toLocaleString("es-VE")} de ${total.toLocaleString("es-VE")}`); }
+    for(let i=0;i<filasCambio.length;i+=LOTE){ const r=await _guardarLote(filasCambio.slice(i,i+LOTE),"upsert"); cOk+=r.ok; err+=r.err; if(r.primer&&!primer) primer=r.primer; hechos+=Math.min(LOTE,filasCambio.length-i); setMsg(`Cargando… ${hechos.toLocaleString("es-VE")} de ${total.toLocaleString("es-VE")}`); }
+  }catch(e){ err++; primer=primer||e.message; }
+  if(!USE_CLOUD){ try{ lsSave(); }catch(e){ err++; primer=primer||"No cabe en la memoria local del navegador ("+e.message+")"; } } _dlCache={emp:-1,prov:-1,prod:-1}; _abcCache=null; hideLoader();
+  const partes=[]; if(nOk) partes.push("✅ "+nOk.toLocaleString("es-VE")+" productos nuevos"); if(cOk) partes.push("✏️ "+cOk.toLocaleString("es-VE")+" actualizados"); if(err) partes.push("❌ "+err+" con error"+(primer?": "+primer:""));
+  if(_sinCamposSis) partes.push("(la base no tiene las columnas de existencia del sistema; se guardaron precios y stock)");
+  setMsg(partes.join(" · ")||"Sin cambios", err?"text-amber-600":"text-emerald-600"); render(); toast(err?"Carga terminada con errores":"Productos del sistema cargados"); }
 
 /* ===================== CONCEPTOS DE PAGO (para el recibo) ===================== */
 function conceptosActivos(){ return db.list("conceptos_pago").filter(c=>c.activo!==false).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")); }
