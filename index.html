@@ -845,6 +845,13 @@
     <button id="finBubble" onclick="openFinQuick()" class="fin-bubble"><img id="finBubbleImg" alt=""><span><b>Hippo</b><small><i></i>En línea</small></span></button>
   </section>
 
+  <!-- ======== CONCILIACIÓN CASHEA ======== -->
+  <section data-view="conciliacion" hidden>
+    <h2 class="text-lg font-bold mb-1">Conciliación Cashea</h2>
+    <p class="text-xs text-slate-500 mb-3">Lo cobrado por Cashea en los cierres de caja contra lo que entró al banco (diario de banco Cashea), con la tasa del día.</p>
+    <div id="ccBody"></div>
+  </section>
+
   <!-- ======== FACTURAS RECIBIDAS (mosaico propio) ======== -->
   <section data-view="facturasrec" hidden>
     <h2 class="text-lg font-bold mb-1">Facturas recibidas</h2>
@@ -982,7 +989,7 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos","parametros_legales","conceptos_nomina","gastos","liquidaciones","historial_salarios","faltantes_desc","personas_gerencia","impulsaciones"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos","parametros_legales","conceptos_nomina","gastos","liquidaciones","historial_salarios","faltantes_desc","personas_gerencia","impulsaciones","cashea_banco"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
@@ -993,7 +1000,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="8.7"; // se incrementa con cada mejora
+const APP_VERSION="8.8"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1384,6 +1391,7 @@ const MODULES = {
   compras:{parent:"productos",title:"Evaluación de compras",sub:"Productos y Compras"},
   caja:{parent:"finanzas",title:"Caja",sub:"Caja y Finanzas"},
   tesoreria:{parent:"finanzas",title:"Tesorería",sub:"Caja y Finanzas"},
+  conciliacion:{parent:"finanzas",title:"Conciliación Cashea",sub:"Caja y Finanzas"},
   deudas:{parent:"finanzas",title:"Finanzas",sub:"Caja y Finanzas"},
   facturasrec:{parent:"finanzas",title:"Facturas recibidas",sub:"Caja y Finanzas"},
   conexiones:{parent:"finanzas",title:"Conexiones",sub:"Caja y Finanzas"},
@@ -1391,7 +1399,7 @@ const MODULES = {
 const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["nominave","⚖️","Nómina VE"],["liqnom","📋","Nómina liquidación"],["nomger","🏛️","Nómina gerencia"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"],["candidatos","📨","Candidatos"]];
 const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"],["quiebre","🚨","Quiebre"],["rotacion","🔥","Rotación/ABC"],["compras","🛒","Compras"]];
 const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"],["incpersonal","⏰","Asistencia personal"],["impulsaciones","🎪","Impulsaciones"]];
-const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["facturasrec","📥","Facturas recibidas"],["gastos","🧾","Gastos"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
+const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["conciliacion","🟣","Conciliación Cashea"],["facturasrec","📥","Facturas recibidas"],["gastos","🧾","Gastos"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
 /* ---- Idioma (chino tradicional) — solo textos del menú/etiquetas, NO los datos ---- */
 const DICT_ZH={
   "Inicio":"首頁","RRHH":"人事","Superv.":"主管","Productos":"商品","Caja":"收銀","Ajustes":"設定",
@@ -1416,7 +1424,7 @@ const NAV_TARGETS=[["inicio","🏠 Inicio (lanzador)"],["rrhh","👥 RRHH (lanza
   ["empleados","Personal"],["nomina","Nómina"],["nominave","Nómina VE"],["asistencia","Asistencia"],["candidatos","Candidatos"],["bonos","Salarios y bonos"],["eval","Evaluación"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],
   ["inventario","Inventario"],["ordenes","Órdenes"],["recepcion","Recepción"],["proveedores","Proveedores"],["rotacion","Rotación/ABC"],["compras","Compras"],["quiebre","Quiebre"],["merma","Merma"],
-  ["caja","Caja"],["tesoreria","Tesorería"],["facturasrec","Facturas recibidas"],["deudas","Finanzas"],["conexiones","Conexiones"]];
+  ["caja","Caja"],["tesoreria","Tesorería"],["conciliacion","Conciliación Cashea"],["facturasrec","Facturas recibidas"],["deudas","Finanzas"],["conexiones","Conexiones"]];
 function navPuedeTarget(t){ if(t==="inicio") return true; const g={rrhh:RRHH_VIEWS, productos:PROD_VIEWS, supervisores:SUP_VIEWS, finanzas:FIN_VIEWS}[t]; if(g) return g.some(v=>puede(v)); return puede(t); }
 function pintarNav(){ const btns=document.querySelectorAll('.tab[data-slot]');
   btns.forEach(b=>{ const i=Number(b.dataset.slot); const cfg=navTabsCfg[i]||NAV_DEFAULT[i]; if(!cfg){ b.style.display="none"; return; }
@@ -1451,14 +1459,14 @@ let currentView="inicio";
 const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia","candidatos","nominave","liqnom","nomger"];
 const PROD_VIEWS=["proveedores","inventario","ordenes","recepcion","merma","quiebre","rotacion","compras"];
 const SUP_VIEWS=["piso","tareas","asignaciones","diaslibres","incpersonal","impulsaciones"];
-const FIN_VIEWS=["caja","tesoreria","facturasrec","deudas","conexiones"];
+const FIN_VIEWS=["caja","tesoreria","conciliacion","facturasrec","deudas","conexiones"];
 // Todas las opciones que gerencia puede otorgar/quitar por usuario (tesoreria es solo gerencia, por eso no está aquí)
 const OPCIONES=[
   ["metricas_rrhh","📊 Ver métricas de Personal y RRHH (inicio)"],["metricas_sup","📊 Ver métricas de Supervisores (inicio)"],["metricas_prod","📊 Ver métricas de Productos y Compras (inicio)"],["metricas_fin","📊 Ver métricas de Caja y Finanzas (inicio)"],
   ["empleados","Personal"],["empleados_editar","Modificar personal (editar datos de empleados)"],["nomina","Nómina"],["nominave","Nómina y beneficios (Venezuela)"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],["candidatos","Candidatos / Bolsa de empleo"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],["incpersonal","Incidencias de personal (asistencia)"],["impulsaciones","Impulsaciones de proveedores (ver solicitudes)"],["impulsaciones_aprobar","Aprobar o rechazar impulsaciones (supervisor encargado)"],
   ["proveedores","Proveedores"],["proveedores_editar","Modificar proveedores (crear, editar y eliminar)"],["inventario","Inventario"],["inventario_editar","Modificar inventario (crear/editar/eliminar productos y stock)"],["precios_ver","💲 Ver precio costo y precio de venta de los productos"],["precios_editar","💲 Modificar precio costo y precio de venta (incluye verlos)"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],["rotacion","Rotación y clasificación ABC"],["compras","Compras (evaluación e indicadores del encargado)"],
-  ["caja","Caja (cierres y arqueos)"],["caja_editar","Modificar cajas con día cerrado (autorizado por gerencia)"],["tesoreria","Tesorería (totales y tasa)"],["deudas","Finanzas (deudas, pagos y facturas recibidas)"],["pagos_editar","Modificar pagos y abonos de facturas / notas de entrega (editar, corregir y eliminar)"],["rubros","Crear y editar rubros de facturas"],["conexiones","Conexiones (quién se conecta)"]
+  ["caja","Caja (cierres y arqueos)"],["caja_editar","Modificar cajas con día cerrado (autorizado por gerencia)"],["tesoreria","Tesorería (totales y tasa)"],["conciliacion","Conciliación Cashea (ver y cargar el diario de banco Cashea)"],["deudas","Finanzas (deudas, pagos y facturas recibidas)"],["pagos_editar","Modificar pagos y abonos de facturas / notas de entrega (editar, corregir y eliminar)"],["rubros","Crear y editar rubros de facturas"],["conexiones","Conexiones (quién se conecta)"]
 ];
 const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma","quiebre"];
 const OP_PERM=["tareas","asignaciones","asistencia","piso","quiebre"];
@@ -4252,7 +4260,7 @@ function puedeEditarTarea(t){ if(!currentUser) return false; if(currentUser.es_g
 function puedeVerTotales(){ return !!(currentUser && !currentUser.es_asistente); }
 
 /* ===================== EXCEL: helpers e importaciones ===================== */
-const HEADER_KW=["nombre","nombres","apellidos","cedula","cédula","ci","producto","proveedor","empresa","razon","razón","monto","rif","sueldo","salario","ubicacion","ubicación","sede","sucursal","area","área","codigo","código","precio","fecha","cargo","categoria","categoría","abonado","deuda","stock","telefono","teléfono","contacto"];
+const HEADER_KW=["nombre","nombres","apellidos","cedula","cédula","ci","producto","proveedor","empresa","razon","razón","monto","rif","sueldo","salario","ubicacion","ubicación","sede","sucursal","area","área","codigo","código","precio","fecha","cargo","categoria","categoría","abonado","deuda","stock","telefono","teléfono","contacto","referencia","descripcion","descripción","concepto","credito","crédito","debito","débito","abono","haber","debe","importe"];
 function leerExcel(file, cb){ const rd=new FileReader(); rd.onload=()=>{ try{
     const wb=XLSX.read(new Uint8Array(rd.result),{type:"array"});
     const sheet=wb.Sheets[wb.SheetNames[0]];
@@ -5490,6 +5498,123 @@ async function guardarGastosImport(){ if(!puede("deudas")){ toast("Sin acceso");
     try{ await db.insert("gastos",r); n++; }catch(e){ err.push(e.message); } }
   hideLoader(); _gtTodas=true; renderGastosModal(); render(); toast(n+" gasto(s) importados"+(err.length?" · "+err.length+" con error":"")); if(err.length) alert("Errores:\n"+err.slice(0,5).join("\n")); }
 
+/* ===================== CONCILIACIÓN CASHEA (v8.8) =====================
+   Compara lo cobrado por Cashea en los cierres de caja (lo que reportan los supervisores de caja)
+   contra el DIARIO DE BANCO CASHEA (lo que realmente entra al banco).
+   · Caja: suma «Cashea (Bs)» de cada cierre (sin arqueos); a $ con la tasa de ese cierre.
+   · Banco: movimientos cargados a mano o desde el Excel del estado de cuenta; a $ con la tasa de los cierres de esa fecha.
+   · Periodo: mensual por defecto, o un rango desde/hasta. */
+let _ccModo="mes", _ccMes=null, _ccDesde="", _ccHasta="", _ccTab="cuadre", _ccImp=[];
+const SQL_CASHEA=`create table if not exists cashea_banco (
+  id text primary key,
+  creado timestamptz default now(),
+  actualizado timestamptz default now(),
+  fecha text, referencia text, descripcion text,
+  monto numeric default 0, origen text, cargado_por text
+);
+alter table cashea_banco enable row level security;
+create policy "app_todo" on cashea_banco for all using (true) with check (true);
+alter publication supabase_realtime add table cashea_banco;`;
+function errorTablaCashea(e){ const m=(e&&e.message)||""; if(!/cashea_banco|relation|does not exist|schema cache/i.test(m)) return false;
+  openModal2(`<h3 class="font-bold text-lg mb-1">Falta crear el diario de banco en la base de datos</h3>
+    <p class="text-sm text-slate-600 mb-2">Se hace una sola vez: entra a <b>supabase.com</b> → tu proyecto → <b>SQL Editor</b>, pega esto y pulsa <b>Run</b>. Luego recarga la app.</p>
+    <pre class="bg-slate-900 text-emerald-300 text-[11px] rounded-xl p-3 whitespace-pre-wrap select-all">${esc(SQL_CASHEA)}</pre>
+    <div class="flex gap-2 mt-3"><button onclick="navigator.clipboard&&navigator.clipboard.writeText(SQL_CASHEA);toast('Copiado')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Copiar</button><button onclick="closeModal2()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
+  return true; }
+function ccRango(){ if(_ccModo==="rango"){ const d=_ccDesde||hoy().slice(0,8)+"01", h=_ccHasta||hoy(); return d<=h?[d,h]:[h,d]; }
+  const m=_ccMes||hoy().slice(0,7); const [y,mm]=m.split("-").map(Number); const ult=new Date(y,mm,0).getDate(); return [m+"-01", m+"-"+String(ult).padStart(2,"0")]; }
+function ccCierres(){ return db.list("cierres_caja").filter(c=>!c.arqueo && c.fecha); }
+/* Tasa del día según los cierres de caja de esa fecha (promedio); si ese día no hubo cierres, la del día anterior más cercano */
+function ccMapaTasas(){ const m={}; ccCierres().forEach(c=>{ const t=Number(c.tasa)||0; if(t<=0) return; (m[c.fecha]=m[c.fecha]||[]).push(t); });
+  const dias=Object.keys(m).sort(); const prom={}; dias.forEach(d=>{ const a=m[d]; prom[d]=a.reduce((s,x)=>s+x,0)/a.length; }); return {prom,dias}; }
+function ccTasaFecha(f,mp){ mp=mp||ccMapaTasas(); if(mp.prom[f]) return {t:mp.prom[f],origen:"cierres del día"};
+  let ant=null; for(const d of mp.dias){ if(d<f) ant=d; else break; } if(ant) return {t:mp.prom[ant],origen:"cierres del "+fmtFecha(ant)};
+  return {t:tipoCambio||0,origen:"tasa actual"}; }
+function ccDatos(){ const [d,h]=ccRango(); const mp=ccMapaTasas(); const en=f=>f&&f>=d&&f<=h;
+  const caja=ccCierres().filter(c=>en(c.fecha)&&(Number(c.cashea)||0)!==0).map(c=>{ const bs=Number(c.cashea)||0, t=tasaDe(c); return {c,fecha:c.fecha,bs,tasa:t,usd:t>0?bs/t:0}; });
+  const banco=db.list("cashea_banco").filter(m=>en(m.fecha)).map(m=>{ const bs=Number(m.monto)||0, tt=ccTasaFecha(m.fecha,mp); return {m,fecha:m.fecha,bs,tasa:tt.t,origen:tt.origen,usd:tt.t>0?bs/tt.t:0}; });
+  const sum=(a,k)=>a.reduce((s,x)=>s+x[k],0);
+  const T={cajaBs:sum(caja,"bs"),cajaUsd:sum(caja,"usd"),bancoBs:sum(banco,"bs"),bancoUsd:sum(banco,"usd")}; T.difBs=T.bancoBs-T.cajaBs; T.difUsd=T.bancoUsd-T.cajaUsd;
+  const dias={}; const g=f=>dias[f]=dias[f]||{fecha:f,cajaBs:0,cajaUsd:0,bancoBs:0,bancoUsd:0,nCaja:0,nBanco:0};
+  caja.forEach(x=>{ const r=g(x.fecha); r.cajaBs+=x.bs; r.cajaUsd+=x.usd; r.nCaja++; }); banco.forEach(x=>{ const r=g(x.fecha); r.bancoBs+=x.bs; r.bancoUsd+=x.usd; r.nBanco++; });
+  return {d,h,caja,banco,T,dias:Object.values(dias).sort((a,b)=>a.fecha.localeCompare(b.fecha))}; }
+function renderConciliacion(){ const c=document.getElementById("ccBody"); if(!c) return; if(!puede("conciliacion")){ c.innerHTML=empty("Sin acceso."); return; }
+  if(!_ccMes) _ccMes=hoy().slice(0,7); const D=ccDatos(), T=D.T; const ok=Math.abs(T.difBs)<1;
+  const mesOpts=MES_NOMBRES.map((n,i)=>`<option value="${String(i+1).padStart(2,"0")}" ${_ccMes.slice(5,7)===String(i+1).padStart(2,"0")?"selected":""}>${n}</option>`).join("");
+  const y0=Number(hoy().slice(0,4)); const anoOpts=[y0-2,y0-1,y0,y0+1].map(y=>`<option ${String(y)===_ccMes.slice(0,4)?"selected":""}>${y}</option>`).join("");
+  const tab=(k,l)=>`<button onclick="_ccTab='${k}';renderConciliacion()" class="flex-1 text-xs font-semibold py-2 rounded-lg ${_ccTab===k?"bg-teal-700 text-white":"bg-slate-200 text-slate-600"}">${l}</button>`;
+  const tarjeta=(t,bs,usd,cls,sub)=>`<div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[11px] text-slate-500">${t}</p><p class="text-lg font-bold ${cls||"text-slate-800"}">${fmtBs(bs)}</p><p class="text-xs font-semibold text-slate-500">${fmtUsd(usd)}</p>${sub?`<p class="text-[10px] text-slate-400 mt-0.5">${sub}</p>`:""}</div>`;
+  let cuerpo="";
+  if(_ccTab==="cuadre"){ cuerpo=D.dias.length?`<div class="bg-white rounded-2xl shadow-sm overflow-x-auto"><table class="w-full text-xs"><thead class="bg-slate-100 text-slate-600"><tr><th class="text-left p-2">Fecha</th><th class="text-right p-2">Caja (Bs)</th><th class="text-right p-2">Banco (Bs)</th><th class="text-right p-2">Diferencia</th><th class="text-right p-2">Dif. $</th></tr></thead><tbody>${D.dias.map(r=>{ const db_=r.bancoBs-r.cajaBs, du=r.bancoUsd-r.cajaUsd, cu=Math.abs(db_)<1;
+      return `<tr class="border-t border-slate-100"><td class="p-2 whitespace-nowrap">${esc(fmtFecha(r.fecha))}</td><td class="p-2 text-right">${fmt2(r.cajaBs)}<span class="text-slate-400"> (${r.nCaja})</span></td><td class="p-2 text-right">${fmt2(r.bancoBs)}<span class="text-slate-400"> (${r.nBanco})</span></td><td class="p-2 text-right font-bold ${cu?"text-emerald-600":"text-rose-600"}">${cu?"✔":fmt2(db_)}</td><td class="p-2 text-right ${cu?"text-slate-400":"text-rose-600"}">${cu?"—":fmtUsd(du)}</td></tr>`; }).join("")}</tbody></table></div>
+      <p class="text-[10px] text-slate-400 mt-2">Entre paréntesis: n° de cierres / n° de movimientos. Si Cashea deposita al día siguiente, el descuadre de un día se compensa con el siguiente; lo que debe cuadrar es el total del periodo.</p>`:empty("No hay cierres con Cashea ni movimientos de banco en este periodo.");
+  } else if(_ccTab==="banco"){ cuerpo=D.banco.length?D.banco.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(x=>`<div class="bg-white rounded-xl p-3 shadow-sm flex items-center justify-between gap-2"><div class="min-w-0"><p class="text-sm font-semibold">${fmtBs(x.bs)} <span class="text-xs font-normal text-slate-500">· ${fmtUsd(x.usd)}</span></p>
+      <p class="text-[11px] text-slate-500 truncate">${esc(fmtFecha(x.fecha))}${x.m.referencia?" · Ref. "+esc(x.m.referencia):""}${x.m.descripcion?" · "+esc(x.m.descripcion):""}</p><p class="text-[10px] text-slate-400">Tasa ${fmt2(x.tasa)} (${esc(x.origen)})${x.m.origen==="excel"?" · desde Excel":""}${x.m.cargado_por?" · "+esc(x.m.cargado_por):""}</p></div>
+      <span class="flex gap-1 shrink-0"><button onclick="openMovCashea('${x.m.id}')" class="text-teal-700 font-bold px-1">✎</button><button onclick="delMovCashea('${x.m.id}')" class="text-red-500 font-bold px-1">✕</button></span></div>`).join(""):empty("Sin movimientos de banco en este periodo. Agrégalos con «+ Movimiento» o «Cargar Excel del banco».");
+  } else { cuerpo=D.caja.length?D.caja.sort((a,b)=>b.fecha.localeCompare(a.fecha)||String(a.c.numero_caja||"").localeCompare(String(b.c.numero_caja||""))).map(x=>`<div class="bg-white rounded-xl px-3 py-2 shadow-sm flex items-center justify-between gap-2 text-sm"><div class="min-w-0"><p class="font-medium truncate">${esc(fmtFecha(x.fecha))} · Caja ${esc(x.c.numero_caja||"?")}</p><p class="text-[11px] text-slate-500 truncate">${esc(x.c.cajero||"")}${x.c.nombre_supervisor?" · Sup. "+esc(x.c.nombre_supervisor):""} · tasa ${fmt2(x.tasa)}</p></div><div class="text-right shrink-0"><p class="font-semibold">${fmtBs(x.bs)}</p><p class="text-[11px] text-slate-500">${fmtUsd(x.usd)}</p></div></div>`).join(""):empty("No hay cierres de caja con Cashea en este periodo.");
+  }
+  c.innerHTML=`<div class="bg-white rounded-2xl p-2 shadow-sm mb-2 space-y-2">
+      <div class="flex gap-2">${["mes","rango"].map(k=>`<button onclick="_ccModo='${k}';renderConciliacion()" class="flex-1 text-xs font-semibold py-2 rounded-lg ${_ccModo===k?"bg-slate-800 text-white":"bg-slate-100 text-slate-600"}">${k==="mes"?"📅 Mensual":"🗓 Rango de fechas"}</button>`).join("")}</div>
+      ${_ccModo==="mes"?`<div class="grid grid-cols-2 gap-2"><select onchange="_ccMes=_ccMes.slice(0,4)+'-'+this.value;renderConciliacion()" class="px-2 py-2 rounded-lg border border-slate-200 text-sm bg-white">${mesOpts}</select><select onchange="_ccMes=this.value+'-'+_ccMes.slice(5,7);renderConciliacion()" class="px-2 py-2 rounded-lg border border-slate-200 text-sm bg-white">${anoOpts}</select></div>`
+        :`<div class="grid grid-cols-2 gap-2"><label class="text-[10px] text-slate-500">Desde<input type="date" value="${esc(D.d)}" onchange="_ccDesde=this.value;renderConciliacion()" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></label><label class="text-[10px] text-slate-500">Hasta<input type="date" value="${esc(D.h)}" onchange="_ccHasta=this.value;renderConciliacion()" class="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm"></label></div>`}
+      <p class="text-[10px] text-slate-400 text-center">Periodo: ${esc(fmtFecha(D.d))} al ${esc(fmtFecha(D.h))}</p></div>
+    <div class="grid grid-cols-2 gap-2 mb-2">${tarjeta("💵 Cashea reportado en caja",T.cajaBs,T.cajaUsd,"",D.caja.length+" cierre(s)")}${tarjeta("🏦 Diario de banco Cashea",T.bancoBs,T.bancoUsd,"",D.banco.length+" movimiento(s)")}</div>
+    <div class="${ok?"bg-emerald-50 text-emerald-800":"bg-rose-50 text-rose-800"} rounded-2xl p-3 mb-2 flex items-center justify-between gap-2"><div><p class="text-xs font-semibold">${ok?"✔ Conciliado: caja y banco cuadran":(T.difBs<0?"⚠ Falta en banco":"⚠ Sobra en banco")}</p><p class="text-[10px] opacity-80">Banco − Caja</p></div><div class="text-right"><p class="text-lg font-bold">${fmtBs(T.difBs)}</p><p class="text-xs font-semibold">${fmtUsd(T.difUsd)}</p></div></div>
+    <div class="flex flex-wrap gap-2 mb-2"><button onclick="openMovCashea()" class="text-xs bg-teal-700 text-white font-semibold px-3 py-2 rounded-xl">+ Movimiento</button>
+      <label class="text-xs bg-indigo-600 text-white font-semibold px-3 py-2 rounded-xl cursor-pointer">⬆ Cargar Excel del banco<input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarBancoCashea(event)"></label>
+      <button onclick="bajarPlantilla('plantilla_diario_banco_cashea.xlsx',['Fecha','Referencia','Descripcion','Monto'],['2026-10-01','00123456','ABONO CASHEA',1500.5])" class="text-xs bg-slate-200 font-semibold px-3 py-2 rounded-xl">⬇ Plantilla</button>
+      <button onclick="exportarConciliacionCashea()" class="text-xs bg-slate-200 font-semibold px-3 py-2 rounded-xl">⬇ Exportar Excel</button></div>
+    <div class="flex gap-2 mb-2">${tab("cuadre","⚖ Cuadre por día")}${tab("banco","🏦 Diario de banco ("+D.banco.length+")")}${tab("caja","💵 Caja ("+D.caja.length+")")}</div>
+    <div class="space-y-2">${cuerpo}</div>`; }
+function openMovCashea(id){ if(!puede("conciliacion")){ toast("Sin acceso"); return; } const m=id?db.list("cashea_banco").find(x=>x.id===id):{fecha:hoy()}; if(!m) return;
+  openModal2(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} movimiento · Diario de banco Cashea</h3><div class="space-y-3">
+    <div class="grid grid-cols-2 gap-3"><div><label class="text-xs text-slate-500">Fecha</label><input id="cb_fecha" type="date" value="${esc(m.fecha||"")}" oninput="ccPintarTasaMov()" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div><div><label class="text-xs text-slate-500">Monto (Bs)</label><input id="cb_monto" type="number" step="any" value="${esc(m.monto??"")}" oninput="ccPintarTasaMov()" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold"></div></div>
+    <div><label class="text-xs text-slate-500">Referencia</label><input id="cb_ref" value="${esc(m.referencia||"")}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
+    <div><label class="text-xs text-slate-500">Descripción</label><input id="cb_desc" value="${esc(m.descripcion||"Abono Cashea")}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
+    <p id="cb_tasa" class="text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2"></p></div>
+    <div class="flex gap-2 mt-4"><button onclick="saveMovCashea('${id||""}')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar</button><button onclick="closeModal2()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+  ccPintarTasaMov(); }
+function ccPintarTasaMov(){ const el=document.getElementById("cb_tasa"); if(!el) return; const f=document.getElementById("cb_fecha").value, bs=Number(document.getElementById("cb_monto").value)||0;
+  if(!f){ el.textContent="Elige la fecha para calcular con la tasa del día."; return; } const tt=ccTasaFecha(f); el.innerHTML=`Tasa del día: <b>${fmt2(tt.t)}</b> (${esc(tt.origen)}) → <b>${fmtUsd(tt.t>0?bs/tt.t:0)}</b>`; }
+async function saveMovCashea(id){ if(!puede("conciliacion")){ toast("Sin acceso"); return; } const fecha=document.getElementById("cb_fecha").value, monto=Number(document.getElementById("cb_monto").value)||0;
+  if(!fecha||!monto){ toast("Pon la fecha y el monto"); return; }
+  const r={fecha,monto,referencia:(document.getElementById("cb_ref").value||"").trim(),descripcion:(document.getElementById("cb_desc").value||"").trim()};
+  try{ if(id) await db.update("cashea_banco",id,r); else await db.insert("cashea_banco",{...r,origen:"manual",cargado_por:currentUser?.nombre||""}); closeModal2(); renderConciliacion(); toast("Movimiento guardado"); }
+  catch(e){ if(errorTablaCashea(e)) return; toast("Error: "+e.message); } }
+async function delMovCashea(id){ if(!puede("conciliacion")){ toast("Sin acceso"); return; } if(!confirm("¿Eliminar este movimiento del diario de banco?")) return;
+  try{ await db.remove("cashea_banco",id); renderConciliacion(); toast("Movimiento eliminado"); }catch(e){ toast("Error: "+e.message); } }
+/* Excel del estado de cuenta: detecta Fecha, Referencia, Descripción y el monto (Crédito/Abono/Haber/Monto). Muestra vista previa antes de guardar. */
+function importarBancoCashea(ev){ const f=ev.target.files[0]; ev.target.value=""; if(!f) return; if(!puede("conciliacion")){ toast("Sin acceso"); return; }
+  if(!window.XLSX){ toast("No se pudo leer el Excel (sin conexión a internet)"); return; }
+  leerExcel(f, rows=>{ const exist=new Set(db.list("cashea_banco").map(m=>m.fecha+"|"+Number(m.monto).toFixed(2)+"|"+String(m.referencia||"").trim()));
+    let filas=(rows||[]).map(raw=>{ const fecha=normFecha(pick(raw,["fecha","fecha valor","fecha operacion","fecha operación","fecha transaccion","fecha transacción","date"]));
+      const cred=numBanco(pick(raw,["credito","crédito","creditos","créditos","abono","abonos","haber","ingreso","ingresos"])); const deb=numBanco(pick(raw,["debito","débito","debitos","débitos","cargo","cargos","debe","egreso"]));
+      let monto=cred||numBanco(pick(raw,["monto","importe","monto bs","monto (bs)","total"])); if(!cred && deb) monto=0;
+      const referencia=String(pick(raw,["referencia","ref","ref.","nro referencia","n° referencia","numero","número","documento","nro"])).trim().replace(/\.0$/,"");
+      const descripcion=String(pick(raw,["descripcion","descripción","concepto","detalle","transaccion","transacción","movimiento"])).trim();
+      return {fecha,monto,referencia,descripcion}; }).filter(r=>r.fecha && r.monto>0);
+    if(!filas.length){ toast("No se encontraron abonos. Revisa que el Excel tenga columnas Fecha y Monto (o Crédito)."); return; }
+    const hayCashea=filas.some(r=>/cashea/i.test(r.descripcion));
+    filas.forEach(r=>{ r.dup=exist.has(r.fecha+"|"+r.monto.toFixed(2)+"|"+r.referencia); r.ok=!r.dup && (!hayCashea || /cashea/i.test(r.descripcion)); });
+    _ccImp=filas; renderImpCashea(hayCashea); }); }
+function numBanco(v){ if(typeof v==="number") return v; let s=String(v||"").trim(); if(!s) return 0; s=s.replace(/[^\d.,\-]/g,"");
+  if(s.includes(",")&&s.includes(".")){ if(s.lastIndexOf(",")>s.lastIndexOf(".")) s=s.replace(/\./g,"").replace(",","."); else s=s.replace(/,/g,""); } else if(s.includes(",")) s=s.replace(",","."); return Number(s)||0; }
+function renderImpCashea(hayCashea){ const sel=_ccImp.filter(r=>r.ok); const tot=sel.reduce((s,r)=>s+r.monto,0);
+  openModal2(`<h3 class="font-bold text-lg mb-1">Cargar movimientos al diario de banco Cashea</h3><p class="text-xs text-slate-500 mb-2">${_ccImp.length} abono(s) en el archivo.${hayCashea?" Se marcaron solo los que dicen «Cashea» en la descripción.":""} Los repetidos (misma fecha, monto y referencia) no se marcan.</p>
+    <div class="flex gap-3 text-xs mb-2"><button onclick="_ccImp.forEach(r=>r.ok=!r.dup);renderImpCashea(${hayCashea})" class="text-teal-700 font-semibold">Marcar todos</button><button onclick="_ccImp.forEach(r=>r.ok=false);renderImpCashea(${hayCashea})" class="text-slate-500 font-semibold">Ninguno</button></div>
+    <div class="max-h-[50vh] overflow-y-auto space-y-1">${_ccImp.map((r,i)=>`<label class="flex items-center gap-2 bg-slate-50 rounded-lg px-2 py-1.5 text-xs ${r.dup?"opacity-50":""}"><input type="checkbox" ${r.ok?"checked":""} onchange="_ccImp[${i}].ok=this.checked;renderImpCashea(${hayCashea})"><span class="flex-1 min-w-0 truncate">${esc(fmtFecha(r.fecha))} · ${r.referencia?"Ref. "+esc(r.referencia)+" · ":""}${esc(r.descripcion||"")}${r.dup?" <b class='text-amber-600'>(ya cargado)</b>":""}</span><b class="shrink-0">${fmt2(r.monto)} Bs</b></label>`).join("")}</div>
+    <div class="flex gap-2 mt-3"><button onclick="guardarImpCashea()" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl" ${sel.length?"":"disabled"}>Cargar ${sel.length} · ${fmt2(tot)} Bs</button><button onclick="closeModal2()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`); }
+async function guardarImpCashea(){ const sel=_ccImp.filter(r=>r.ok); if(!sel.length) return; showLoader("Cargando movimientos…"); let n=0;
+  try{ for(const r of sel){ await db.insert("cashea_banco",{fecha:r.fecha,monto:r.monto,referencia:r.referencia,descripcion:r.descripcion,origen:"excel",cargado_por:currentUser?.nombre||""}); n++; } }
+  catch(e){ hideLoader(); if(errorTablaCashea(e)) return; toast("Error tras "+n+" movimiento(s): "+e.message); renderConciliacion(); return; }
+  hideLoader(); _ccImp=[]; closeModal2(); _ccTab="banco"; renderConciliacion(); toast(n+" movimiento(s) cargados al diario de banco"); }
+function exportarConciliacionCashea(){ if(!window.XLSX){ toast("Sin conexión para generar el Excel"); return; } const D=ccDatos(), T=D.T; const sub=subtituloPro("Periodo "+fmtFecha(D.d)+" al "+fmtFecha(D.h));
+  const hRes=hojaPro({titulo:"CONCILIACIÓN CASHEA", subtitulo:sub, headers:["Concepto","Bs","$"], rows:[["Cashea reportado en caja",T.cajaBs,T.cajaUsd],["Diario de banco Cashea",T.bancoBs,T.bancoUsd],["Diferencia (Banco − Caja)",T.difBs,T.difUsd]]});
+  const hDia=hojaPro({titulo:"CUADRE POR DÍA", subtitulo:sub, headers:["Fecha","Caja (Bs)","Caja ($)","Banco (Bs)","Banco ($)","Dif. (Bs)","Dif. ($)"], rows:D.dias.map(r=>[r.fecha,r.cajaBs,r.cajaUsd,r.bancoBs,r.bancoUsd,r.bancoBs-r.cajaBs,r.bancoUsd-r.cajaUsd])});
+  const hBan=hojaPro({titulo:"DIARIO DE BANCO CASHEA", subtitulo:sub, headers:["Fecha","Referencia","Descripción","Monto (Bs)","Tasa","Monto ($)","Origen tasa"], rows:D.banco.map(x=>[x.fecha,x.m.referencia||"",x.m.descripcion||"",x.bs,x.tasa,x.usd,x.origen])});
+  const hCaj=hojaPro({titulo:"CASHEA EN CIERRES DE CAJA", subtitulo:sub, headers:["Fecha","Caja","Cajero","Supervisor","Cashea (Bs)","Tasa","Cashea ($)"], rows:D.caja.map(x=>[x.fecha,x.c.numero_caja||"",x.c.cajero||"",x.c.nombre_supervisor||"",x.bs,x.tasa,x.usd])});
+  libroPro([[hRes,"Resumen"],[hDia,"Cuadre por día"],[hBan,"Diario banco"],[hCaj,"Caja"]], "conciliacion_cashea_"+D.d+"_"+D.h+".xlsx"); }
+
 /* ===================== RUBROS DE FACTURAS (v8.6) =====================
    Gerencia (o quien tenga el permiso «rubros») crea los rubros. Cada factura recibida puede llevar uno.
    La lista se guarda en la config compartida (id "rubros_fac"); la factura guarda el id en su campo «rubro». */
@@ -5707,7 +5832,7 @@ const RENDER_VISTA={
   proveedores:renderProveedores, inventario:renderInventario, ordenes:renderOrdenes,
   recepcion:function(){ renderRecepcion(); renderRecepHistory(); }, merma:renderMerma, quiebre:renderQuiebre,
   rotacion:renderRotacion, compras:renderCompras,
-  caja:renderCaja, tesoreria:renderTesoreria, deudas:renderDeudas, facturasrec:renderFacturasRecView, conexiones:renderConexiones,
+  caja:renderCaja, tesoreria:renderTesoreria, conciliacion:renderConciliacion, deudas:renderDeudas, facturasrec:renderFacturasRecView, conexiones:renderConexiones,
   ajustes:renderAjustesView
 };
 function render(){
