@@ -993,7 +993,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="8.6"; // se incrementa con cada mejora
+const APP_VERSION="8.7"; // se incrementa con cada mejora
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1047,7 +1047,7 @@ const db = {
       _dlCache={emp:-1,prov:-1,prod:-1};
     }
     else { const s=lsLoad(); TABLES.forEach(t=> store[t]=s[t]||[]); }
-    cargarConfigCompartida(); marcarSync();
+    cargarConfigCompartida(); marcarSync(); try{ if(currentUser){ const u=(store.usuarios||[]).find(x=>x.id===currentUser.id); if(u) refrescarUsuarioActual(u); } }catch(_){}
   },
   list(t){ const a=store[t]||[]; if(!FIN_ARCH_T.has(t) || !corteDeuda || _verArchivoFin) return a;
     const c=_finActCache[t]; if(c && c.src===a && c.len===a.length && c.ver===_dataVer && c.corte===corteDeuda) return c.out;
@@ -1055,7 +1055,8 @@ const db = {
   async insert(t,row){ _dataVer++; row.id=row.id||uid(); row.creado=row.creado||new Date().toISOString();
     if(USE_CLOUD){ const {data,error}=await sb.from(t).insert(row).select(); if(error) throw error; store[t].push((data&&data[0])||row); }
     else { store[t].push(row); lsSave(); } return row; },
-  async update(t,id,patch){ _dataVer++; if(USE_CLOUD){ const {error}=await sb.from(t).update(patch).eq("id",id); if(error) throw error; }
+  async update(t,id,patch){ _dataVer++; if(USE_CLOUD){ const {data,error}=await sb.from(t).update(patch).eq("id",id).select("id"); if(error) throw error;
+      if(Array.isArray(data) && data.length===0) throw new Error("La base de datos no guardó el cambio (la tabla «"+t+"» no permite modificar ese registro)."); }
     const i=store[t].findIndex(r=>r.id===id); if(i>=0) store[t][i]={...store[t][i],...patch}; _dataVer++; if(!USE_CLOUD) lsSave(); },
   async remove(t,id){ _dataVer++; if(USE_CLOUD){ const {error}=await sb.from(t).delete().eq("id",id); if(error) throw error; }
     store[t]=store[t].filter(r=>r.id!==id); if(!USE_CLOUD) lsSave(); }
@@ -1075,7 +1076,7 @@ function aplicarCambioRealtime(t, payload){
   else if(payload.eventType==="UPDATE"){ if(nuevo){ const i=arr.findIndex(r=>r.id===nuevo.id); if(i>=0) arr[i]=nuevo; else arr.push(nuevo); } }
   else if(payload.eventType==="DELETE"){ if(viejo) store[t]=arr.filter(r=>r.id!==viejo.id); }
   // si el usuario cambió sus propios permisos en otro dispositivo, refrescar acceso
-  if(t==="usuarios" && currentUser && nuevo && nuevo.id===currentUser.id){ currentUser={...currentUser,...nuevo}; aplicarPermisos(); }
+  if(t==="usuarios" && currentUser && nuevo && nuevo.id===currentUser.id){ refrescarUsuarioActual(nuevo); }
   ultimaSyncTs=Date.now(); pintarUltSync();
   // los latidos de sesiones son muy frecuentes: solo re-render si se está viendo Conexiones
   if(t==="sesiones" && currentView!=="conexiones"){ if(currentView==="inicio" && esGerencia() && nuevo && nuevo.geo_estado==="fuera"){ try{ renderInicioHero(); }catch(_){} } return; }
@@ -1227,8 +1228,10 @@ async function saveUsuario(id){
   // no dejar el sistema sin ninguna gerencia
   if(id){ const otros=db.list("usuarios").filter(u=>u.id!==id && u.es_gerencia); if(!es_g && otros.length===0){ toast("Debe quedar al menos un usuario de gerencia"); return; } }
   const row={nombre,clave,area,areas,empleado_id,idioma,es_gerencia:es_g,es_supervisor:es_sup,es_asistente:es_asis,es_rrhh,permisos,activo};
-  try{ if(id){ await db.update("usuarios",id,row); if(currentUser&&currentUser.id===id){ currentUser={...currentUser,...row}; aplicarPermisos(); } } else await db.insert("usuarios",row);
-    closeModal(); render(); toast("Usuario guardado"); }catch(e){ toast("Error: "+e.message); }
+  const btn=document.querySelector('#modalContent button[onclick^="saveUsuario"]'); if(btn){ btn.disabled=true; btn.textContent="Guardando…"; }
+  try{ if(id){ await db.update("usuarios",id,row); if(currentUser&&currentUser.id===id){ refrescarUsuarioActual({...currentUser,...row}); } } else await db.insert("usuarios",row);
+    closeModal(); render(); toast(id&&currentUser&&currentUser.id!==id?"✔ Permisos guardados. Se aplican en su dispositivo en segundos.":"✔ Usuario guardado"); }
+  catch(e){ if(btn){ btn.disabled=false; btn.textContent="Guardar"; } alert("No se pudo guardar el usuario:\n"+(e.message||e)); }
 }
 async function delUsuario(id){ const u=db.list("usuarios").find(x=>x.id===id);
   if(u&&u.es_gerencia && db.list("usuarios").filter(x=>x.es_gerencia).length<=1){ toast("No puedes eliminar el único usuario de gerencia"); return; }
@@ -1571,7 +1574,26 @@ function renderConexiones(){ const el=document.getElementById("conexFecha"); if(
   c.innerHTML=l.map(s=>{ const min=Math.max(0,(new Date(s.fin||s.inicio)-new Date(s.inicio))/60000); const activa=currentSesionId===s.id; const mapa=(esGerencia()&&s.lat!=null&&s.lng!=null)?`<a href="${geoMapaLink(s.lat,s.lng)}" target="_blank" class="text-[10px] text-teal-700 font-semibold ml-1">🗺 mapa</a>`:"";
     return `<div class="bg-white rounded-2xl p-3 shadow-sm flex items-center gap-3 ${s.geo_estado==="fuera"?"border border-rose-200":""}"><div class="flex-1 min-w-0"><p class="font-semibold truncate">${esc(s.usuario_nombre||"—")} ${activa?'<span class="text-[10px] text-emerald-600">● en línea</span>':''}</p><p class="text-xs text-slate-500">${horaDe(s.inicio)} → ${activa?"ahora":horaDe(s.fin)}</p>${s.geo_estado&&s.geo_estado!=="no_config"?`<p class="mt-1">${geoBadge(s)}${mapa}</p>`:""}</div><span class="text-sm font-semibold text-teal-700">${fmtDuracionMin(min)}</span></div>`; }).join("");
 }
-function aplicarPermisos(){
+/* ===================== PERMISOS EN VIVO (v8.7) =====================
+   Cuando gerencia cambia los permisos de un usuario, su dispositivo los aplica solo:
+   · al instante si llega el aviso en vivo (Realtime),
+   · y como respaldo, revisando su propio usuario cada 20 s y al volver a la app.
+   Al cambiar, se redibuja el menú y la pantalla; si perdió acceso a la sección abierta, vuelve al inicio. */
+const _CAMPOS_PERM=["permisos","es_gerencia","es_supervisor","es_asistente","es_rrhh","activo","areas","area","idioma","empleado_id","nombre"];
+function _firmaPerm(u){ return JSON.stringify(_CAMPOS_PERM.map(k=>{ const v=u?u[k]:null; return Array.isArray(v)?v.slice().sort():v; })); }
+function refrescarUsuarioActual(fresh){ if(!currentUser||!fresh||fresh.id!==currentUser.id) return false;
+  const antes=_firmaPerm(currentUser); currentUser={...currentUser,...fresh};
+  { const i=(store.usuarios||[]).findIndex(x=>x.id===fresh.id); if(i>=0) store.usuarios[i]={...store.usuarios[i],...fresh}; }
+  if(_firmaPerm(currentUser)===antes) return false;
+  if(currentUser.activo===false){ toast("Tu usuario fue desactivado"); currentUser=null; localStorage.removeItem("supergestion_user"); mostrarLogin(); return true; }
+  aplicarPermisos(); if(!puede(currentView)) show("inicio"); else { try{ render(); }catch(_){} }
+  toast("🔑 Tus permisos se actualizaron"); return true; }
+let _permPollT=null, _permPollBusy=false;
+async function revisarMisPermisos(){ if(!USE_CLOUD||!currentUser||!sb||_permPollBusy||document.hidden) return; _permPollBusy=true;
+  try{ const {data,error}=await sb.from("usuarios").select("*").eq("id",currentUser.id).limit(1); if(!error&&data&&data[0]) refrescarUsuarioActual(data[0]); }catch(_){} finally{ _permPollBusy=false; } }
+function iniciarVigiaPermisos(){ if(_permPollT) return; _permPollT=setInterval(revisarMisPermisos,20000);
+  document.addEventListener("visibilitychange",()=>{ if(!document.hidden) revisarMisPermisos(); }); window.addEventListener("focus",revisarMisPermisos); }
+function aplicarPermisos(){ try{ iniciarVigiaPermisos(); }catch(_){}
   const any=(arr)=> arr.some(v=>puede(v));
   const showTab=(name,vis)=>{ const b=document.querySelector('.tab[data-tab="'+name+'"]'); if(b) b.style.display=vis?"":"none"; };
   pintarNav(); showTab("ajustes",puede("ajustes")||(currentUser&&currentUser.es_gerencia)); try{ renderSideNav(); }catch(_){}
