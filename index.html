@@ -1077,6 +1077,13 @@
     <div id="ccBody"></div>
   </section>
 
+  <!-- ======== SOLICITUDES A PROVEEDORES ======== -->
+  <section data-view="solicitudes" hidden>
+    <h2 class="text-lg font-bold mb-1">Solicitudes a proveedores</h2>
+    <p class="text-xs text-slate-500 mb-3">Solicita dinero, mercancía, notas de crédito o cotizaciones y descarga el PDF con los datos de la empresa, firmas y la métrica de compra del proveedor.</p>
+    <div id="solBody"></div>
+  </section>
+
   <!-- ======== FACTURAS RECIBIDAS (mosaico propio) ======== -->
   <section data-view="facturasrec" hidden>
     <h2 class="text-lg font-bold mb-1">Facturas recibidas</h2>
@@ -1225,7 +1232,7 @@
 /* =========================================================
    CAPA DE DATOS (local o Supabase compartido)
    ========================================================= */
-const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos","parametros_legales","conceptos_nomina","gastos","liquidaciones","historial_salarios","faltantes_desc","personas_gerencia","impulsaciones","cashea_banco"];
+const TABLES = ["usuarios","config","empleados","bonos","evaluaciones","evalsup","asistencia","tareas","asignaciones","nomina","dias_libres","proveedores","productos","ordenes","recepciones","merma","piso_secciones","piso_incidencias","cajas","cierres_caja","cierres_dia","deudas","pagos_prov","facturas_rec","prestamos","inc_personal","quiebres","sesiones","notificaciones","conceptos_pago","salidas","eval_compras","candidatos","parametros_legales","conceptos_nomina","gastos","liquidaciones","historial_salarios","faltantes_desc","personas_gerencia","impulsaciones","cashea_banco","solicitudes_prov"];
 let AREAS=["Piso de venta","Cajas","Almacén","Charcutería","Panadería","Frutas y verduras","Carnicería","Limpieza","Administración","Seguridad"];
 let BANCOS=["Banesco","Mercantil","Banco Provincial","Banco de Venezuela","BNC","Bicentenario","Banco del Tesoro","100% Banco"];
 let tipoCambio=745; // Bs por 1 USD (editable en Tesorería, compartido vía tabla config)
@@ -1236,7 +1243,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="9.1"; // se incrementa con cada mejora · v9.0: diseño moderno (temas, iconos SVG, icono de app nuevo) · v9.1: tema Cristal (vidrio translúcido estilo iPhone) como predeterminado
+const APP_VERSION="9.2"; // se incrementa con cada mejora · v9.0: diseño moderno (temas, iconos SVG, icono de app nuevo) · v9.1: tema Cristal (vidrio translúcido estilo iPhone) como predeterminado
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1628,6 +1635,7 @@ const MODULES = {
   caja:{parent:"finanzas",title:"Caja",sub:"Caja y Finanzas"},
   tesoreria:{parent:"finanzas",title:"Tesorería",sub:"Caja y Finanzas"},
   conciliacion:{parent:"finanzas",title:"Conciliación Cashea",sub:"Caja y Finanzas"},
+  solicitudes:{parent:"finanzas",title:"Solicitudes a proveedores",sub:"Caja y Finanzas"},
   deudas:{parent:"finanzas",title:"Finanzas",sub:"Caja y Finanzas"},
   facturasrec:{parent:"finanzas",title:"Facturas recibidas",sub:"Caja y Finanzas"},
   conexiones:{parent:"finanzas",title:"Conexiones",sub:"Caja y Finanzas"},
@@ -1635,7 +1643,7 @@ const MODULES = {
 const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["nominave","⚖️","Nómina VE"],["liqnom","📋","Nómina liquidación"],["nomger","🏛️","Nómina gerencia"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"],["candidatos","📨","Candidatos"]];
 const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"],["quiebre","🚨","Quiebre"],["rotacion","🔥","Rotación/ABC"],["compras","🛒","Compras"]];
 const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"],["incpersonal","⏰","Asistencia personal"],["impulsaciones","🎪","Impulsaciones"]];
-const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["conciliacion","🟣","Conciliación Cashea"],["facturasrec","📥","Facturas recibidas"],["gastos","🧾","Gastos"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
+const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["conciliacion","🟣","Conciliación Cashea"],["facturasrec","📥","Facturas recibidas"],["solicitudes","📝","Solicitudes a proveedores"],["gastos","🧾","Gastos"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
 /* ---- Idioma (chino tradicional) — solo textos del menú/etiquetas, NO los datos ---- */
 const DICT_ZH={
   "Inicio":"首頁","RRHH":"人事","Superv.":"主管","Productos":"商品","Caja":"收銀","Ajustes":"設定",
@@ -1660,7 +1668,7 @@ const NAV_TARGETS=[["inicio","🏠 Inicio (lanzador)"],["rrhh","👥 RRHH (lanza
   ["empleados","Personal"],["nomina","Nómina"],["nominave","Nómina VE"],["asistencia","Asistencia"],["candidatos","Candidatos"],["bonos","Salarios y bonos"],["eval","Evaluación"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],
   ["inventario","Inventario"],["ordenes","Órdenes"],["recepcion","Recepción"],["proveedores","Proveedores"],["rotacion","Rotación/ABC"],["compras","Compras"],["quiebre","Quiebre"],["merma","Merma"],
-  ["caja","Caja"],["tesoreria","Tesorería"],["conciliacion","Conciliación Cashea"],["facturasrec","Facturas recibidas"],["deudas","Finanzas"],["conexiones","Conexiones"]];
+  ["caja","Caja"],["tesoreria","Tesorería"],["conciliacion","Conciliación Cashea"],["facturasrec","Facturas recibidas"],["solicitudes","Solicitudes a proveedores"],["deudas","Finanzas"],["conexiones","Conexiones"]];
 function navPuedeTarget(t){ if(t==="inicio") return true; const g={rrhh:RRHH_VIEWS, productos:PROD_VIEWS, supervisores:SUP_VIEWS, finanzas:FIN_VIEWS}[t]; if(g) return g.some(v=>puede(v)); return puede(t); }
 function pintarNav(){ const btns=document.querySelectorAll('.tab[data-slot]');
   btns.forEach(b=>{ const i=Number(b.dataset.slot); const cfg=navTabsCfg[i]||NAV_DEFAULT[i]; if(!cfg){ b.style.display="none"; return; }
@@ -1695,14 +1703,14 @@ let currentView="inicio";
 const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia","candidatos","nominave","liqnom","nomger"];
 const PROD_VIEWS=["proveedores","inventario","ordenes","recepcion","merma","quiebre","rotacion","compras"];
 const SUP_VIEWS=["piso","tareas","asignaciones","diaslibres","incpersonal","impulsaciones"];
-const FIN_VIEWS=["caja","tesoreria","conciliacion","facturasrec","deudas","conexiones"];
+const FIN_VIEWS=["caja","tesoreria","conciliacion","facturasrec","solicitudes","deudas","conexiones"];
 // Todas las opciones que gerencia puede otorgar/quitar por usuario (tesoreria es solo gerencia, por eso no está aquí)
 const OPCIONES=[
   ["metricas_rrhh","📊 Ver métricas de Personal y RRHH (inicio)"],["metricas_sup","📊 Ver métricas de Supervisores (inicio)"],["metricas_prod","📊 Ver métricas de Productos y Compras (inicio)"],["metricas_fin","📊 Ver métricas de Caja y Finanzas (inicio)"],
   ["empleados","Personal"],["empleados_editar","Modificar personal (editar datos de empleados)"],["nomina","Nómina"],["nominave","Nómina y beneficios (Venezuela)"],["bonos","Salarios y bonos"],["eval","Evaluación de personal"],["evalsup","Evaluación de supervisores"],["asistencia","Asistencia"],["candidatos","Candidatos / Bolsa de empleo"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],["diaslibres","Días libres"],["incpersonal","Incidencias de personal (asistencia)"],["impulsaciones","Impulsaciones de proveedores (ver solicitudes)"],["impulsaciones_aprobar","Aprobar o rechazar impulsaciones (supervisor encargado)"],
   ["proveedores","Proveedores"],["proveedores_editar","Modificar proveedores (crear, editar y eliminar)"],["inventario","Inventario"],["inventario_editar","Modificar inventario (crear/editar/eliminar productos y stock)"],["precios_ver","💲 Ver precio costo y precio de venta de los productos"],["precios_editar","💲 Modificar precio costo y precio de venta (incluye verlos)"],["ordenes","Órdenes de compra"],["recepcion","Recepción"],["merma","Merma"],["quiebre","Quiebre de inventario"],["rotacion","Rotación y clasificación ABC"],["compras","Compras (evaluación e indicadores del encargado)"],
-  ["caja","Caja (cierres y arqueos)"],["caja_editar","Modificar cajas con día cerrado (autorizado por gerencia)"],["tesoreria","Tesorería (totales y tasa)"],["conciliacion","Conciliación Cashea (ver y cargar el diario de banco Cashea)"],["deudas","Finanzas (deudas, pagos y facturas recibidas)"],["pagos_editar","Modificar pagos y abonos de facturas / notas de entrega (editar, corregir y eliminar)"],["rubros","Crear y editar rubros de facturas"],["conexiones","Conexiones (quién se conecta)"]
+  ["caja","Caja (cierres y arqueos)"],["caja_editar","Modificar cajas con día cerrado (autorizado por gerencia)"],["tesoreria","Tesorería (totales y tasa)"],["conciliacion","Conciliación Cashea (ver y cargar el diario de banco Cashea)"],["deudas","Finanzas (deudas, pagos y facturas recibidas)"],["pagos_editar","Modificar pagos y abonos de facturas / notas de entrega (editar, corregir y eliminar)"],["rubros","Crear y editar rubros de facturas"],["solicitudes","Solicitudes a proveedores (crear y descargar PDF, métrica de compra)"],["conexiones","Conexiones (quién se conecta)"]
 ];
 const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma","quiebre"];
 const OP_PERM=["tareas","asignaciones","asistencia","piso","quiebre"];
@@ -5132,6 +5140,196 @@ function pagosProvUsdTot(fn){ return db.list("pagos_prov").filter(p=>!pagoLigado
 function deudaPendienteUsd(){ return deudaBaseUsd()+facturasRecUsdTot()-pagosProvUsdTot(); }
 function deudaProveedorUsd(nombre,rif){ const f=(x)=>coincideProv(x,nombre,rif); return deudaBaseUsd(f)+facturasRecUsdTot(f)-pagosProvUsdTot(f); }
 /* ---- Dashboard de Finanzas ---- */
+/* ======== v9.2 · SOLICITUDES A PROVEEDORES (PDF) + métrica de compra por proveedor ======== */
+const SQL_SOLICITUDES=`create table if not exists solicitudes_prov (
+  id text primary key,
+  creado timestamptz default now(),
+  actualizado timestamptz default now(),
+  numero text, fecha text, tipo text, estado text, prioridad text,
+  proveedor_id text, proveedor text, rif text,
+  moneda text, monto numeric default 0, tasa numeric default 0,
+  fecha_requerida text, forma_pago text, concepto text, notas text,
+  items jsonb default '[]'::jsonb, metrica jsonb,
+  solicitante text, cargo text, autorizado text, periodo_dias numeric default 90
+);
+alter table solicitudes_prov enable row level security;
+create policy "app_todo" on solicitudes_prov for all using (true) with check (true);
+alter publication supabase_realtime add table solicitudes_prov;`;
+function errorTablaSol(e){ const m=(e&&e.message)||""; if(!/solicitudes_prov|relation|does not exist|schema cache/i.test(m)) return false;
+  openModal2(`<h3 class="font-bold text-lg mb-1">Falta crear la tabla de solicitudes en la base de datos</h3>
+    <p class="text-sm text-slate-600 mb-2">Se hace una sola vez: entra a <b>supabase.com</b> → tu proyecto → <b>SQL Editor</b>, pega esto y pulsa <b>Run</b>. Luego recarga la app.</p>
+    <pre class="bg-slate-900 text-emerald-300 text-[11px] rounded-xl p-3 whitespace-pre-wrap select-all">${esc(SQL_SOLICITUDES)}</pre>
+    <div class="flex gap-2 mt-3"><button onclick="navigator.clipboard&&navigator.clipboard.writeText(SQL_SOLICITUDES);toast('Copiado')" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Copiar</button><button onclick="closeModal2()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button></div>`);
+  return true; }
+let _solTab="lista", _solDias=90, _solFProv="", _solFTipo="", _solFEstado="", _solItems=[];
+const SOL_TIPOS=[["dinero","💵","Solicitud de dinero / pago"],["mercancia","📦","Solicitud de mercancía / pedido"],["credito","↩️","Nota de crédito / devolución"],["cotizacion","💲","Cotización / lista de precios"],["otro","📝","Otra solicitud"]];
+const SOL_ESTADOS=["Emitida","Enviada","Atendida","Anulada"];
+const SOL_PERIODOS=[[30,"Últimos 30 días"],[90,"Últimos 90 días"],[180,"Últimos 6 meses"],[365,"Últimos 12 meses"],[0,"Todo el historial"]];
+function solTipoNombre(k){ const t=SOL_TIPOS.find(x=>x[0]===k); return t?t[2]:"Solicitud"; }
+function solTipoIco(k){ const t=SOL_TIPOS.find(x=>x[0]===k); return t?t[1]:"📝"; }
+function solDesdeFecha(d){ return d>0?fechaLocal(new Date(Date.now()-d*864e5)):""; }
+function solUsd(monto,moneda,tasa){ monto=Number(monto)||0; if(esUSDmon(moneda)) return monto; const t=Number(tasa)||tipoCambio; return t>0?monto/t:0; }
+function solConv(monto,monOrig,monDest){ monto=Number(monto)||0; const a=esUSDmon(monOrig), b=esUSDmon(monDest); if(a===b) return monto; return a?monto*(tipoCambio||0):(tipoCambio>0?monto/tipoCambio:0); }
+function solResolver(){ const ps=db.list("proveedores"); const byId=new Map(ps.map(p=>[p.id,p])), byRif=new Map(), byName=new Map();
+  ps.forEach(p=>{ const r=(p.rif||"").trim().toLowerCase(); if(r&&!byRif.has(r)) byRif.set(r,p); const n=(p.nombre||"").trim().toLowerCase(); if(n&&!byName.has(n)) byName.set(n,p); });
+  return x=>{ let p=x.proveedor_id?byId.get(x.proveedor_id):null; if(!p){ const r=(x.rif||"").trim().toLowerCase(); if(r) p=byRif.get(r); } if(!p){ const n=(x.proveedor||"").trim().toLowerCase(); if(n) p=byName.get(n); } return p||null; }; }
+function solKeyDe(res,x){ const p=res(x); if(p) return "p:"+p.id; const r=(x.rif||"").trim().toLowerCase(); return r?"r:"+r:"n:"+(x.proveedor||"").trim().toLowerCase(); }
+/* Métrica de compra por proveedor, con los datos de Finanzas (en $). Compras y pagos = historial completo; saldo = deuda vigente. */
+function solMetricas(dias){ const res=solResolver(), desde=solDesdeFecha(dias), M=new Map();
+  const get=(x)=>{ const k=solKeyDe(res,x); let m=M.get(k); if(!m){ const p=res(x); m={key:k,provId:p?p.id:"",nombre:p?p.nombre:(x.proveedor||"(sin nombre)"),rif:p?(p.rif||""):(x.rif||""),compras:0,nFact:0,pagado:0,fechas:[],ultFecha:"",ultUsd:0,saldo:0}; M.set(k,m); } return m; };
+  (store.facturas_rec||[]).forEach(f=>{ if(!f.fecha||(desde&&f.fecha<desde)) return; const m=get(f), u=solUsd(f.monto,f.moneda); m.compras+=u; m.nFact++; m.fechas.push(f.fecha); if(f.fecha>=m.ultFecha){ m.ultFecha=f.fecha; m.ultUsd=u; } });
+  (store.pagos_prov||[]).forEach(p=>{ const fe=p.fecha_pago||String(p.creado||"").slice(0,10); if(desde&&fe<desde) return; get(p).pagado+=pagoUsd(p); });
+  db.list("facturas_rec").forEach(f=>{ get(f).saldo+=frUsd(f); });
+  db.list("deudas").forEach(d=>{ if(d.tipo==="Nota de crédito"||d.status==="Pagado total") return; get(d).saldo+=(Number(d.monto)||0)-(Number(d.abonado)||0); });
+  db.list("pagos_prov").forEach(p=>{ if(pagoLigadoFacturas(p)) return; get(p).saldo-=pagoUsd(p); });
+  const list=[...M.values()].filter(m=>m.compras>0||m.pagado>0||Math.abs(m.saldo)>0.005).sort((a,b)=>b.compras-a.compras);
+  const tot={compras:0,pagado:0,saldo:0,n:0}; list.forEach(m=>{ tot.compras+=m.compras; tot.pagado+=m.pagado; tot.saldo+=m.saldo; tot.n+=m.nFact; });
+  let cum=0; list.forEach(m=>{ m.prom=m.nFact?m.compras/m.nFact:0; m.part=tot.compras>0?m.compras/tot.compras*100:0;
+    const prev=tot.compras>0?cum/tot.compras:1; m.clase=m.compras>0?(prev<0.8?"A":prev<0.95?"B":"C"):"-"; cum+=m.compras;
+    const fs=[...new Set(m.fechas)].sort(); m.freq=fs.length>1?Math.round((new Date(fs[fs.length-1]+"T00:00:00")-new Date(fs[0]+"T00:00:00"))/864e5/(fs.length-1)):0; });
+  return {desde,dias,list,tot}; }
+function solMetricaDe(x,dias){ const D=solMetricas(dias), k=solKeyDe(solResolver(),x); return {m:D.list.find(m=>m.key===k)||null,tot:D.tot}; }
+/* ---------- Pantalla ---------- */
+function renderSolicitudes(){ const c=document.getElementById("solBody"); if(!c) return; if(!puede("solicitudes")){ c.innerHTML=empty("Sin acceso."); return; }
+  const tab=(k,l)=>`<button onclick="_solTab='${k}';renderSolicitudes()" class="flex-1 text-xs font-semibold py-2 rounded-lg ${_solTab===k?"bg-teal-700 text-white":"bg-slate-200 text-slate-600"}">${l}</button>`;
+  const perSel=`<select onchange="_solDias=Number(this.value);renderSolicitudes()" class="px-2 py-2 rounded-lg border border-slate-200 text-sm bg-white">${SOL_PERIODOS.map(p=>`<option value="${p[0]}" ${_solDias===p[0]?"selected":""}>${p[1]}</option>`).join("")}</select>`;
+  let cuerpo="";
+  if(_solTab==="lista"){ let l=db.list("solicitudes_prov").slice(); const q=_solFProv.trim().toLowerCase();
+    if(q) l=l.filter(s=>String(s.proveedor||"").toLowerCase().includes(q)||String(s.numero||"").toLowerCase().includes(q)); if(_solFTipo) l=l.filter(s=>s.tipo===_solFTipo); if(_solFEstado) l=l.filter(s=>(s.estado||"Emitida")===_solFEstado);
+    l.sort((a,b)=>String(b.fecha||"").localeCompare(String(a.fecha||""))||String(b.numero||"").localeCompare(String(a.numero||"")));
+    const eCls={Emitida:"bg-sky-100 text-sky-700",Enviada:"bg-indigo-100 text-indigo-700",Atendida:"bg-emerald-100 text-emerald-700",Anulada:"bg-slate-200 text-slate-500"};
+    cuerpo=`<div class="bg-white rounded-2xl p-2 shadow-sm mb-2 grid grid-cols-3 gap-2"><input value="${esc(_solFProv)}" oninput="_solFProv=this.value;solFiltrarLista()" placeholder="🔎 Proveedor o N°" class="col-span-3 px-3 py-2 rounded-lg border border-slate-200 text-sm">
+        <select onchange="_solFTipo=this.value;renderSolicitudes()" class="col-span-2 px-2 py-2 rounded-lg border border-slate-200 text-sm bg-white"><option value="">Todos los tipos</option>${SOL_TIPOS.map(t=>`<option value="${t[0]}" ${_solFTipo===t[0]?"selected":""}>${t[1]} ${t[2]}</option>`).join("")}</select>
+        <select onchange="_solFEstado=this.value;renderSolicitudes()" class="px-2 py-2 rounded-lg border border-slate-200 text-sm bg-white"><option value="">Estado</option>${SOL_ESTADOS.map(e=>`<option ${_solFEstado===e?"selected":""}>${e}</option>`).join("")}</select></div>
+      <div id="solLista" class="space-y-2">${l.length?l.map(s=>{ const est=s.estado||"Emitida"; const montoTxt=Number(s.monto)>0?`<b>${fmt2(s.monto)} ${esUSDmon(s.moneda)?"$":"Bs"}</b>`:"";
+        return `<div class="bg-white rounded-xl p-3 shadow-sm"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><p class="text-sm font-semibold truncate">${solTipoIco(s.tipo)} ${esc(s.proveedor||"—")}</p>
+          <p class="text-[11px] text-slate-500">${esc(s.numero||"")} · ${esc(fmtFecha(s.fecha))} · ${esc(solTipoNombre(s.tipo))}${s.prioridad==="Urgente"?' · <b class="text-rose-600">URGENTE</b>':""}</p>
+          <p class="text-[11px] text-slate-500 truncate">${montoTxt}${montoTxt&&(s.items||[]).length?" · ":""}${(s.items||[]).length?(s.items.length+" ítem(s)"):""}${s.solicitante?" · "+esc(s.solicitante):""}</p></div>
+          <button onclick="solCiclarEstado('${s.id}')" class="text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${eCls[est]||eCls.Emitida}" title="Toca para cambiar el estado">${esc(est)}</button></div>
+          <div class="flex gap-2 mt-2"><button onclick="solDescargar('${s.id}')" class="flex-1 text-xs bg-teal-700 text-white font-semibold py-1.5 rounded-lg">📄 Descargar PDF</button><button onclick="solDuplicar('${s.id}')" class="text-xs bg-slate-200 font-semibold px-3 py-1.5 rounded-lg" title="Crear otra igual">⧉ Duplicar</button>${(esGerencia()||s.solicitante===currentUser?.nombre)?`<button onclick="solEliminar('${s.id}')" class="text-xs text-red-500 font-bold px-2">✕</button>`:""}</div></div>`; }).join(""):empty("Aún no hay solicitudes. Crea la primera con «+ Nueva solicitud».")}</div>`;
+  } else { const D=solMetricas(_solDias), T=D.tot; const clsC={A:"bg-emerald-100 text-emerald-700",B:"bg-amber-100 text-amber-700",C:"bg-slate-200 text-slate-600","-":"bg-slate-100 text-slate-400"};
+    cuerpo=`<div class="grid grid-cols-3 gap-2 mb-2"><div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[10px] text-slate-500">🛒 Comprado</p><p class="text-base font-bold">${fmtUsd(T.compras)}</p><p class="text-[10px] text-slate-400">${T.n} doc.</p></div>
+        <div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[10px] text-slate-500">💸 Pagado</p><p class="text-base font-bold text-emerald-600">${fmtUsd(T.pagado)}</p></div>
+        <div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[10px] text-slate-500">📊 Saldo pendiente</p><p class="text-base font-bold ${T.saldo>0.5?"text-rose-600":"text-slate-800"}">${fmtUsd(T.saldo)}</p></div></div>
+      <div class="flex gap-2 mb-2"><div class="flex-1">${perSel}</div><button onclick="exportarMetricaProv()" class="text-xs bg-slate-200 font-semibold px-3 py-2 rounded-xl">⬇ Excel</button></div>
+      <div class="space-y-2">${D.list.length?D.list.map((m,i)=>`<div class="bg-white rounded-xl p-3 shadow-sm"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><p class="text-sm font-semibold truncate">${i+1}. ${esc(m.nombre)}</p><p class="text-[10px] text-slate-400">${esc(m.rif||"sin RIF")}${m.ultFecha?" · última compra "+esc(fmtFecha(m.ultFecha)):""}</p></div>
+          <span class="text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${clsC[m.clase]}" title="Clasificación ABC por monto comprado">${m.clase==="-"?"s/compras":"Clase "+m.clase}</span></div>
+          <div class="grid grid-cols-4 gap-1 mt-2 text-center"><div><p class="text-[9px] text-slate-400">Compras</p><p class="text-xs font-bold">${fmtUsd(m.compras)}</p></div><div><p class="text-[9px] text-slate-400">% del total</p><p class="text-xs font-bold">${m.part.toFixed(1)}%</p></div><div><p class="text-[9px] text-slate-400">Pagado</p><p class="text-xs font-bold text-emerald-600">${fmtUsd(m.pagado)}</p></div><div><p class="text-[9px] text-slate-400">Saldo</p><p class="text-xs font-bold ${m.saldo>0.5?"text-rose-600":""}">${fmtUsd(m.saldo)}</p></div></div>
+          <div class="flex items-center justify-between mt-2"><p class="text-[10px] text-slate-400">${m.nFact} doc. · promedio ${fmtUsd(m.prom)}${m.freq?" · compra cada ~"+m.freq+" d":""}</p>${m.provId?`<button onclick="openSolicitud('${m.provId}')" class="text-[11px] text-teal-700 font-bold">＋ Solicitud</button>`:""}</div></div>`).join(""):empty("Sin facturas recibidas en este periodo.")}</div>
+      <p class="text-[10px] text-slate-400 mt-2">Cifras en $ (los Bs se convierten a la tasa actual, ${fmt2(tipoCambio)}). Compras y pagos incluyen el historial archivado; el saldo es la deuda vigente. Clase A = proveedores que suman el 80% de lo comprado; B hasta el 95%; C el resto.</p>`; }
+  c.innerHTML=`<div class="flex gap-2 mb-2">${tab("lista","📝 Solicitudes")}${tab("metrica","📊 Compra por proveedor")}</div>
+    <button onclick="openSolicitud()" class="w-full bg-teal-700 text-white font-semibold py-2.5 rounded-xl text-sm mb-2">+ Nueva solicitud</button>${cuerpo}`; }
+function solFiltrarLista(){ const el=document.getElementById("solLista"); if(!el) return; const pos=document.activeElement; renderSolicitudes(); const inp=document.querySelector('#solBody input[placeholder^="🔎"]'); if(inp){ inp.focus(); const n=inp.value.length; try{ inp.setSelectionRange(n,n); }catch(e){} } }
+async function solCiclarEstado(id){ if(!puede("solicitudes")) return; const s=db.list("solicitudes_prov").find(x=>x.id===id); if(!s) return; const e=s.estado||"Emitida"; const nx=SOL_ESTADOS[(SOL_ESTADOS.indexOf(e)+1)%SOL_ESTADOS.length];
+  try{ await db.update("solicitudes_prov",id,{estado:nx}); renderSolicitudes(); toast("Estado: "+nx); }catch(err){ toast("Error: "+err.message); } }
+async function solEliminar(id){ const s=db.list("solicitudes_prov").find(x=>x.id===id); if(!s) return; if(!(esGerencia()||s.solicitante===currentUser?.nombre)){ toast("Solo gerencia o quien la creó"); return; } if(!confirm("¿Eliminar la solicitud "+(s.numero||"")+"? Esto no se puede deshacer.")) return;
+  try{ await db.remove("solicitudes_prov",id); renderSolicitudes(); toast("Solicitud eliminada"); }catch(e){ toast("Error: "+e.message); } }
+function solDescargar(id){ const s=db.list("solicitudes_prov").find(x=>x.id===id); if(s) solPdf(s); }
+function solDuplicar(id){ const s=db.list("solicitudes_prov").find(x=>x.id===id); if(!s) return; openSolicitud(s.proveedor_id||"",s); }
+/* ---------- Formulario ---------- */
+function openSolicitud(provId,base){ if(!puede("solicitudes")){ toast("Sin acceso"); return; } const b=base||{}; const p=provId?provById(provId):null;
+  _solItems=Array.isArray(b.items)?b.items.map(i=>({...i})):[];
+  const inp="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm", lab="text-xs text-slate-500";
+  openModal(`<h3 class="font-bold text-lg mb-3">📝 Nueva solicitud a proveedor</h3><div class="space-y-3">
+    <div class="grid grid-cols-2 gap-2"><div><label class="${lab}">¿Qué solicitas?</label><select id="sl_tipo" onchange="solCambioTipo()" class="${inp} bg-white">${SOL_TIPOS.map(t=>`<option value="${t[0]}" ${(b.tipo||"dinero")===t[0]?"selected":""}>${t[1]} ${t[2]}</option>`).join("")}</select></div>
+      <div><label class="${lab}">Prioridad</label><select id="sl_prio" class="${inp} bg-white"><option ${b.prioridad!=="Urgente"?"selected":""}>Normal</option><option ${b.prioridad==="Urgente"?"selected":""}>Urgente</option></select></div></div>
+    <div><label class="${lab}">Proveedor</label><input id="sl_prov_txt" list="dlProveedores" value="${esc(p?p.nombre:(b.proveedor||""))}" oninput="solResolverProv()" placeholder="🔎 Escribe o elige el proveedor" class="${inp}"><input type="hidden" id="sl_prov_id" value="${esc(p?p.id:(b.proveedor_id||""))}"></div>
+    <div class="grid grid-cols-2 gap-2"><div><label class="${lab}">RIF</label><input id="sl_rif" value="${esc(p?(p.rif||""):(b.rif||""))}" oninput="solPintarMetrica()" class="${inp}"></div><div><label class="${lab}">Fecha requerida (opcional)</label><input id="sl_freq" type="date" value="${esc(b.fecha_requerida||"")}" class="${inp}"></div></div>
+    <div id="sl_dinero" class="space-y-2"><div class="grid grid-cols-3 gap-2"><div><label class="${lab}">Moneda</label><select id="sl_moneda" onchange="solMonedaCambio()" class="${inp} bg-white"><option ${!esUSDmon(b.moneda)?"selected":""}>Bs</option><option ${esUSDmon(b.moneda)?"selected":""}>USD</option></select></div>
+      <div class="col-span-2"><label class="${lab}">Monto solicitado</label><input id="sl_monto" type="number" step="any" value="${esc(b.monto??"")}" oninput="solPintarMetrica()" class="${inp} font-semibold"></div></div>
+      <div><label class="${lab}">Forma de pago / datos de pago (opcional)</label><input id="sl_forma" value="${esc(b.forma_pago||"")}" placeholder="Ej: transferencia Banesco, pago móvil, efectivo" class="${inp}"></div>
+      <div id="sl_facs"></div></div>
+    <div><div class="flex items-center justify-between"><label class="${lab}">Detalle / ítems <span id="sl_items_hint">(opcional)</span></label><button type="button" onclick="solAddItem()" class="text-xs bg-slate-200 font-semibold px-2 py-1 rounded-lg">+ Agregar línea</button></div>
+      <div id="sl_items" class="space-y-1 mt-1"></div><p id="sl_total_items" class="text-xs font-semibold text-slate-600 mt-1 text-right"></p></div>
+    <div><label class="${lab}">Motivo / concepto</label><textarea id="sl_concepto" rows="2" placeholder="Explica para qué se solicita" class="${inp}">${esc(b.concepto||"")}</textarea></div>
+    <div><label class="${lab}">Observaciones (opcional)</label><input id="sl_notas" value="${esc(b.notas||"")}" class="${inp}"></div>
+    <div class="grid grid-cols-2 gap-2"><div><label class="${lab}">Solicitado por</label><input id="sl_solic" value="${esc(b.solicitante||currentUser?.nombre||"")}" class="${inp}"></div><div><label class="${lab}">Cargo</label><input id="sl_cargo" value="${esc(b.cargo||(esGerencia()?"Gerencia":""))}" class="${inp}"></div></div>
+    <div><label class="${lab}">Autorizado por (opcional · si lo dejas vacío sale la línea en blanco)</label><input id="sl_autor" value="${esc(b.autorizado||"")}" class="${inp}"></div>
+    <div><label class="${lab}">Análisis de compras que irá en el PDF</label><select id="sl_per" onchange="solPintarMetrica()" class="${inp} bg-white">${SOL_PERIODOS.map(x=>`<option value="${x[0]}" ${(Number(b.periodo_dias)||90)===x[0]?"selected":""}>${x[1]}</option>`).join("")}</select></div>
+    <div id="sl_metrica" class="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600"></div></div>
+    <div class="flex gap-2 mt-4"><button onclick="guardarSolicitud()" class="flex-1 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Guardar y descargar PDF</button><button onclick="closeModal()" class="px-4 bg-slate-200 font-semibold py-2.5 rounded-xl">Cancelar</button></div>`);
+  solCambioTipo(); solPintarItems(); solPintarFacs(); solPintarMetrica(); }
+function solCambioTipo(){ const t=document.getElementById("sl_tipo")?.value; const d=document.getElementById("sl_dinero"); if(d) d.style.display=(t==="dinero")?"":"none";
+  const h=document.getElementById("sl_items_hint"); if(h) h.textContent=t==="mercancia"?"(productos y cantidades)":t==="cotizacion"?"(productos a cotizar)":t==="credito"?"(productos o documentos)":"(opcional)"; }
+function solProvActual(){ const id=document.getElementById("sl_prov_id")?.value; if(id) return provById(id)||null; const n=(document.getElementById("sl_prov_txt")?.value||"").trim().toLowerCase(); return n?(db.list("proveedores").find(x=>(x.nombre||"").trim().toLowerCase()===n)||null):null; }
+function solResolverProv(){ const t=document.getElementById("sl_prov_txt"), h=document.getElementById("sl_prov_id"); if(!t||!h) return; const nq=(t.value||"").trim().toLowerCase(); const p=nq?db.list("proveedores").find(x=>(x.nombre||"").trim().toLowerCase()===nq):null; h.value=p?p.id:""; const r=document.getElementById("sl_rif"); if(p&&r&&!r.value) r.value=p.rif||"";
+  _solItems=_solItems.filter(i=>!i.fid); solPintarItems(); solPintarFacs(); solPintarMetrica(); }
+function solMonedaCambio(){ const mon=document.getElementById("sl_moneda").value; _solItems.forEach(i=>{ if(i.fid) i.precio=+solConv(i.orig,i.origMon,mon).toFixed(2); }); solPintarItems(); solPintarMetrica(); }
+function solPintarFacs(){ const el=document.getElementById("sl_facs"); if(!el) return; const p=solProvActual(); if(!p){ el.innerHTML=""; return; }
+  const l=db.list("facturas_rec").filter(f=>frPend(f)>0 && coincideProv(f,p.nombre,p.rif)).sort((a,b)=>String(a.fecha||"").localeCompare(String(b.fecha||"")));
+  if(!l.length){ el.innerHTML=`<p class="text-[11px] text-slate-400">Este proveedor no tiene facturas pendientes registradas.</p>`; return; }
+  el.innerHTML=`<p class="text-xs text-slate-500 mb-1">Facturas pendientes de este proveedor (marca las que quieres pagar):</p><div class="space-y-1 max-h-40 overflow-y-auto">${l.map(f=>`<label class="flex items-center gap-2 bg-slate-50 rounded-lg px-2 py-1.5 text-xs"><input type="checkbox" ${_solItems.some(i=>i.fid===f.id)?"checked":""} onchange="solToggleFac('${f.id}',this.checked)"><span class="flex-1 min-w-0 truncate">${esc(f.tipo==="Nota de entrega"?"N.E.":"Fact.")} ${esc(f.numero||"s/n")} · ${esc(fmtFecha(f.fecha))}</span><b>${fmt2(frPend(f))} ${esUSDmon(f.moneda)?"$":"Bs"}</b></label>`).join("")}</div>`; }
+function solToggleFac(fid,on){ const f=db.list("facturas_rec").find(x=>x.id===fid); if(!f) return; if(!on){ _solItems=_solItems.filter(i=>i.fid!==fid); } else if(!_solItems.some(i=>i.fid===fid)){ const mon=document.getElementById("sl_moneda").value; const pend=frPend(f);
+    _solItems.push({fid, desc:(f.tipo==="Nota de entrega"?"Nota de entrega N° ":"Factura N° ")+(f.numero||"s/n")+" ("+fmtFecha(f.fecha)+")", cant:1, unidad:"Doc.", precio:+solConv(pend,f.moneda,mon).toFixed(2), orig:pend, origMon:f.moneda||"Bs"}); }
+  solPintarItems(); }
+function solAddItem(){ _solItems.push({desc:"",cant:1,unidad:"Unidad",precio:""}); solPintarItems(); }
+function solQuitarItem(i){ const it=_solItems[i]; _solItems.splice(i,1); solPintarItems(); if(it&&it.fid) solPintarFacs(); }
+function solPintarItems(){ const b=document.getElementById("sl_items"); if(!b) return; const c="px-2 py-1.5 rounded-lg border border-slate-200 text-xs min-w-0";
+  b.innerHTML=_solItems.map((it,i)=>`<div class="grid grid-cols-12 gap-1 items-center"><input value="${esc(it.desc)}" ${it.fid?"readonly":'list="dlProductos"'} oninput="_solItems[${i}].desc=this.value" placeholder="Descripción / producto" class="col-span-5 ${c}"><input type="number" step="any" value="${esc(it.cant)}" oninput="_solItems[${i}].cant=this.value;solTotal()" placeholder="Cant." class="col-span-2 ${c}"><input value="${esc(it.unidad||"")}" oninput="_solItems[${i}].unidad=this.value" placeholder="Unid." class="col-span-2 ${c}"><input type="number" step="any" value="${esc(it.precio)}" oninput="_solItems[${i}].precio=this.value;solTotal()" placeholder="Precio" class="col-span-2 ${c}"><button type="button" onclick="solQuitarItem(${i})" class="col-span-1 text-red-500 font-bold">✕</button></div>`).join("");
+  solTotal(); }
+function solSumaItems(){ return _solItems.reduce((s,i)=>s+(Number(i.cant)||0)*(Number(i.precio)||0),0); }
+function solTotal(){ const el=document.getElementById("sl_total_items"); const t=solSumaItems(); const mon=document.getElementById("sl_moneda")?.value||"Bs"; if(el) el.textContent=(_solItems.length&&t>0)?"Total de líneas: "+fmt2(t)+" "+(esUSDmon(mon)?"$":"Bs"):"";
+  if(document.getElementById("sl_tipo")?.value==="dinero" && _solItems.length && t>0){ const m=document.getElementById("sl_monto"); if(m) m.value=+t.toFixed(2); } solPintarMetrica(); }
+function solPintarMetrica(){ const el=document.getElementById("sl_metrica"); if(!el) return; const nm=(document.getElementById("sl_prov_txt")?.value||"").trim(); if(!nm){ el.innerHTML="Elige el proveedor para ver su métrica de compras."; return; }
+  const x={proveedor_id:document.getElementById("sl_prov_id").value,rif:document.getElementById("sl_rif").value,proveedor:nm}; const dias=Number(document.getElementById("sl_per").value)||0; const {m}=solMetricaDe(x,dias);
+  if(!m){ el.innerHTML="Sin movimientos de compra registrados para este proveedor en Finanzas."; return; }
+  let extra=""; if(document.getElementById("sl_tipo").value==="dinero"){ const mon=document.getElementById("sl_moneda").value, monto=Number(document.getElementById("sl_monto").value)||0; if(monto>0) extra=` · saldo tras esta solicitud <b>${fmtUsd(m.saldo-solUsd(monto,mon))}</b>`; }
+  el.innerHTML=`📊 <b>${esc(m.nombre)}</b>: compras <b>${fmtUsd(m.compras)}</b> (${m.nFact} doc.) · pagado ${fmtUsd(m.pagado)} · saldo pendiente <b>${fmtUsd(m.saldo)}</b>${extra} · Clase <b>${m.clase}</b> · ${m.part.toFixed(1)}% del total comprado`; }
+async function guardarSolicitud(){ if(!puede("solicitudes")){ toast("Sin acceso"); return; } const g=id=>(document.getElementById(id)?.value||"").trim();
+  const tipo=g("sl_tipo"), provTxt=g("sl_prov_txt"); if(!provTxt){ toast("Elige el proveedor"); return; }
+  const items=_solItems.filter(i=>(i.desc||"").trim()).map(i=>({desc:i.desc.trim(),cant:Number(i.cant)||0,unidad:(i.unidad||"").trim(),precio:Number(i.precio)||0,...(i.fid?{fid:i.fid}:{})}));
+  const moneda=g("sl_moneda")||"Bs"; let monto=0;
+  if(tipo==="dinero"){ monto=Number(g("sl_monto"))||0; if(monto<=0){ toast("Pon el monto que solicitas"); return; } if(!g("sl_concepto") && !items.length){ toast("Explica el motivo o marca las facturas a pagar"); return; } }
+  else { monto=items.reduce((s,i)=>s+i.cant*i.precio,0); if(!items.length && !g("sl_concepto")){ toast("Agrega al menos una línea de detalle o explica el motivo"); return; } }
+  const p=solProvActual(); const dias=Number(g("sl_per"))||0; const x={proveedor_id:p?p.id:"",rif:g("sl_rif")||(p?p.rif:"")||"",proveedor:p?p.nombre:provTxt}; const {m}=solMetricaDe(x,dias);
+  const yr=hoy().slice(0,4); const nmax=db.list("solicitudes_prov").reduce((mx,s)=>{ const mm=String(s.numero||"").match(/^SOL-(\d{4})-(\d+)$/); return mm&&mm[1]===yr?Math.max(mx,Number(mm[2])):mx; },0);
+  const r={numero:"SOL-"+yr+"-"+String(nmax+1).padStart(4,"0"),fecha:hoy(),tipo,estado:"Emitida",prioridad:g("sl_prio")||"Normal",proveedor_id:x.proveedor_id,proveedor:x.proveedor,rif:x.rif,moneda,monto:+monto.toFixed(2),tasa:tipoCambio||0,fecha_requerida:g("sl_freq"),forma_pago:g("sl_forma"),concepto:g("sl_concepto"),notas:g("sl_notas"),items,
+    metrica:m?{compras:+m.compras.toFixed(2),pagado:+m.pagado.toFixed(2),saldo:+m.saldo.toFixed(2),nFact:m.nFact,prom:+m.prom.toFixed(2),ultFecha:m.ultFecha,ultUsd:+m.ultUsd.toFixed(2),part:+m.part.toFixed(2),clase:m.clase,freq:m.freq}:null,
+    solicitante:g("sl_solic")||currentUser?.nombre||"",cargo:g("sl_cargo"),autorizado:g("sl_autor"),periodo_dias:dias};
+  try{ const row=await db.insert("solicitudes_prov",r); closeModal(); _solTab="lista"; renderSolicitudes(); toast("Solicitud "+r.numero+" guardada"); solPdf(row||r); }
+  catch(e){ if(errorTablaSol(e)) return; toast("Error: "+e.message); } }
+/* ---------- PDF ---------- */
+function solPdf(s){ if(!window.jspdf){ toast("Abre la app publicada para generar el PDF"); return; }
+  return withLoader("Generando PDF…",()=>{ const {jsPDF}=window.jspdf; const doc=new jsPDF(); const W=210,H=297,M=14,CW=W-2*M; const E=CONSTANCIA_EMPRESA; const f2=v=>(Number(v)||0).toLocaleString("es-VE",{minimumFractionDigits:2,maximumFractionDigits:2});
+    const prov=(s.proveedor_id&&provById(s.proveedor_id))||db.list("proveedores").find(p=>coincideProv({proveedor:s.proveedor,rif:s.rif},p.nombre,p.rif))||null; const mon=esUSDmon(s.moneda)?"$":"Bs"; const items=Array.isArray(s.items)?s.items:[]; const met=s.metrica||null;
+    const cab=()=>{ doc.setFillColor(15,118,110); doc.rect(0,0,W,32,"F"); let x0=M; if(ajustes.logo&&/^data:image\//.test(ajustes.logo)){ try{ doc.setFillColor(255,255,255); doc.roundedRect(M,5,22,22,3,3,"F"); doc.addImage(ajustes.logo,ajustes.logo.includes("image/png")?"PNG":"JPEG",M+1.5,6.5,19,19); x0=M+27; }catch(e){ x0=M; } }
+      doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.text(E.razon.toUpperCase(),x0,12); doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.text("RIF: "+E.rif,x0,18); doc.setFontSize(7); doc.setFontSize(6.5); doc.text(doc.splitTextToSize(E.direccion,105).slice(0,3),x0,22);
+      doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.text("SOLICITUD N°",W-M,10,{align:"right"}); doc.setFontSize(14); doc.text(String(s.numero||""),W-M,17,{align:"right"}); doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.text("Fecha: "+fmtFecha(s.fecha),W-M,23,{align:"right"});
+      if(s.prioridad==="Urgente"){ doc.setFillColor(220,38,38); doc.roundedRect(W-M-24,25,24,5,1.5,1.5,"F"); doc.setFont("helvetica","bold"); doc.setFontSize(7.5); doc.text("URGENTE",W-M-12,28.6,{align:"center"}); }
+      doc.setTextColor(30,30,30); return 40; };
+    const sec=(t,y)=>{ doc.setFillColor(226,240,238); doc.rect(M,y,CW,6,"F"); doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(15,90,84); doc.text(t.toUpperCase(),M+2,y+4.2); doc.setTextColor(30,30,30); return y+9; };
+    const par=(lab,val,x,y,w)=>{ doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(100,116,139); doc.text(lab,x,y); doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(30,30,30); const t=doc.splitTextToSize(String(val||"-"),w-2); doc.text(t.slice(0,2),x,y+4.5); return t.length>1?9.5:5; };
+    const ensure=(y,need)=>{ if(y+need>H-18){ doc.addPage(); return cab()-6; } return y; };
+    let y=cab(); doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.setTextColor(15,90,84); doc.text(solTipoNombre(s.tipo).toUpperCase(),W/2,y,{align:"center"}); doc.setDrawColor(15,118,110); doc.setLineWidth(.6); doc.line(M,y+2.5,W-M,y+2.5); doc.setTextColor(30,30,30); y+=10;
+    y=sec("Datos del proveedor",y); let a=par("PROVEEDOR",s.proveedor,M,y,CW/2+10); par("RIF",s.rif||(prov&&prov.rif),M+CW/2+14,y,CW/2-14); y+=Math.max(a,10)+1; a=par("CONTACTO",prov&&prov.contacto,M,y,CW/2+10); par("TELÉFONO",prov&&prov.telefono,M+CW/2+14,y,CW/2-14); y+=Math.max(a,10)+2;
+    y=sec("Datos de la solicitud",y); par("FECHA DE EMISIÓN",fmtFecha(s.fecha),M,y,45); par("FECHA REQUERIDA",s.fecha_requerida?fmtFecha(s.fecha_requerida):"Lo antes posible",M+48,y,45); par("PRIORIDAD",s.prioridad||"Normal",M+96,y,40); par("ESTADO",s.estado||"Emitida",M+138,y,40); y+=11;
+    if(s.tipo==="dinero"||Number(s.monto)>0){ par("MONEDA",esUSDmon(s.moneda)?"Dólares (USD)":"Bolívares (Bs)",M,y,45); if(s.tipo==="dinero") par("FORMA / DATOS DE PAGO",s.forma_pago||"A convenir",M+48,y,CW-48); y+=11; }
+    if(s.concepto){ y=ensure(y,22); doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(100,116,139); doc.text("MOTIVO / CONCEPTO",M,y); doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(30,30,30); const t=doc.splitTextToSize(s.concepto,CW); doc.text(t,M,y+4.5); y+=4.5+t.length*4.4+3; }
+    if(items.length){ y=ensure(y,30); y=sec("Detalle",y); const cx={d:M+2,c:M+CW-72,u:M+CW-56,p:M+CW-20,s:M+CW-2}; const verPrecio=items.some(i=>Number(i.precio)>0);
+      const th=(yy)=>{ doc.setFillColor(15,118,110); doc.rect(M,yy,CW,6.5,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.text("DESCRIPCIÓN",cx.d,yy+4.4); doc.text("CANT.",cx.c,yy+4.4,{align:"right"}); doc.text("UNIDAD",cx.u,yy+4.4); if(verPrecio){ doc.text("PRECIO",cx.p,yy+4.4,{align:"right"}); doc.text("SUBTOTAL",cx.s,yy+4.4,{align:"right"}); } doc.setTextColor(30,30,30); return yy+6.5; };
+      y=th(y); let k=0; doc.setFont("helvetica","normal"); doc.setFontSize(9);
+      items.forEach(it=>{ const lines=doc.splitTextToSize(String(it.desc||""),verPrecio?CW-100:CW-62); const h=Math.max(6,lines.length*4.2+2); if(y+h>H-20){ doc.addPage(); y=cab()-6; y=th(y); } if(k%2===0){ doc.setFillColor(246,248,250); doc.rect(M,y,CW,h,"F"); }
+        doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.text(lines,cx.d,y+4.2); doc.text(f2(it.cant),cx.c,y+4.2,{align:"right"}); doc.text(String(it.unidad||""),cx.u,y+4.2); if(verPrecio){ doc.text(f2(it.precio),cx.p,y+4.2,{align:"right"}); doc.text(f2((Number(it.cant)||0)*(Number(it.precio)||0)),cx.s,y+4.2,{align:"right"}); } y+=h; k++; });
+      doc.setDrawColor(203,213,225); doc.setLineWidth(.2); doc.line(M,y,W-M,y); y+=3; }
+    if(Number(s.monto)>0){ y=ensure(y,22); doc.setFillColor(15,118,110); doc.roundedRect(W-M-92,y,92,s.tasa>0?15:10,2,2,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.text(s.tipo==="dinero"?"MONTO SOLICITADO":"TOTAL ESTIMADO",W-M-89,y+6.5); doc.setFontSize(12); doc.text(f2(s.monto)+" "+mon,W-M-3,y+6.8,{align:"right"});
+      if(s.tasa>0){ doc.setFont("helvetica","normal"); doc.setFontSize(8); const eq=esUSDmon(s.moneda)?f2(s.monto*s.tasa)+" Bs":"$ "+f2(s.monto/s.tasa); doc.text("Equivalente: "+eq+"  (tasa "+f2(s.tasa)+" Bs/$)",W-M-3,y+12,{align:"right"}); } doc.setTextColor(30,30,30); y+=(s.tasa>0?15:10)+6; }
+    if(met){ y=ensure(y,50); y=sec("Análisis de compras con este proveedor (según Finanzas)",y); const per=Number(s.periodo_dias)>0?"últimos "+s.periodo_dias+" días":"todo el historial"; const cells=[["COMPRAS ("+per.toUpperCase()+")","$ "+f2(met.compras)],["N° DE DOCUMENTOS",String(met.nFact||0)],["FACTURA PROMEDIO","$ "+f2(met.prom)],["PAGADO EN EL PERIODO","$ "+f2(met.pagado)],["SALDO PENDIENTE ACTUAL","$ "+f2(met.saldo)],["ÚLTIMA COMPRA",met.ultFecha?fmtFecha(met.ultFecha)+" ($ "+f2(met.ultUsd)+")":"-"],["PARTICIPACIÓN EN COMPRAS",f2(met.part)+" %  ·  Clase "+met.clase],["FRECUENCIA DE COMPRA",met.freq?"cada ~"+met.freq+" días":"-"]];
+      if(s.tipo==="dinero"&&Number(s.monto)>0) cells.push(["SALDO TRAS ESTA SOLICITUD","$ "+f2(met.saldo-solUsd(s.monto,s.moneda,s.tasa))]);
+      const cw=CW/3; cells.forEach((c,i)=>{ const cx2=M+(i%3)*cw, cy=y+Math.floor(i/3)*10.5; doc.setFont("helvetica","bold"); doc.setFontSize(6.8); doc.setTextColor(100,116,139); doc.text(c[0],cx2,cy); doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.setTextColor(15,23,42); doc.text(c[1],cx2,cy+4.8); });
+      y+=Math.ceil(cells.length/3)*10.5+1; doc.setFont("helvetica","italic"); doc.setFontSize(7); doc.setTextColor(100,116,139); doc.text("Cifras en dólares. Bs convertidos a la tasa del día de emisión ("+f2(s.tasa||tipoCambio)+" Bs/$). Clase A/B/C según el monto comprado (A = 80% de las compras).",M,y+1); doc.setTextColor(30,30,30); y+=8; }
+    if(s.notas){ y=ensure(y,16); doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(100,116,139); doc.text("OBSERVACIONES",M,y); doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(30,30,30); const t=doc.splitTextToSize(s.notas,CW); doc.text(t,M,y+4.5); y+=4.5+t.length*4.2+4; }
+    if(y+40>H-14){ doc.addPage(); y=cab()+14; } else { y=Math.max(y+4,H-14-40); }
+    const bw=(CW-8)/3; const firmas=[["SOLICITADO POR",s.solicitante,s.cargo],["AUTORIZADO POR",s.autorizado||"",s.autorizado?"":"Gerencia"],["RECIBIDO / CONFORME PROVEEDOR","",""]];
+    firmas.forEach((f,i)=>{ const x0=M+i*(bw+4); doc.setDrawColor(100,116,139); doc.setLineWidth(.3); doc.line(x0,y+18,x0+bw,y+18); doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(15,90,84); doc.text(f[0],x0+bw/2,y+22.5,{align:"center"}); doc.setTextColor(30,30,30);
+      if(f[1]){ doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.text(doc.splitTextToSize(f[1],bw)[0],x0+bw/2,y+27,{align:"center"}); } if(f[2]){ doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(100,116,139); doc.text(doc.splitTextToSize(f[2],bw)[0],x0+bw/2,y+31,{align:"center"}); doc.setTextColor(30,30,30); }
+      doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(120,130,145); doc.text("Firma y sello",x0+bw/2,y+35,{align:"center"}); doc.text("C.I.: ___________   Fecha: ___/___/____",x0+bw/2,y+39,{align:"center"}); doc.setTextColor(30,30,30); });
+    const np=doc.getNumberOfPages(); for(let i=1;i<=np;i++){ doc.setPage(i); doc.setDrawColor(203,213,225); doc.setLineWidth(.2); doc.line(M,H-12,W-M,H-12); doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(120,130,145);
+      doc.text(E.razon+"  ·  RIF "+E.rif+"  ·  Documento generado por "+(ajustes.nombre||"Hipposupermarket")+" el "+fmtFechaHora(Date.now()),M,H-8); doc.text("Solicitud "+(s.numero||"")+"  ·  Pág. "+i+"/"+np,W-M,H-8,{align:"right"}); }
+    doc.save("Solicitud_"+String(s.numero||"").replace(/[^\w-]/g,"")+"_"+String(s.proveedor||"proveedor").replace(/[^\w]+/g,"_").slice(0,30)+".pdf"); }); }
+function exportarMetricaProv(){ if(!window.XLSX){ toast("Sin conexión para generar el Excel"); return; } const D=solMetricas(_solDias); const per=(SOL_PERIODOS.find(p=>p[0]===_solDias)||[0,""])[1];
+  const h=hojaPro({titulo:"COMPRA POR PROVEEDOR", subtitulo:subtituloPro(per+" · cifras en $"), headers:["#","Proveedor","RIF","Clase","Compras ($)","% del total","N° doc.","Factura promedio ($)","Pagado ($)","Saldo pendiente ($)","Última compra","Frecuencia (días)"], rows:D.list.map((m,i)=>[i+1,m.nombre,m.rif,m.clase,m.compras,m.part,m.nFact,m.prom,m.pagado,m.saldo,m.ultFecha,m.freq||""])});
+  libroPro([[h,"Compra por proveedor"]],"compra_por_proveedor_"+hoy()+".xlsx"); }
+
 const MES_NOMBRES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 let _finMes=null;
 function mesAnteriorYM(ym){ const p=String(ym||"").split("-"); const y=Number(p[0]), m=Number(p[1]); const d=new Date(y,m-2,1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
@@ -6068,7 +6266,7 @@ const RENDER_VISTA={
   proveedores:renderProveedores, inventario:renderInventario, ordenes:renderOrdenes,
   recepcion:function(){ renderRecepcion(); renderRecepHistory(); }, merma:renderMerma, quiebre:renderQuiebre,
   rotacion:renderRotacion, compras:renderCompras,
-  caja:renderCaja, tesoreria:renderTesoreria, conciliacion:renderConciliacion, deudas:renderDeudas, facturasrec:renderFacturasRecView, conexiones:renderConexiones,
+  caja:renderCaja, tesoreria:renderTesoreria, conciliacion:renderConciliacion, solicitudes:renderSolicitudes, deudas:renderDeudas, facturasrec:renderFacturasRecView, conexiones:renderConexiones,
   ajustes:renderAjustesView
 };
 function render(){
