@@ -1146,6 +1146,18 @@
     <div id="ccBody"></div>
   </section>
 
+  <!-- ======== CONCILIACIÓN DIARIA DE PAGOS A PROVEEDORES ======== -->
+  <section data-view="conciliacionfacturas" hidden>
+    <h2 class="text-lg font-bold mb-1">✅ Conciliación de pagos</h2>
+    <p class="text-xs text-slate-500 mb-3">Verifica cuántas facturas recibieron pagos cada día y registra la referencia bancaria. Un mismo número de referencia puede cubrir varias facturas.</p>
+    <div class="bg-white rounded-2xl p-3 shadow-sm mb-3 flex flex-wrap items-end gap-2">
+      <div class="flex-1 min-w-[160px]"><label class="text-xs text-slate-500">Día de pago</label><input id="cfFecha" type="date" onchange="renderConciliacionFacturas()" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"></div>
+      <button onclick="guardarReferenciasConciliacion()" class="bg-teal-700 text-white font-semibold px-4 py-2 rounded-xl text-sm">Guardar referencias</button>
+    </div>
+    <div id="cfResumen" class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3"></div>
+    <div id="cfBody"></div>
+  </section>
+
   <!-- ======== SOLICITUDES A PROVEEDORES ======== -->
   <section data-view="solicitudes" hidden>
     <h2 class="text-lg font-bold mb-1">Solicitudes a proveedores</h2>
@@ -1312,7 +1324,7 @@ let retardoTol=0;   // minutos de tolerancia antes de descontar por retardo
 let retardoBsMin=0; // Bs a descontar por cada minuto tarde pasada la tolerancia
 let verMonedaCfg="$"; // moneda de visualización compartida: "$" (base) o "Bs" (convierte con la tasa)
 let idiomaCfg="es"; // idioma de la interfaz: "es" español o "zh" chino tradicional (lo gestiona gerencia)
-const APP_VERSION="9.3"; // se incrementa con cada mejora · v9.3: menú Aurora de vidrio con transparencia y estados dinámicos
+const APP_VERSION="9.4"; // v9.4: conciliación de pagos y protección contra duplicados
 // Días mínimos de vida útil restante para ACEPTAR un producto en recepción (por categoría).
 // Basado en práctica común de retail (más vida restante en perecederos) e incluye tus ejemplos (pan 5, leche 15). Ajustables.
 const MIN_VENC={ "Panadería":5, "Lácteos":15, "Carnes":7, "Charcutería":7, "Frutas y verduras":5, "Bebidas":30, "Abarrotes":60, "Otros":15, "Limpieza":0 };
@@ -1337,6 +1349,39 @@ async function fetchAllRows(t, sinceISO){ const page=1000; let from=0, all=[];
 const FIN_ARCH_T=new Set(["facturas_rec","deudas","pagos_prov"]);
 let corteDeuda="", _verArchivoFin=false, _dataVer=0; const _finActCache={};
 let RUBROS_FAC=[]; // [{id,nombre}] rubros de facturas (config compartida)
+/* Bloqueo común de duplicados: se aplica a los guardados de todos los módulos. */
+function dupTexto(v){ return String(v??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().replace(/\s+/g," ").toLowerCase(); }
+function dupAlfanum(v){ return dupTexto(v).replace(/[^a-z0-9]/g,""); }
+function dupProveedor(r){ const rif=dupAlfanum(r.rif); if(rif) return "rif:"+rif; if(r.proveedor_id) return "id:"+dupTexto(r.proveedor_id); return "nom:"+dupTexto(r.proveedor||r.nombre||""); }
+function tipoFacturaDup(v){ const t=dupTexto(v); return !t||t==="factura fiscal"?"factura":t; }
+function claveNaturalDuplicado(t,r){
+  if(t==="empleados"){ const ced=dupAlfanum(r.cedula); return ced?"empleado:ced:"+ced:(dupTexto(r.nombre)?"empleado:"+dupTexto(r.nombre)+"|"+dupTexto(r.area)+"|"+dupTexto(r.cargo):null); }
+  if(t==="proveedores"){ const rif=dupAlfanum(r.rif); return rif?"proveedor:rif:"+rif:(dupTexto(r.nombre)?"proveedor:"+dupTexto(r.nombre):null); }
+  if(t==="facturas_rec"){ const num=dupAlfanum(r.numero); return num?"factura:"+dupProveedor(r)+"|"+num+"|"+tipoFacturaDup(r.tipo)+"|"+String(r.fecha||""):null; }
+  if(t==="pagos_prov"){
+    const ref=dupTexto(r.referencia_pago), docs=Array.isArray(r.facturas)?r.facturas.map(f=>{
+      const num=dupAlfanum(f&&f.numero); const doc=f&&f.fid?"id:"+dupTexto(f.fid):(num?"num:"+num:"");
+      if(!doc) return ""; const monto=Math.round((Number(f&&f.monto)||0)*100)/100; return doc+"="+monto.toFixed(2);
+    }).filter(Boolean).sort():[];
+    return ref&&docs.length?"pago:"+dupTexto(r.fecha_pago)+"|"+dupProveedor(r)+"|"+dupTexto(r.banco)+"|"+ref+"|"+docs.join(","):null;
+  }
+  if(t==="productos"){ const codigo=dupAlfanum(r.codigo); return codigo?"producto:codigo:"+codigo:null; }
+  if(t==="candidatos"){ const ced=dupAlfanum(r.cedula); if(ced) return "candidato:ced:"+ced; const email=dupTexto(r.email); return email?"candidato:email:"+email:null; }
+  if(t==="asistencia"){ const persona=dupTexto(r.empleado_id||r.empleado); return persona&&r.fecha?"asistencia:"+persona+"|"+r.fecha:null; }
+  if(t==="dias_libres"){ const persona=dupTexto(r.empleado_id||r.empleado); return persona&&r.fecha?"dia_libre:"+persona+"|"+r.fecha:null; }
+  if(t==="cashea_banco"){ const ref=dupTexto(r.referencia); return ref&&r.fecha?"mov_cashea:"+r.fecha+"|"+ref+"|"+(Math.round((Number(r.monto)||0)*100)/100).toFixed(2):null; }
+  return null;
+}
+function firmaDuplicado(r){ const ignorar=new Set(["id","creado","actualizado","created_at","updated_at","modificado"]);
+  const normalizar=(v)=>{ if(Array.isArray(v)) return v.map(normalizar).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))); if(v&&typeof v==="object"){ const o={}; Object.keys(v).filter(k=>!ignorar.has(k)).sort().forEach(k=>{ o[k]=normalizar(v[k]); }); return o; } return typeof v==="string"?dupTexto(v):v; };
+  return JSON.stringify(normalizar(r||{})); }
+function duplicadoEn(t,row,filas,exceptId){ const clave=claveNaturalDuplicado(t,row);
+  if(clave && filas.some(x=>x.id!==exceptId&&claveNaturalDuplicado(t,x)===clave)) return true;
+  if(t==="config") return false; // el id de cada fila config es su clave lógica
+  const firma=firmaDuplicado(row); return filas.some(x=>x.id!==exceptId&&firmaDuplicado(x)===firma); }
+function duplicadoExistente(t,row,exceptId){ return duplicadoEn(t,row,store[t]||[],exceptId); }
+function filtrarDuplicadosTabla(t,rows,base){ const vistos=(base||[]).slice(), salida=[]; for(const r of (rows||[])){ if(!r||duplicadoEn(t,r,vistos)) continue; salida.push(r); vistos.push(r); } return salida; }
+function mensajeDuplicado(t){ const n={empleados:"trabajador",proveedores:"proveedor",facturas_rec:"factura o nota",pagos_prov:"pago",productos:"producto",candidatos:"candidato",asistencia:"asistencia",dias_libres:"día libre",cashea_banco:"movimiento"}[t]||"registro"; return "Ya existe un "+n+" con esos datos. Revisa el que ya está cargado antes de guardarlo otra vez."; }
 const db = {
   async init(){
     if (CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY && window.supabase){
@@ -1371,10 +1416,10 @@ const db = {
   list(t){ const a=store[t]||[]; if(!FIN_ARCH_T.has(t) || !corteDeuda || _verArchivoFin) return a;
     const c=_finActCache[t]; if(c && c.src===a && c.len===a.length && c.ver===_dataVer && c.corte===corteDeuda) return c.out;
     const out=a.filter(r=>String(r.creado||"")>=corteDeuda); _finActCache[t]={src:a,len:a.length,ver:_dataVer,corte:corteDeuda,out}; return out; },
-  async insert(t,row){ _dataVer++; row.id=row.id||uid(); row.creado=row.creado||new Date().toISOString();
-    if(USE_CLOUD){ const {data,error}=await sb.from(t).insert(row).select(); if(error) throw error; store[t].push((data&&data[0])||row); }
+  async insert(t,row){ if(duplicadoExistente(t,row)) throw new Error(mensajeDuplicado(t)); _dataVer++; row.id=row.id||uid(); row.creado=row.creado||new Date().toISOString();
+    if(USE_CLOUD){ const {data,error}=await sb.from(t).insert(row).select(); if(error){ if(error.code==="23505") throw new Error(mensajeDuplicado(t)); throw error; } store[t].push((data&&data[0])||row); }
     else { store[t].push(row); lsSave(); } return row; },
-  async update(t,id,patch){ _dataVer++; if(USE_CLOUD){ const {data,error}=await sb.from(t).update(patch).eq("id",id).select("id"); if(error) throw error;
+  async update(t,id,patch){ const actual=(store[t]||[]).find(r=>r.id===id)||{id}; const candidato={...actual,...patch,id}; if(duplicadoExistente(t,candidato,id)) throw new Error(mensajeDuplicado(t)); _dataVer++; if(USE_CLOUD){ const {data,error}=await sb.from(t).update(patch).eq("id",id).select("id"); if(error){ if(error.code==="23505") throw new Error(mensajeDuplicado(t)); throw error; }
       if(Array.isArray(data) && data.length===0) throw new Error("La base de datos no guardó el cambio (la tabla «"+t+"» no permite modificar ese registro)."); }
     const i=store[t].findIndex(r=>r.id===id); if(i>=0) store[t][i]={...store[t][i],...patch}; _dataVer++; if(!USE_CLOUD) lsSave(); },
   async remove(t,id){ _dataVer++; if(USE_CLOUD){ const {error}=await sb.from(t).delete().eq("id",id); if(error) throw error; }
@@ -1704,6 +1749,7 @@ const MODULES = {
   caja:{parent:"finanzas",title:"Caja",sub:"Caja y Finanzas"},
   tesoreria:{parent:"finanzas",title:"Tesorería",sub:"Caja y Finanzas"},
   conciliacion:{parent:"finanzas",title:"Conciliación Cashea",sub:"Caja y Finanzas"},
+  conciliacionfacturas:{parent:"finanzas",title:"Conciliación de pagos",sub:"Caja y Finanzas"},
   solicitudes:{parent:"finanzas",title:"Solicitudes a proveedores",sub:"Caja y Finanzas"},
   deudas:{parent:"finanzas",title:"Finanzas",sub:"Caja y Finanzas"},
   facturasrec:{parent:"finanzas",title:"Facturas recibidas",sub:"Caja y Finanzas"},
@@ -1712,7 +1758,7 @@ const MODULES = {
 const TILES_RRHH=[["empleados","👥","Personal"],["nomina","🧾","Nómina"],["nominave","⚖️","Nómina VE"],["liqnom","📋","Nómina liquidación"],["nomger","🏛️","Nómina gerencia"],["bonos","💰","Salarios"],["eval","⭐","Evaluación"],["evalsup","🎖️","Eval. sup."],["asistencia","🕒","Asistencia"],["candidatos","📨","Candidatos"]];
 const TILES_PROD=[["proveedores","🚚","Proveedores"],["inventario","📦","Inventario"],["ordenes","🧾","Órdenes"],["recepcion","📥","Recepción"],["merma","🗑️","Merma"],["quiebre","🚨","Quiebre"],["rotacion","🔥","Rotación/ABC"],["compras","🛒","Compras"]];
 const TILES_SUP=[["piso","🏬","Piso de venta"],["tareas","✅","Tareas"],["asignaciones","⏱️","Asignaciones"],["diaslibres","🗓️","Días libres"],["incpersonal","⏰","Asistencia personal"],["impulsaciones","🎪","Impulsaciones"]];
-const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["conciliacion","🟣","Conciliación Cashea"],["facturasrec","📥","Facturas recibidas"],["solicitudes","📝","Solicitudes a proveedores"],["gastos","🧾","Gastos"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
+const TILES_FIN=[["caja","💵","Caja"],["tesoreria","🏦","Tesorería"],["conciliacion","🟣","Conciliación Cashea"],["conciliacionfacturas","✅","Conciliación de pagos"],["facturasrec","📥","Facturas recibidas"],["solicitudes","📝","Solicitudes a proveedores"],["gastos","🧾","Gastos"],["deudas","📊","Finanzas"],["conexiones","🕓","Conexiones"]];
 /* ---- Idioma (chino tradicional) — solo textos del menú/etiquetas, NO los datos ---- */
 const DICT_ZH={
   "Inicio":"首頁","RRHH":"人事","Superv.":"主管","Productos":"商品","Caja":"收銀","Ajustes":"設定",
@@ -1724,7 +1770,7 @@ const DICT_ZH={
   "Incidencias de personal":"人員異常","Asistencia personal":"人員考勤","Piso de venta":"賣場",
   "Proveedores":"供應商","Inventario":"庫存","Órdenes":"訂購單","Órdenes de compra":"採購訂單",
   "Recepción":"收貨","Merma":"損耗","Quiebre":"缺貨","Quiebre de inventario":"庫存缺貨",
-  "Tesorería":"資金","Finanzas":"財務","Conexiones":"連線"
+  "Tesorería":"資金","Finanzas":"財務","Conciliación de pagos":"付款對帳","Conexiones":"連線"
 };
 function t(s){ if(idiomaCfg!=="zh") return s; return DICT_ZH[s]||s; }
 const TABLBL={inicio:"Inicio",rrhh:"RRHH",supervisores:"Superv.",productos:"Productos",finanzas:"Caja",ajustes:"Ajustes"};
@@ -1737,7 +1783,7 @@ const NAV_TARGETS=[["inicio","🏠 Inicio (lanzador)"],["rrhh","👥 RRHH (lanza
   ["empleados","Personal"],["nomina","Nómina"],["nominave","Nómina VE"],["asistencia","Asistencia"],["candidatos","Candidatos"],["bonos","Salarios y bonos"],["eval","Evaluación"],
   ["piso","Piso de venta"],["tareas","Tareas"],["asignaciones","Asignaciones"],
   ["inventario","Inventario"],["ordenes","Órdenes"],["recepcion","Recepción"],["proveedores","Proveedores"],["rotacion","Rotación/ABC"],["compras","Compras"],["quiebre","Quiebre"],["merma","Merma"],
-  ["caja","Caja"],["tesoreria","Tesorería"],["conciliacion","Conciliación Cashea"],["facturasrec","Facturas recibidas"],["solicitudes","Solicitudes a proveedores"],["deudas","Finanzas"],["conexiones","Conexiones"]];
+  ["caja","Caja"],["tesoreria","Tesorería"],["conciliacion","Conciliación Cashea"],["conciliacionfacturas","Conciliación de pagos"],["facturasrec","Facturas recibidas"],["solicitudes","Solicitudes a proveedores"],["deudas","Finanzas"],["conexiones","Conexiones"]];
 function navPuedeTarget(t){ if(t==="inicio") return true; const g={rrhh:RRHH_VIEWS, productos:PROD_VIEWS, supervisores:SUP_VIEWS, finanzas:FIN_VIEWS}[t]; if(g) return g.some(v=>puede(v)); return puede(t); }
 function pintarNav(){ const btns=document.querySelectorAll('.tab[data-slot]');
   btns.forEach(b=>{ const i=Number(b.dataset.slot); const cfg=navTabsCfg[i]||NAV_DEFAULT[i]; if(!cfg){ b.style.display="none"; return; }
@@ -1772,7 +1818,7 @@ let currentView="inicio";
 const RRHH_VIEWS=["empleados","nomina","bonos","eval","evalsup","asistencia","candidatos","nominave","liqnom","nomger"];
 const PROD_VIEWS=["proveedores","inventario","ordenes","recepcion","merma","quiebre","rotacion","compras"];
 const SUP_VIEWS=["piso","tareas","asignaciones","diaslibres","incpersonal","impulsaciones"];
-const FIN_VIEWS=["caja","tesoreria","conciliacion","facturasrec","solicitudes","deudas","conexiones"];
+const FIN_VIEWS=["caja","tesoreria","conciliacion","conciliacionfacturas","facturasrec","solicitudes","deudas","conexiones"];
 // Todas las opciones que gerencia puede otorgar/quitar por usuario (tesoreria es solo gerencia, por eso no está aquí)
 const OPCIONES=[
   ["metricas_rrhh","📊 Ver métricas de Personal y RRHH (inicio)"],["metricas_sup","📊 Ver métricas de Supervisores (inicio)"],["metricas_prod","📊 Ver métricas de Productos y Compras (inicio)"],["metricas_fin","📊 Ver métricas de Caja y Finanzas (inicio)"],
@@ -1784,7 +1830,7 @@ const OPCIONES=[
 const SUP_PERM=["resumen","empleados","eval","asistencia","piso","tareas","asignaciones","diaslibres","incpersonal","proveedores","inventario","ordenes","recepcion","merma","quiebre"];
 const OP_PERM=["tareas","asignaciones","asistencia","piso","quiebre"];
 let currentUser=null;
-function puede(view){ if(!currentUser) return false; if(view==="inicio") return true; if(view==="nomger") return !!currentUser.es_gerencia; if(currentUser.es_rrhh && RRHH_TODO.includes(view)) return true; if(view==="facturasrec"||view==="gastos") view="deudas"; if(view==="liqnom") view="nominave"; if(currentUser.es_gerencia) return true; if(view==="ajustes") return false; return (currentUser.permisos||[]).includes(view); }
+function puede(view){ if(!currentUser) return false; if(view==="inicio") return true; if(view==="nomger") return !!currentUser.es_gerencia; if(currentUser.es_rrhh && RRHH_TODO.includes(view)) return true; if(view==="facturasrec"||view==="gastos"||view==="conciliacionfacturas") view="deudas"; if(view==="liqnom") view="nominave"; if(currentUser.es_gerencia) return true; if(view==="ajustes") return false; return (currentUser.permisos||[]).includes(view); }
 async function seedUsuarios(){
   await db.insert("usuarios",{nombre:"Gerencia",clave:"123456",es_gerencia:true,permisos:[],activo:true});
   await db.insert("usuarios",{nombre:"Supervisor",clave:"111111",es_gerencia:false,permisos:SUP_PERM,activo:true});
@@ -1998,7 +2044,7 @@ function show(view){
   if(!puede(view)){ toast("No tienes acceso a esta sección"); view="inicio"; }
   currentView=view; _nomTipo=(view==="nomger")?"gerencia":"personal";
   document.querySelectorAll("[data-view]").forEach(s=> s.hidden = !(s.dataset.view===view || (view==="nomger" && s.dataset.view==="nomina")));
-  { const mn=document.querySelector("main"); if(mn) mn.classList.toggle("fin-wide", view==="deudas"); }
+  { const mn=document.querySelector("main"); if(mn) mn.classList.toggle("fin-wide", view==="deudas"||view==="conciliacionfacturas"); }
   try{ renderSideNav(); }catch(_){}
   const mod=MODULES[view];
   document.getElementById("btnBack").classList.toggle("hidden", !mod);
@@ -5727,6 +5773,7 @@ function openPagoProv(id){ if(!puede("deudas")){ toast("Sin acceso"); return; } 
   openModal(`<h3 class="font-bold text-lg mb-3">${id?"Editar":"Nuevo"} pago a proveedor</h3><div class="space-y-3">
     <div><label class="text-xs text-slate-500">Proveedor</label><input id="f_pp_prov_txt" list="dlProveedores" value="${esc(prov?prov.nombre:(pg.proveedor||""))}" oninput="resolverPagoProv()" placeholder="🔎 Buscar proveedor…" class="w-full px-3 py-2 rounded-xl border border-slate-200"><input type="hidden" id="f_proveedor_id" value="${esc(pg.proveedor_id||"")}"></div>
     <div class="grid grid-cols-2 gap-3">${field("rif","RIF",pg.rif)}${field("fecha_pago","Fecha de pago",pg.fecha_pago||hoy(),"date")}</div>
+    ${field("referencia_pago","Referencia de pago (obligatoria)",pg.referencia_pago)}
     <div><label class="text-xs text-slate-500">Facturas (número y monto)</label>
       <div class="grid grid-cols-12 gap-1 items-end"><input id="pf_num" placeholder="N° factura" class="col-span-5 px-2 py-2 rounded-lg border border-slate-200 text-sm"><input id="pf_monto" type="number" placeholder="Monto" class="col-span-4 px-2 py-2 rounded-lg border border-slate-200 text-sm"><button type="button" onclick="addPagoFactura()" class="col-span-3 bg-teal-700 text-white rounded-lg py-2 text-sm font-semibold">+</button></div>
       <div id="pf_list" class="space-y-1 mt-1"></div>
@@ -5748,7 +5795,8 @@ function openPagoProv(id){ if(!puede("deudas")){ toast("Sin acceso"); return; } 
 async function savePagoProv(id, enviar){ if(!puede("deudas")){ toast("Sin acceso"); return; } if(id && !puedeEditarPagos()){ toast("No tienes permiso para modificar pagos registrados"); return; }
   const provId=document.getElementById("f_proveedor_id").value; const provTxt=(document.getElementById("f_pp_prov_txt").value||"").trim(); if(!provTxt){ toast("Elige el proveedor"); return; } if(!pagoFacturas.length){ toast("Agrega al menos una factura"); return; }
   const prov=provId?provById(provId):null;
-  const r=readForm(["rif","fecha_pago","info_factura","nota_credito","moneda","banco","tasa","notas"]);
+  const r=readForm(["rif","fecha_pago","referencia_pago","info_factura","nota_credito","moneda","banco","tasa","notas"]);
+  r.referencia_pago=String(r.referencia_pago||"").trim(); if(!r.referencia_pago){ toast("Indica el número de referencia del pago"); return; }
   r.nota_credito=Number(r.nota_credito)||0; r.tasa=Number(r.tasa)||tipoCambio;
   r.proveedor_id=provId||""; r.proveedor=prov?prov.nombre:provTxt; if(!r.rif) r.rif=prov?(prov.rif||""):""; r.telefono=prov?(prov.telefono||""):"";
   r.facturas=pagoFacturas.map(f=>({numero:String(f.numero||""), monto:Number(f.monto)||0, fecha:f.fecha||"", fid:f.fid||""}));
@@ -5764,6 +5812,7 @@ function mensajePago(pg){ const tasa=Number(pg.tasa)||tipoCambio; const tp=Numbe
   const nums=(pg.facturas||[]).map(f=>f.numero).filter(Boolean).join(", ");
   let m=`*PAGO A PROVEEDOR — ${ajustes.nombre||"Hipposupermarket"}*\n`;
   m+=`Fecha de pago: ${pg.fecha_pago||""}\n`;
+  if(pg.referencia_pago) m+=`Referencia de pago: ${pg.referencia_pago}\n`;
   m+=`Proveedor: ${pg.proveedor||""}\n`;
   if(pg.rif) m+=`RIF: ${pg.rif}\n`;
   m+=`\nFacturas N°: ${nums||"—"}\n`;
@@ -6261,6 +6310,7 @@ function openAbonoFactura(id){ if(!puede("deudas")){ toast("Sin acceso"); return
       <div><label class="text-xs text-slate-500">Monto del abono</label><input id="ab_monto" type="number" min="0" value="${pend?fmt2(pend):""}" class="w-full px-3 py-2 rounded-xl border border-slate-200"></div>
       <div><label class="text-xs text-slate-500">Moneda</label><select id="ab_moneda" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="${esc(f.moneda||'Bs')}" selected>${esc(f.moneda||'Bs')}</option><option value="${(f.moneda==='USD')?'Bs':'USD'}">${(f.moneda==='USD')?'Bs':'USD'}</option></select></div></div>
     <div class="mb-1"><label class="text-xs text-slate-500">Banco / forma de pago</label><select id="ab_banco" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"><option value="">— Sin indicar —</option><option>Efectivo</option>${(typeof BANCOS!=="undefined"?BANCOS:[]).map(b=>`<option>${esc(b)}</option>`).join("")}</select></div>
+    <div class="mb-2"><label class="text-xs text-slate-500">Referencia de pago (obligatoria)</label><input id="ab_referencia" class="w-full px-3 py-2 rounded-xl border border-slate-200" placeholder="N° de transferencia / referencia"></div>
     <p class="text-[10px] text-slate-400 mb-3">Si abonas en otra moneda, se convierte con la tasa actual (${tipoCambio||"—"} Bs/$). El abono queda registrado también en «Pagos a proveedores».</p>
     <div class="flex gap-2"><button onclick="saveAbonoFactura('${id}')" class="flex-1 bg-emerald-600 text-white font-semibold py-2.5 rounded-xl">Registrar abono</button>
     ${pend>0?`<button onclick="abonoTotalFactura('${id}')" class="px-4 bg-teal-700 text-white font-semibold py-2.5 rounded-xl">Pagar todo</button>`:""}
@@ -6272,13 +6322,42 @@ async function saveAbonoFactura(id){ if(!puede("deudas")){ toast("Sin acceso"); 
   const monto=Number(document.getElementById("ab_monto").value)||0; const moneda=document.getElementById("ab_moneda").value||f.moneda||"Bs";
   if(monto<=0){ toast("Indica el monto del abono"); return; }
   const add=_abonoEnMonedaFactura(monto, moneda, f.moneda||"Bs");
-  const cap=Number(f.monto)||0; const nuevoAb=Math.min(cap, (Number(f.abonado)||0)+add); const aplicado=Math.max(0,nuevoAb-(Number(f.abonado)||0)); const banco=document.getElementById("ab_banco")?.value||"";
-  try{ await db.update("facturas_rec",id,{abonado:nuevoAb}); if(aplicado>0.005) await registrarPagoDesdeAbono(f,aplicado,banco,nuevoAb>=cap-0.005?"Pago completo":"Abono"); render(); toast(nuevoAb>=cap?"Factura pagada por completo":"Abono registrado"); renderFacturasProv(); }catch(e){ toast("Error: "+e.message); } }
+  const cap=Number(f.monto)||0; const nuevoAb=Math.min(cap, (Number(f.abonado)||0)+add); const aplicado=Math.max(0,nuevoAb-(Number(f.abonado)||0)); const banco=document.getElementById("ab_banco")?.value||""; const referencia=String(document.getElementById("ab_referencia")?.value||"").trim();
+  if(!referencia){ toast("Indica el número de referencia del pago"); return; }
+  try{ if(aplicado>0.005) await registrarPagoDesdeAbono(f,aplicado,banco,referencia,nuevoAb>=cap-0.005?"Pago completo":"Abono"); await db.update("facturas_rec",id,{abonado:nuevoAb}); render(); toast(nuevoAb>=cap?"Factura pagada por completo":"Abono registrado"); renderFacturasProv(); }catch(e){ toast("Error: "+e.message); } }
 /* Un abono hecho desde Facturas recibidas también se registra como pago (vinculado a la factura) para que aparezca en «Pagos a proveedores» */
-async function registrarPagoDesdeAbono(f,montoFac,banco,tipo){ const prov=f.proveedor_id?provById(f.proveedor_id):(db.list("proveedores").find(p=>(p.nombre||"").trim().toLowerCase()===String(f.proveedor||"").trim().toLowerCase())||null); const mon=esUSDmon(f.moneda)?"USD":"Bs";
-  await db.insert("pagos_prov",{proveedor_id:prov?prov.id:(f.proveedor_id||""), proveedor:f.proveedor||(prov?prov.nombre:""), rif:f.rif||(prov?prov.rif:"")||"", telefono:prov?(prov.telefono||""):"", fecha_pago:hoy(), moneda:mon, tasa:tipoCambio||0, banco:banco||"", nota_credito:0, info_factura:f.numero||"", facturas:[{numero:String(f.numero||""),monto:+montoFac.toFixed(2),fecha:f.fecha||"",fid:f.id}], total_facturas:+montoFac.toFixed(2), total_pagado:+montoFac.toFixed(2), notas:(tipo==="Abono"?"Abono":"Pago completo")+" registrado desde Facturas recibidas"}); }
+async function registrarPagoDesdeAbono(f,montoFac,banco,referencia,tipo){ const prov=f.proveedor_id?provById(f.proveedor_id):(db.list("proveedores").find(p=>(p.nombre||"").trim().toLowerCase()===String(f.proveedor||"").trim().toLowerCase())||null); const mon=esUSDmon(f.moneda)?"USD":"Bs";
+  await db.insert("pagos_prov",{proveedor_id:prov?prov.id:(f.proveedor_id||""), proveedor:f.proveedor||(prov?prov.nombre:""), rif:f.rif||(prov?prov.rif:"")||"", telefono:prov?(prov.telefono||""):"", fecha_pago:hoy(), referencia_pago:String(referencia||"").trim(), moneda:mon, tasa:tipoCambio||0, banco:banco||"", nota_credito:0, info_factura:f.numero||"", facturas:[{numero:String(f.numero||""),monto:+montoFac.toFixed(2),fecha:f.fecha||"",fid:f.id}], total_facturas:+montoFac.toFixed(2), total_pagado:+montoFac.toFixed(2), notas:(tipo==="Abono"?"Abono":"Pago completo")+" registrado desde Facturas recibidas"}); }
 async function abonoTotalFactura(id){ if(!puede("deudas")){ toast("Sin acceso"); return; } const f=db.list("facturas_rec").find(x=>x.id===id); if(!f) return;
-  const cap=Number(f.monto)||0; const aplicado=Math.max(0,cap-(Number(f.abonado)||0)); const banco=document.getElementById("ab_banco")?.value||""; try{ await db.update("facturas_rec",id,{abonado:cap}); if(aplicado>0.005) await registrarPagoDesdeAbono(f,aplicado,banco,"Pago completo"); render(); toast("Factura pagada por completo"); renderFacturasProv(); }catch(e){ toast("Error: "+e.message); } }
+  const cap=Number(f.monto)||0; const aplicado=Math.max(0,cap-(Number(f.abonado)||0)); const banco=document.getElementById("ab_banco")?.value||""; const referencia=String(document.getElementById("ab_referencia")?.value||"").trim(); if(!referencia){ toast("Indica el número de referencia del pago"); return; }
+  try{ if(aplicado>0.005) await registrarPagoDesdeAbono(f,aplicado,banco,referencia,"Pago completo"); await db.update("facturas_rec",id,{abonado:cap}); render(); toast("Factura pagada por completo"); renderFacturasProv(); }catch(e){ toast("Error: "+e.message); } }
+/* -------- Conciliación diaria: cuenta facturas vinculadas a movimientos y captura referencias faltantes -------- */
+let _cfFecha=null;
+function proveedorKeyCf(x){ const rif=dupAlfanum(x&&x.rif); if(rif) return "rif:"+rif; if(x&&x.proveedor_id) return "id:"+dupTexto(x.proveedor_id); return "nom:"+dupTexto(x&&(x.proveedor||x.nombre)||""); }
+function resolverFacturaPago(cf,pg){ const facs=db.list("facturas_rec"); if(cf&&cf.fid){ const f=facs.find(x=>x.id===cf.fid); if(f) return f; }
+  const num=dupAlfanum(cf&&cf.numero); if(!num) return null; return facs.find(f=>{ if(dupAlfanum(f.numero)!==num) return false;
+    if(f.proveedor_id&&pg.proveedor_id) return f.proveedor_id===pg.proveedor_id;
+    const fr=dupAlfanum(f.rif), pr=dupAlfanum(pg.rif); if(fr&&pr) return fr===pr;
+    const fn=dupTexto(f.proveedor), pn=dupTexto(pg.proveedor); return !!fn&&fn===pn; })||null; }
+function datosConciliacionPagos(fecha){ const pagos=db.list("pagos_prov").slice().sort((a,b)=>String(a.fecha_pago||"").localeCompare(String(b.fecha_pago||""))||String(a.creado||"").localeCompare(String(b.creado||"")));
+  const grupos=new Map(), porPago=new Map(); pagos.forEach(pg=>{ const det=Array.isArray(pg.facturas)?pg.facturas:[]; const vistas=[]; det.forEach((cf,i)=>{ const fac=resolverFacturaPago(cf,pg), num=String((fac&&fac.numero)||cf.numero||"").trim(); const prov=fac?(fac.proveedor||pg.proveedor||""):(pg.proveedor||""); const key=fac?"fid:"+fac.id:(num?"doc:"+proveedorKeyCf(pg)+":"+dupAlfanum(num):"sin:"+pg.id+":"+i);
+      if(!grupos.has(key)) grupos.set(key,{key,fac,numero:num,proveedor:prov,moneda:(fac&&fac.moneda)||pg.moneda||"Bs",lineas:[]}); const g=grupos.get(key); if(!g.fac&&fac) g.fac=fac;
+      const ln={pg,cf,monto:Number(cf.monto)||0}; g.lineas.push(ln); vistas.push({key,numero:num,fac}); }); porPago.set(pg.id,vistas); });
+  grupos.forEach(g=>{ const orden=g.lineas.slice().sort((a,b)=>String(a.pg.fecha_pago||"").localeCompare(String(b.pg.fecha_pago||""))||String(a.pg.creado||"").localeCompare(String(b.pg.creado||""))); const tope=Number(g.fac&&g.fac.monto)||0; let acum=0; g.fechaCompleta=""; orden.forEach(x=>{ acum+=Math.max(0,x.monto); if(!g.fechaCompleta&&tope>0&&acum>=tope-0.005) g.fechaCompleta=x.pg.fecha_pago||""; }); g.acumulado=acum; g.pagadoHasta=orden.filter(x=>x.pg.fecha_pago&&x.pg.fecha_pago<=fecha).reduce((s,x)=>s+Math.max(0,x.monto),0); g.hoy=orden.filter(x=>x.pg.fecha_pago===fecha).reduce((s,x)=>s+x.monto,0); g.estado=!g.fac?"Sin factura vinculada":(g.fechaCompleta===fecha?"Pagada hoy":(g.fechaCompleta&&g.fechaCompleta<fecha?"Pagada antes":(g.pagadoHasta>0.005?"Abono en curso":"Pago pendiente"))); });
+  const delDia=pagos.filter(p=>p.fecha_pago===fecha); const keysDia=new Set(); delDia.forEach(p=>(porPago.get(p.id)||[]).forEach(x=>keysDia.add(x.key)));
+  return {pagos:delDia,grupos:[...keysDia].map(k=>grupos.get(k)).filter(Boolean).sort((a,b)=>a.proveedor.localeCompare(b.proveedor)||a.numero.localeCompare(b.numero)),porPago}; }
+function cfRefId(id){ return "cf_ref_"+String(id||"").replace(/[^a-z0-9_-]/gi,"_"); }
+function renderConciliacionFacturas(){ if(!puede("conciliacionfacturas")) return; const fechaEl=document.getElementById("cfFecha"); if(fechaEl&&!fechaEl.value) fechaEl.value=_cfFecha||hoy(); _cfFecha=(fechaEl&&fechaEl.value)||_cfFecha||hoy(); const body=document.getElementById("cfBody"), resumen=document.getElementById("cfResumen"); if(!body||!resumen) return;
+  const D=datosConciliacionPagos(_cfFecha), nFac=D.grupos.length, completas=D.grupos.filter(g=>g.fac&&g.fechaCompleta===_cfFecha).length, sinRef=D.pagos.filter(p=>!String(p.referencia_pago||"").trim()).length, sinDetalle=D.pagos.filter(p=>!(Array.isArray(p.facturas)&&p.facturas.length)).length;
+  const tarjeta=(n,l,d)=>`<div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[10px] text-slate-500">${l}</p><p class="text-xl font-bold text-slate-800">${n}</p><p class="text-[10px] text-slate-400">${d}</p></div>`;
+  resumen.innerHTML=tarjeta(D.pagos.length,"Pagos registrados",_cfFecha)+tarjeta(nFac,"Facturas con movimiento","Facturas únicas vinculadas a pagos del día")+tarjeta(completas,"Pagadas por completo","El saldo se completó en esta fecha")+tarjeta(sinRef,"Sin referencia",sinDetalle?sinDetalle+" pago(s) sin detalle de factura":"Referencia requerida por pago");
+  const facturasHtml=D.grupos.length?D.grupos.map(g=>{ const badge=g.estado==="Pagada hoy"?"bg-emerald-100 text-emerald-800":g.estado==="Sin factura vinculada"?"bg-amber-100 text-amber-800":"bg-slate-100 text-slate-600"; return `<div class="bg-white rounded-xl p-3 shadow-sm flex items-start justify-between gap-2"><div class="min-w-0"><p class="text-sm font-semibold truncate">${esc(g.proveedor||"Proveedor sin nombre")} · N° ${esc(g.numero||"—")}</p><p class="text-[11px] text-slate-500">Pago(s) del día: ${fmt2(g.hoy)} ${esc(g.moneda)}${g.fac?" · Abonado acumulado: "+fmt2(Number(g.fac.abonado)||0)+" / "+fmt2(g.fac.monto):""}</p></div><span class="text-[10px] px-2 py-1 rounded-full font-semibold shrink-0 ${badge}">${esc(g.estado)}</span></div>`; }).join(""):empty("No hay facturas vinculadas a pagos en esta fecha.");
+  const pagosHtml=D.pagos.length?D.pagos.map(p=>{ const refs=String(p.referencia_pago||""); const docs=D.porPago.get(p.id)||[]; const detalle=docs.length?`<div class="mt-2 space-y-1">${docs.map(x=>{ const g=D.grupos.find(y=>y.key===x.key); const estado=g?g.estado:"Sin factura vinculada"; return `<div class="flex items-center justify-between gap-2 text-[11px] border-t border-slate-100 pt-1"><span class="min-w-0 truncate">${esc(x.fac?(x.fac.proveedor||p.proveedor||""):p.proveedor||"—")} · N° ${esc(x.numero||"—")}</span><span class="shrink-0 text-slate-500">${fmt2(Number((p.facturas||[]).find(f=>(f.fid&&x.fac&&f.fid===x.fac.id)||(!f.fid&&dupAlfanum(f.numero)===dupAlfanum(x.numero)))?.monto)||0)} ${esc((x.fac&&x.fac.moneda)||p.moneda||"Bs")} · ${esc(estado)}</span></div>`; }).join("")}</div>`:`<p class="text-[11px] text-amber-700 mt-2">Este pago no tiene facturas vinculadas; no se puede verificar el conteo hasta asociarlas.</p>`;
+    return `<div class="bg-white rounded-2xl p-3 shadow-sm"><div class="flex flex-wrap items-start justify-between gap-3"><div class="min-w-0 flex-1"><p class="font-semibold text-sm truncate">${esc(p.proveedor||"Proveedor sin nombre")}${p.rif?` <span class="text-[10px] text-slate-400 font-normal">${esc(p.rif)}</span>`:""}</p><p class="text-[11px] text-slate-500">${esc(p.fecha_pago||"")} · ${fmt2(p.total_pagado||0)} ${esc(p.moneda||"Bs")}${p.banco?" · "+esc(p.banco):""} · ${docs.length} factura(s)</p></div><div class="w-full sm:w-64"><label class="text-[10px] text-slate-500">Referencia bancaria / pago</label><input id="${cfRefId(p.id)}" value="${esc(refs)}" placeholder="Obligatoria" class="w-full px-3 py-2 rounded-xl border ${refs?"border-slate-200":"border-amber-300 bg-amber-50"} text-sm"></div></div>${detalle}</div>`; }).join(""):empty("No hay pagos registrados para esta fecha.");
+  body.innerHTML=`<div class="bg-slate-50 rounded-2xl p-3 mb-3"><h3 class="text-sm font-bold mb-2">Facturas con pagos registrados (${nFac})</h3><div class="space-y-2 max-h-72 overflow-y-auto">${facturasHtml}</div></div><div class="bg-slate-50 rounded-2xl p-3"><h3 class="text-sm font-bold mb-2">Pagos del día y sus referencias (${D.pagos.length})</h3><p class="text-[11px] text-slate-500 mb-2">Puedes repetir una referencia en varios pagos cuando corresponda a una sola transferencia que cubrió varias facturas.</p><div class="space-y-2 max-h-[65vh] overflow-y-auto">${pagosHtml}</div></div>`; }
+async function guardarReferenciasConciliacion(){ if(!puede("conciliacionfacturas")){ toast("Sin acceso"); return; } const D=datosConciliacionPagos(_cfFecha||hoy()); if(!D.pagos.length){ toast("No hay pagos que conciliar en esta fecha"); return; }
+  const cambios=D.pagos.map(p=>({p,ref:String(document.getElementById(cfRefId(p.id))?.value||"").trim()})); const falta=cambios.find(x=>!x.ref); if(falta){ toast("Añade la referencia a cada pago del día"); document.getElementById(cfRefId(falta.p.id))?.focus(); return; }
+  try{ for(const x of cambios){ if(String(x.p.referencia_pago||"").trim()!==x.ref) await db.update("pagos_prov",x.p.id,{referencia_pago:x.ref}); } renderConciliacionFacturas(); toast("Referencias guardadas"); }catch(e){ toast("Error: "+e.message); } }
 /* -------- Reporte de pagos a proveedores (diario / mensual) -------- */
 let _rpModo="dia", _rpFecha=null;
 function openReportePagos(){ if(!puede("deudas")){ toast("Sin acceso"); return; } _rpFecha=_rpFecha||hoy(); renderReportePagos(); }
@@ -6292,7 +6371,7 @@ function renderReportePagos(){ const fecha=_rpFecha; let l=db.list("pagos_prov")
     <input type="${_rpModo==="mes"?"month":"date"}" id="rpFechaSel" value="${_rpModo==="mes"?fecha.slice(0,7):fecha}" onchange="_rpFecha=this.value.length===7?this.value+'-01':this.value;renderReportePagos()" class="w-full mb-2 px-3 py-2 rounded-xl border border-slate-200 text-sm">
     <div class="bg-slate-800 text-white rounded-2xl p-4 mb-2"><p class="text-xs text-slate-300">${_rpModo==="dia"?"Pagado el "+fecha:"Pagado en "+fecha.slice(0,7)} (${l.length} pagos)</p><p class="text-2xl font-bold mt-1">${fmt2(bs)} Bs</p><p class="text-sm text-slate-300">$${fmt2(usd)}</p></div>
     <div class="space-y-1 max-h-72 overflow-y-auto">${l.length?l.map(pg=>{ const tasa=Number(pg.tasa)||tipoCambio; const tp=Number(pg.total_pagado)||0; const pbs=pg.moneda==="USD"?tp*tasa:tp; const pusd=pg.moneda==="USD"?tp:(tasa>0?tp/tasa:0);
-      return `<div class="bg-white border border-slate-100 rounded-lg px-2 py-1.5 flex items-center justify-between gap-2 text-sm"><div class="min-w-0" onclick="closeModal();openPagoProv('${pg.id}')"><p class="font-medium truncate">${esc(pg.proveedor||"—")}</p><p class="text-[11px] text-slate-500 truncate">${esc(pg.fecha_pago||"")}${pg.banco?" · "+esc(pg.banco):""}</p></div><span class="text-right shrink-0"><p class="font-semibold">${fmt2(pbs)} Bs</p><p class="text-[10px] text-slate-400">$${fmt2(pusd)}</p></span></div>`; }).join(""):`<p class="text-xs text-slate-400 text-center py-4">Sin pagos en el periodo.</p>`}</div>
+      return `<div class="bg-white border border-slate-100 rounded-lg px-2 py-1.5 flex items-center justify-between gap-2 text-sm"><div class="min-w-0" onclick="closeModal();openPagoProv('${pg.id}')"><p class="font-medium truncate">${esc(pg.proveedor||"—")}</p><p class="text-[11px] text-slate-500 truncate">${esc(pg.fecha_pago||"")}${pg.banco?" · "+esc(pg.banco):""}${pg.referencia_pago?" · Ref. "+esc(pg.referencia_pago):" · Sin referencia"}</p></div><span class="text-right shrink-0"><p class="font-semibold">${fmt2(pbs)} Bs</p><p class="text-[10px] text-slate-400">$${fmt2(pusd)}</p></span></div>`; }).join(""):`<p class="text-xs text-slate-400 text-center py-4">Sin pagos en el periodo.</p>`}</div>
     <button onclick="closeModal()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`); }
 function importarExcelDeudas(ev){ const f=ev.target.files[0]; if(!f) return; if(!puede("deudas")){ toast("Sin acceso"); return; }
   importarGenerico(f, "deudas", raw=>{ const proveedor=String(pick(raw,["proveedor","nombre","empresa"])).trim(); if(!proveedor) return null;
@@ -6343,7 +6422,7 @@ const RENDER_VISTA={
   proveedores:renderProveedores, inventario:renderInventario, ordenes:renderOrdenes,
   recepcion:function(){ renderRecepcion(); renderRecepHistory(); }, merma:renderMerma, quiebre:renderQuiebre,
   rotacion:renderRotacion, compras:renderCompras,
-  caja:renderCaja, tesoreria:renderTesoreria, conciliacion:renderConciliacion, solicitudes:renderSolicitudes, deudas:renderDeudas, facturasrec:renderFacturasRecView, conexiones:renderConexiones,
+  caja:renderCaja, tesoreria:renderTesoreria, conciliacion:renderConciliacion, conciliacionfacturas:renderConciliacionFacturas, solicitudes:renderSolicitudes, deudas:renderDeudas, facturasrec:renderFacturasRecView, conexiones:renderConexiones,
   ajustes:renderAjustesView
 };
 function render(){
@@ -6360,7 +6439,7 @@ function exportarRespaldoFinanzas(){ if(!puede("deudas")){ toast("Sin acceso"); 
   const wb=XLSX.utils.book_new();
   const fac=(store.facturas_rec||[]).map(f=>({Fecha:f.fecha||"","N Factura":f.numero||"",Proveedor:f.proveedor||"",RIF:f.rif||"",Total:Number(f.monto)||0,Moneda:f.moneda||"Bs",Tipo:f.tipo||"",Rubro:rubroNombre(f.rubro),Abonado:Number(f.abonado)||0,Notas:f.notas||""}));
   const deu=(store.deudas||[]).map(d=>({Proveedor:d.proveedor||"",RIF:d.rif||"",Tipo:d.tipo||"Deuda",Monto:Number(d.monto)||0,Abonado:Number(d.abonado)||0,Fecha:d.fecha||"",Status:d.status||"",Notas:d.notas||""}));
-  const pag=(store.pagos_prov||[]).map(p=>({Proveedor:p.proveedor||"",RIF:p.rif||"","Fecha pago":p.fecha_pago||"","Total pagado":Number(p.total_pagado)||0,Moneda:p.moneda||"Bs",Tasa:Number(p.tasa)||0,Banco:p.banco||"",Notas:p.notas||""}));
+  const pag=(store.pagos_prov||[]).map(p=>({Proveedor:p.proveedor||"",RIF:p.rif||"","Fecha pago":p.fecha_pago||"",Referencia:p.referencia_pago||"","Total pagado":Number(p.total_pagado)||0,Moneda:p.moneda||"Bs",Tasa:Number(p.tasa)||0,Banco:p.banco||"",Notas:p.notas||""}));
   const gas=db.list("gastos").map(g=>{ const m=gastoMontos(g); return {Fecha:g.fecha||"",Tipo:g.tipo||"",Categoria:g.categoria||"",Descripcion:g.descripcion||"",Monto:Number(g.monto)||0,Moneda:g.moneda||"Bs","Forma de pago":g.forma_pago||"",Banco:g.banco||"",Tasa:Number(g.tasa)||0,"Tasa USDT":Number(g.tasa_alt)||0,"Total Bs":Math.round(m.bs*100)/100,"Total $":Math.round(m.usd*100)/100,Notas:g.notas||""}; });
   const deObjs=(arr,vacio,titulo)=>{ const src=arr.length?arr:[vacio]; const headers=Object.keys(src[0]); return hojaPro({titulo, subtitulo:subtituloPro(arr.length+" registro(s) · re-importable desde «Importar Excel»"), headers, rows:src.map(o=>headers.map(h=>o[h]))}); };
   libroPro([[deObjs(fac,{Fecha:"",Proveedor:"",Total:0},"FACTURAS RECIBIDAS"),"Facturas recibidas"],[deObjs(deu,{Proveedor:"",Monto:0},"DEUDAS"),"Deudas"],[deObjs(pag,{Proveedor:"","Total pagado":0},"PAGOS A PROVEEDORES"),"Pagos"],[deObjs(gas,{Fecha:"",Tipo:"",Monto:0},"GASTOS"),"Gastos"]], "respaldo_finanzas_"+hoy()+".xlsx");
@@ -6369,9 +6448,9 @@ async function importarJSON(ev){ const file=ev.target.files[0]; if(!file) return
   if(USE_CLOUD){
     // Modo nube: el respaldo se FUSIONA — se agregan a Supabase los registros que no existan. Nunca borra ni sobreescribe.
     if(!confirm("Se agregarán a la base compartida los registros del respaldo que NO existan todavía. No se borra ni se sobreescribe nada. ¿Continuar?")){ ev.target.value=""; return; }
-    showLoader("Restaurando respaldo…"); let agregados=0, fallidos=0; const tablas=[]; const errores=[];
+    showLoader("Restaurando respaldo…"); let agregados=0, fallidos=0, omitidosDuplicados=0; const tablas=[]; const errores=[];
     for(const t of TABLES){ const rows=Array.isArray(data[t])?data[t]:[]; if(!rows.length) continue;
-      const existentes=new Set((store[t]||[]).map(r=>r.id)); const nuevos=rows.filter(r=>r && r.id && !existentes.has(r.id)); if(!nuevos.length) continue; let ok=0;
+      const existentes=new Set((store[t]||[]).map(r=>r.id)); const vistos=(store[t]||[]).slice(), nuevos=[]; for(const r of rows){ if(!r||!r.id||existentes.has(r.id)) continue; if(duplicadoEn(t,r,vistos)){ omitidosDuplicados++; continue; } nuevos.push(r); vistos.push(r); } if(!nuevos.length) continue; let ok=0;
       for(let i=0;i<nuevos.length;i+=200){ const lote=nuevos.slice(i,i+200); const {error}=await sb.from(t).upsert(lote,{onConflict:"id",ignoreDuplicates:true});
         if(!error){ ok+=lote.length; continue; }
         // si el lote falla (p. ej. una columna desconocida), se intenta fila por fila para salvar el resto
@@ -6379,12 +6458,12 @@ async function importarJSON(ev){ const file=ev.target.files[0]; if(!file) return
       if(ok){ agregados+=ok; tablas.push(t+" ("+ok+")"); } }
     try{ await db.recargar(); }catch(_){}
     hideLoader(); render();
-    if(agregados) toast(`Respaldo aplicado: ${agregados} registro(s) agregados`); else toast("No había registros nuevos que agregar");
+    if(agregados) toast(`Respaldo aplicado: ${agregados} agregado(s)${omitidosDuplicados?" · "+omitidosDuplicados+" duplicado(s) omitido(s)":""}`); else toast(omitidosDuplicados?"Respaldo revisado: se omitieron "+omitidosDuplicados+" duplicados":"No había registros nuevos que agregar");
     if(tablas.length || errores.length) alert((tablas.length?"Agregados por tabla:\n"+tablas.join("\n"):"Sin registros nuevos.")+(fallidos?"\n\nNo se pudieron agregar "+fallidos+" registro(s):\n"+errores.join("\n"):""));
     ev.target.value=""; return; }
-  TABLES.forEach(t=>{ if(t==="usuarios" && !Array.isArray(data.usuarios)) return; store[t]=data[t]||[]; });
+  let omitidosDuplicados=0; TABLES.forEach(t=>{ if(t==="usuarios" && !Array.isArray(data.usuarios)) return; const rows=Array.isArray(data[t])?data[t]:[]; store[t]=filtrarDuplicadosTabla(t,rows); omitidosDuplicados+=rows.length-store[t].length; });
   if(!db.list("usuarios").length){ await seedUsuarios(); }
-  if(!USE_CLOUD) lsSave(); render(); toast("Datos restaurados"); ev.target.value=""; }
+  if(!USE_CLOUD) lsSave(); render(); toast(omitidosDuplicados?"Datos restaurados · "+omitidosDuplicados+" duplicado(s) omitido(s)":"Datos restaurados"); ev.target.value=""; }
 async function borrarTodo(){ if(!confirm("Esto borra los datos de gestión de este dispositivo (los usuarios se conservan). ¿Continuar?")) return; TABLES.filter(t=>t!=="usuarios").forEach(t=>store[t]=[]); if(!USE_CLOUD) lsSave(); render(); toast("Datos borrados"); }
 async function cargarDemo(){
   const E=[{nombre:"María Pérez",cedula:"V-12.345.678",cargo:"Cajera",area:"Cajas",salario_base:180,fecha_ingreso:"2024-03-01",telefono:"04121112233",estado:"Activo"},
