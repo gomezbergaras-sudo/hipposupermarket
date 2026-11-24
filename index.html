@@ -548,6 +548,67 @@
   html[data-theme="cristal"] #loginRoles button{ background:rgba(255,255,255,.94) !important; border:1px solid #fff; box-shadow:inset 0 1px 0 #fff, 0 8px 24px rgba(0,0,0,.14); }
   html[data-theme="cristal"] #loginRoles input{ background:rgba(255,255,255,.92); }
   @media (prefers-reduced-motion: reduce){ .hp-tema, nav.fixed.bottom-0 .tab .navic{ transition:none; } }
+
+  /* Menú lateral de vidrio: navegación de escritorio inspirada en la referencia */
+  @media (min-width:900px){
+    #sideNav.hp-side{ box-sizing:border-box; width:258px; flex:0 0 258px; height:calc(100vh - 24px); align-self:flex-start; top:12px; margin:12px 0 12px 12px; padding:14px 12px 12px; overflow-x:hidden; overflow-y:auto; border:1px solid rgba(210,232,255,.2); border-radius:24px; color:#edf6ff; background:linear-gradient(158deg,rgba(38,91,151,.82) 0%,rgba(19,43,78,.91) 42%,rgba(8,20,40,.96) 100%) !important; box-shadow:0 20px 52px rgba(5,16,38,.28),inset 0 1px 0 rgba(255,255,255,.22); backdrop-filter:blur(28px) saturate(155%); -webkit-backdrop-filter:blur(28px) saturate(155%); transition:width .24s ease,flex-basis .24s ease,padding .24s ease; scrollbar-width:thin; scrollbar-color:rgba(214,234,255,.25) transparent; }
+    #sideNav.hp-side.is-compact{ width:76px; flex-basis:76px; padding:14px 9px 12px; }
+    #sideNav.hp-side.is-compact:hover,#sideNav.hp-side.is-compact:focus-within{ width:258px; flex-basis:258px; z-index:40; padding:14px 12px 12px; }
+  }
+  #sideNav.hp-side:before{ content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; background:radial-gradient(360px 260px at 0% 0%,rgba(100,181,255,.28),transparent 72%),radial-gradient(300px 260px at 100% 100%,rgba(45,212,191,.13),transparent 70%); }
+  #sideNav.hp-side>*{ position:relative; z-index:1; }
+  #sideNav .hp-side-head{ display:flex; align-items:center; gap:8px; min-width:0; padding:2px 2px 12px; }
+  #sideNav .brand{ flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:10px; padding:0; }
+  #sideNav .brand img{ width:40px; height:40px; flex:0 0 40px; border-radius:13px; padding:3px; object-fit:contain; background:rgba(255,255,255,.92); border:1px solid rgba(255,255,255,.78); box-shadow:0 5px 18px rgba(0,0,0,.2),inset 0 1px 0 #fff; }
+  #sideNav .brand-copy{ min-width:0; }
+  #sideNav .brand b{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#f8fbff; font-size:13px; }
+  #sideNav .brand small{ display:flex; align-items:center; gap:6px; margin-top:3px; color:rgba(229,240,255,.7); font-size:10px; }
+  #sideNav .hp-side-toggle{ display:grid; place-items:center; flex:0 0 32px; width:32px; height:32px; padding:0; color:#eaf4ff; background:rgba(225,241,255,.1); border:1px solid rgba(225,241,255,.16); border-radius:10px; cursor:pointer; transition:background .15s,transform .15s; }
+  #sideNav .hp-side-toggle:hover{ background:rgba(225,241,255,.2); transform:translateX(-1px); }
+  #sideNav .hp-side-toggle .hpi{ width:15px; height:15px; }
+  #sideNav .hp-side-search{ display:flex; align-items:center; gap:8px; height:38px; margin:2px 2px 10px; padding:0 10px; color:rgba(222,238,255,.66); background:rgba(224,239,255,.075); border:1px solid rgba(224,239,255,.13); border-radius:12px; box-shadow:inset 0 1px 0 rgba(255,255,255,.06); }
+  #sideNav .hp-side-search .hpi{ width:15px; height:15px; flex:0 0 15px; }
+  #sideNav .hp-side-search input{ width:100%; min-width:0; padding:0; color:#f5f9ff; background:transparent; border:0; outline:0; font:500 12px Inter,system-ui,sans-serif; }
+  #sideNav .hp-side-search input::placeholder{ color:rgba(222,238,255,.58); }
+  #sideNav .hp-side-search input:focus{ box-shadow:none; }
+  #sideNav .hp-side-group{ display:flex; flex-direction:column; gap:2px; margin-bottom:8px; }
+  #sideNav .grp{ margin:12px 10px 5px; color:rgba(209,229,255,.52); font-size:9px; letter-spacing:.13em; }
+  #sideNav .it{ min-height:42px; gap:10px; padding:4px 7px; overflow:hidden; color:rgba(230,241,255,.77); background:transparent; border:1px solid transparent; border-radius:13px; font-size:12px; font-weight:550; transition:background .15s,border-color .15s,color .15s,transform .15s; }
+  #sideNav .it .ic{ display:grid; place-items:center; width:34px; height:34px; flex:0 0 34px; border-radius:10px; color:#d8eaff; background:rgba(218,236,255,.09); font-size:15px; }
+  #sideNav .it>span:not(.ic){ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #sideNav .it .chev{ flex:0 0 auto; color:rgba(226,240,255,.7); }
+  #sideNav .it:hover{ color:#fff; background:rgba(222,239,255,.09); border-color:rgba(222,239,255,.1); }
+  #sideNav .it.on{ color:#102b4a; background:linear-gradient(110deg,rgba(245,250,255,.96),rgba(207,231,255,.87)); border-color:rgba(255,255,255,.85); box-shadow:inset 0 1px 0 #fff,0 6px 20px rgba(3,14,32,.18); }
+  #sideNav .it.on .ic{ color:#155e9c; background:rgba(255,255,255,.68); }
+  #sideNav .subnav{ margin:2px 0 6px 17px; padding-left:10px; border-left:1px solid rgba(218,237,255,.22); }
+  #sideNav .it.sub{ min-height:36px; padding:2px 6px; font-size:11.5px; }
+  #sideNav .it.sub .ic{ width:29px; height:29px; flex-basis:29px; font-size:13px; }
+  #sideNav .foot{ min-height:54px; justify-content:flex-start; margin-top:auto; padding:10px 4px 2px; color:#f1f7ff; border-top:1px solid rgba(220,238,255,.15); }
+  #sideNav .hp-side-profile{ display:flex; align-items:center; gap:9px; flex:1 1 auto; min-width:0; }
+  #sideNav .hp-side-avatar{ display:grid; place-items:center; width:36px; height:36px; flex:0 0 36px; border:1px solid rgba(255,255,255,.7); border-radius:50%; color:#123252; background:linear-gradient(145deg,#f7fbff,#acd6fa); font-size:11px; font-weight:800; box-shadow:0 3px 12px rgba(0,0,0,.2); }
+  #sideNav .hp-user-copy{ display:flex; flex-direction:column; min-width:0; gap:2px; }
+  #sideNav .hp-user-copy b{ overflow:hidden; color:#f7fbff; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+  #sideNav .hp-user-copy small{ color:rgba(218,234,255,.65); font-size:9px; }
+  #sideNav .hp-logout{ display:grid; place-items:center; width:32px; height:32px; padding:0; color:rgba(235,244,255,.82); background:rgba(222,239,255,.08); border:1px solid rgba(222,239,255,.12); border-radius:10px; cursor:pointer; }
+  #sideNav .hp-logout:hover{ color:#fff; background:rgba(248,113,113,.22); }
+  #sideNav .hp-logout .hpi{ width:15px; height:15px; }
+  #sideNav .foot .hp-pal{ width:32px; height:32px; padding:0; border:1px solid rgba(222,239,255,.12); border-radius:10px; color:#edf6ff; background:rgba(222,239,255,.08); }
+  @media (min-width:900px){
+    #sideNav.is-compact:not(:hover):not(:focus-within) .hp-side-head{ flex-direction:column; gap:8px; }
+    #sideNav.is-compact:not(:hover):not(:focus-within) .brand{ flex:none; }
+    #sideNav.is-compact:not(:hover):not(:focus-within) .brand-copy,
+    #sideNav.is-compact:not(:hover):not(:focus-within) .hp-side-search input,
+    #sideNav.is-compact:not(:hover):not(:focus-within) .grp,
+    #sideNav.is-compact:not(:hover):not(:focus-within) .it>span:not(.ic),
+    #sideNav.is-compact:not(:hover):not(:focus-within) .hp-user-copy,
+    #sideNav.is-compact:not(:hover):not(:focus-within) .hp-logout-label{ display:none; }
+    #sideNav.is-compact:not(:hover):not(:focus-within) .hp-side-search{ justify-content:center; width:42px; margin:3px auto 10px; padding:0; }
+    #sideNav.is-compact:not(:hover):not(:focus-within) .it{ justify-content:center; padding:3px; }
+    #sideNav.is-compact:not(:hover):not(:focus-within) .subnav{ display:none; }
+    #sideNav.is-compact:not(:hover):not(:focus-within) .foot{ flex-direction:column; gap:8px; }
+    #sideNav.is-compact:not(:hover):not(:focus-within) .hp-side-profile{ flex:none; }
+  }
+  @media (prefers-reduced-motion:reduce){ #sideNav.hp-side,#sideNav .it,#sideNav .hp-side-toggle{ transition:none; } }
 </style>
 </head>
 
@@ -1947,6 +2008,9 @@ document.querySelectorAll(".tab").forEach(b=> b.onclick=()=>show(b.dataset.targe
 
 /* ===================== SHELL v5: menú lateral (escritorio) y menú completo (móvil) ===================== */
 const NAV_ACCIONES={gastos:"openGastos()"};
+function menuLateralCompacto(){ try{ const valor=localStorage.getItem("hp_sidebar_compact"); return valor===null||valor==="1"; }catch(_){ return true; } }
+function toggleMenuLateral(){ const el=document.getElementById("sideNav"); if(!el) return; const compacto=!el.classList.contains("is-compact"); el.classList.toggle("is-compact",compacto); try{ localStorage.setItem("hp_sidebar_compact",compacto?"1":"0"); }catch(_){} const b=el.querySelector(".hp-side-toggle"); if(b){ b.setAttribute("aria-expanded",String(!compacto)); b.setAttribute("aria-label",compacto?"Fijar menú expandido":"Contraer menú"); b.title=compacto?"Fijar menú expandido":"Contraer menú"; const ic=b.querySelector(".hpi"); if(ic) ic.outerHTML=hpIco(compacto?"chevron-right":"chevron-left"); } }
+function filtrarMenuLateral(valor){ const q=String(valor||"").trim().toLocaleLowerCase("es"); document.querySelectorAll("#sideNav .hp-side-group").forEach(g=>{ g.style.display=!q||String(g.dataset.search||"").includes(q)?"":"none"; }); }
 function gruposNavegacion(){ const g=[]; const t=(l)=>window.t?window.t(l):l;
   g.push({titulo:"", items:[["inicio","🏠",t("Inicio")]]});
   const add=(titulo,arr)=>{ const items=arr.filter(([v])=>puede(v)).map(([v,ic,l])=>[v,ic,t(l)]); if(items.length) g.push({titulo:t(titulo),items}); };
@@ -1958,15 +2022,20 @@ function gruposNavegacion(){ const g=[]; const t=(l)=>window.t?window.t(l):l;
 let _navAbierto={};
 function navIr(v){ if(NAV_ACCIONES[v]){ closeModal(); try{ eval(NAV_ACCIONES[v]); }catch(_){} return; } closeModal(); show(v); }
 function navToggle(v,ev){ if(ev) ev.stopPropagation(); _navAbierto[v]=!_navAbierto[v]; renderSideNav(); }
-function navItemHTML(it,act){ const [v,ic,l,subs]=it; if(!subs) return `<button class="it ${v===act?"on":""}" onclick="navIr('${v}')"><span class="ic">${ic}</span><span>${esc(l)}</span></button>`;
+function navItemHTML(it,act){ const [v,ic,l,subs]=it; if(!subs) return `<button class="it ${v===act?"on":""}" title="${esc(l)}" aria-label="${esc(l)}" onclick="navIr('${v}')"><span class="ic">${ic}</span><span>${esc(l)}</span></button>`;
   const abierto=_navAbierto[v] || subs.some(x=>x[0]===act); const on=subs.some(x=>x[0]===act);
-  return `<button class="it ${on?"on":""}" onclick="navIr('${v}');_navAbierto['${v}']=true;"><span class="ic">${ic}</span><span class="flex-1">${esc(l)}</span><span class="chev" onclick="navToggle('${v}',event)">${abierto?"▾":"▸"}</span></button>
-    ${abierto?`<div class="subnav">${subs.map(([sv,sic,sl])=>`<button class="it sub ${sv===act?"on":""}" onclick="navIr('${sv}')"><span class="ic">${sic}</span><span>${esc(sl)}</span></button>`).join("")}</div>`:""}`; }
+  return `<button class="it ${on?"on":""}" title="${esc(l)}" aria-label="${esc(l)}" onclick="navIr('${v}');_navAbierto['${v}']=true;"><span class="ic">${ic}</span><span class="flex-1">${esc(l)}</span><span class="chev" onclick="navToggle('${v}',event)">${abierto?"▾":"▸"}</span></button>
+    ${abierto?`<div class="subnav">${subs.map(([sv,sic,sl])=>`<button class="it sub ${sv===act?"on":""}" title="${esc(sl)}" aria-label="${esc(sl)}" onclick="navIr('${sv}')"><span class="ic">${sic}</span><span>${esc(sl)}</span></button>`).join("")}</div>`:""}`; }
 function renderSideNav(){ const el=document.getElementById("sideNav"); if(!el) return; if(!currentUser){ el.innerHTML=""; return; }
-  const logo=(ajustes&&ajustes.logo)?ajustes.logo:(typeof LOGO_DEFAULT!=="undefined"?LOGO_DEFAULT:""); const mod=MODULES[currentView]; const act=currentView;
-  el.innerHTML=`<div class="brand"><img src="${logo}" alt=""><div><b>${esc(ajustes.nombre||"Hipposupermarket")}</b><small class="flex items-center gap-1.5">v${APP_VERSION} <span id="modeDotSide" class="hp-dot ${USE_CLOUD?(navigator.onLine!==false?"on":"off"):"local"}" style="width:9px;height:9px" title="${USE_CLOUD?"Compartido":"Modo local"}"></span></small></div></div>
-    ${gruposNavegacion().map(gr=>(gr.titulo?`<div class="grp">${esc(gr.titulo)}</div>`:"")+gr.items.map(it=>navItemHTML(it,act)).join("")).join("")}
-    <div class="foot"><span class="truncate">👤 ${esc(currentUser.nombre||"")}</span><button onclick="logout()">Salir</button></div>`; }
+  const logo=(ajustes&&ajustes.logo)?ajustes.logo:(typeof LOGO_DEFAULT!=="undefined"?LOGO_DEFAULT:""); const act=currentView, compacto=menuLateralCompacto();
+  const nombre=String(currentUser.nombre||"Usuario").trim(), iniciales=nombre.split(/\s+/).slice(0,2).map(x=>x.charAt(0)).join("").toUpperCase()||"U";
+  const rol=currentUser.es_gerencia?"Gerencia":currentUser.es_rrhh?"Recursos humanos":"Usuario";
+  const grupos=gruposNavegacion();
+  el.classList.toggle("is-compact",compacto);
+  el.innerHTML=`<div class="hp-side-head"><div class="brand"><img src="${logo}" alt=""><div class="brand-copy"><b>${esc(ajustes.nombre||"Hipposupermarket")}</b><small>v${APP_VERSION}<span id="modeDotSide" class="hp-dot ${USE_CLOUD?(navigator.onLine!==false?"on":"off"):"local"}" style="width:8px;height:8px" title="${USE_CLOUD?"Compartido":"Modo local"}"></span></small></div></div><button class="hp-side-toggle" type="button" onclick="toggleMenuLateral()" aria-expanded="${!compacto}" aria-label="${compacto?"Fijar menú expandido":"Contraer menú"}" title="${compacto?"Fijar menú expandido":"Contraer menú"}">${hpIco(compacto?"chevron-right":"chevron-left")}</button></div>
+    <label class="hp-side-search" title="Buscar una sección"><span>${hpIco("search")}</span><input type="search" placeholder="Buscar sección…" aria-label="Buscar sección" oninput="filtrarMenuLateral(this.value)"></label>
+    ${grupos.map(gr=>{const term=[gr.titulo,...gr.items.flatMap(it=>[it[2],...(it[3]||[]).map(x=>x[2])])].join(" ").toLocaleLowerCase("es");return `<div class="hp-side-group" data-search="${esc(term)}">${gr.titulo?`<div class="grp">${esc(gr.titulo)}</div>`:""}${gr.items.map(it=>navItemHTML(it,act)).join("")}</div>`;}).join("")}
+    <div class="foot"><div class="hp-side-profile"><span class="hp-side-avatar" aria-hidden="true">${esc(iniciales)}</span><span class="hp-user-copy"><b>${esc(nombre)}</b><small>${esc(rol)}</small></span></div><button class="hp-logout" type="button" onclick="logout()" aria-label="Cerrar sesión" title="Cerrar sesión">${hpIco("log-out")}<span class="hp-logout-label">Salir</span></button></div>`; }
 function abrirMenuCompleto(){ if(!currentUser) return; const act=currentView;
   openModal(`<h3 class="font-bold text-lg mb-1">Menú</h3><p class="text-xs text-slate-500 mb-2">Todas las secciones de la app</p>
     <div class="max-h-[70vh] overflow-y-auto pr-1">${gruposNavegacion().map(gr=>(gr.titulo?`<div class="hp-menu-grp">${esc(gr.titulo)}</div>`:"")+gr.items.map(([v,ic,l,subs])=>subs?`<div class="hp-menu-it" style="background:#eef2f7;font-weight:700;cursor:default"><span>${ic}</span><span>${esc(l)}</span></div>`+subs.map(([sv,sic,sl])=>`<button class="hp-menu-it sub ${sv===act?"on":""}" onclick="navIr('${sv}')"><span>${sic}</span><span>${esc(sl)}</span></button>`).join(""):`<button class="hp-menu-it ${v===act?"on":""}" onclick="navIr('${v}')"><span>${ic}</span><span>${esc(l)}</span></button>`).join("")).join("")}</div>
