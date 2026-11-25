@@ -8,7 +8,7 @@
 <meta http-equiv="Expires" content="0" />
 <meta name="theme-color" content="#0d9488" />
 <!-- v9.1 · Tema visual elegido en este dispositivo (cristal · aurora · nordico · nocturno · fresco · corporativo). Se aplica antes de pintar para evitar parpadeos. Predeterminado: cristal. -->
-<script>try{var _hpT=localStorage.getItem("hp_tema");document.documentElement.setAttribute("data-theme",/^(cristal|aurora|nordico|nocturno|fresco|corporativo)$/.test(_hpT||"")?_hpT:"cristal");}catch(e){document.documentElement.setAttribute("data-theme","cristal");}</script>
+<script>try{var _hpT=localStorage.getItem("hp_tema");document.documentElement.setAttribute("data-theme",/^(cristal|aurora|nordico|nocturno|fresco|corporativo)$/.test(_hpT||"")?_hpT:"fresco");}catch(e){document.documentElement.setAttribute("data-theme","fresco");}</script>
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -618,6 +618,208 @@
   }
   @media (prefers-reduced-motion:reduce){ #sideNav.hp-side,#sideNav .it,#sideNav .hp-side-toggle{ transition:none; } }
 </style>
+<style>
+  .hippo-workspace{--desk-ink:#17352e;--desk-muted:#506960;--desk-line:#d9e6df;--desk-paper:#fff;--desk-accent:#12674e}
+  html[data-theme="nocturno"] .hippo-workspace{--desk-ink:#e4f3eb;--desk-muted:#acc5b9;--desk-line:#375950;--desk-paper:#162924;--desk-accent:#167355}
+  html[data-theme="nocturno"] .hippo-workspace .desk-intro,html[data-theme="nocturno"] .hippo-workspace .desk-table thead{background:#203c32}
+  html[data-theme="nocturno"] .desk-table summary{color:#8cddba}
+  .desk-panel{background:var(--desk-paper);border:1px solid var(--desk-line);border-radius:20px;padding:clamp(14px,2.5vw,24px);margin-bottom:14px;color:var(--desk-ink)}
+  .desk-title{font-size:clamp(1.4rem,3vw,2rem);font-weight:800;line-height:1.15;letter-spacing:-.035em}
+  .desk-intro{background:linear-gradient(120deg,#edf8ef,#f9fcf9)}
+  .desk-actions,.desk-filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+  .desk-filters label{flex:1 1 130px;font-size:.82rem;font-weight:650}
+  .desk-field{display:block;width:100%;min-height:42px;margin-top:4px;padding:7px 10px;border:1px solid var(--desk-line);border-radius:10px;background:var(--desk-paper);color:var(--desk-ink)}
+  .desk-btn{min-height:42px;padding:8px 13px;border:1px solid var(--desk-line);border-radius:10px;background:var(--desk-paper);font-size:.85rem;font-weight:700}
+  .desk-btn-main{background:var(--desk-accent);border-color:var(--desk-accent);color:white}
+  .desk-launchers{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:10px;margin-top:16px}
+  .desk-launchers button{text-align:left;padding:13px}
+  .desk-launchers small{display:block;font-weight:500;color:var(--desk-muted);margin-top:3px}
+  .desk-btn:hover,.desk-launchers button:hover{box-shadow:0 0 0 2px #9acbb7}
+  .hippo-workspace :focus-visible{outline:2px solid #138162;outline-offset:2px}
+  .desk-scroll{overflow:auto}
+  .desk-table{width:100%;border-collapse:collapse;text-align:left;font-size:.85rem}
+  .desk-table th,.desk-table td{padding:10px;border-bottom:1px solid var(--desk-line);vertical-align:top}
+  .desk-table thead{background:#eef6f0;color:var(--desk-ink)}
+  .desk-table summary{cursor:pointer;font-weight:700;color:var(--desk-accent)}
+  .desk-table .desk-field{min-width:125px}
+  .desk-detail{min-width:175px;margin-top:8px;color:var(--desk-muted)}
+  .desk-detail li+li{margin-top:5px}
+  .desk-payments{display:grid;gap:14px}
+  .desk-intro{border-left:4px solid var(--desk-accent)}
+  .desk-panel{box-shadow:0 3px 12px rgb(15 40 32 / .06)}
+  .desk-launchers .desk-launch-primary{background:var(--desk-accent);border-color:var(--desk-accent);color:white}
+  .desk-launchers .desk-launch-primary small{color:#e7f8ef}
+  .desk-kpi{background:var(--desk-paper);color:var(--desk-ink);border:1px solid var(--desk-line);border-radius:14px;padding:12px 14px}
+  .desk-kpi span{display:block;font-size:.78rem;color:var(--desk-muted)}
+  .desk-kpi strong{display:block;font-size:1.45rem;line-height:1.4;font-variant-numeric:tabular-nums}
+  .desk-amount{white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:650}
+  .desk-table tr:hover td{background:rgb(18 103 78 / .06)}
+  .desk-ref-missing{border-color:#bf8528}
+  .desk-filters .desk-search{flex-grow:2}
+  @media(max-width:650px){
+    .desk-actions .desk-btn{flex:1 1 140px}
+    .desk-actions .desk-btn-main{flex-basis:100%}
+    .desk-table tr:not([hidden]){border:1px solid var(--desk-line);border-radius:12px;padding:9px 10px;margin-bottom:8px}
+    .desk-table td:first-child{display:block;margin-bottom:4px}
+    .desk-table td:first-child::before{display:none}
+  }
+  @media(min-width:1150px){.desk-payments{grid-template-columns:minmax(0,2fr) minmax(230px,1fr);align-items:start}}
+  @media(max-width:650px){
+    .desk-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+    .desk-table,.desk-table tbody{display:block}
+    .desk-table tr:not([hidden]){display:block;padding:8px 0;border-bottom:1px solid var(--desk-line)}
+    .desk-table td{display:grid;grid-template-columns:84px minmax(0,1fr);gap:8px;border:0;padding:5px 0}
+    .desk-table td::before{content:attr(data-label);font-weight:650;color:var(--desk-muted)}
+  }
+</style>
+<style>
+  .hp-content > header > div{gap:10px;min-height:58px}
+  #hTitle,#hSub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hp-content > header #hTitle{font-size:1rem}
+  .hp-content > header button{flex-shrink:0}
+  .hp-content > header #rolBadge{max-width:clamp(64px,16vw,160px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:32px}
+  .hp-content :is(button,a,summary,input,select,textarea):focus-visible,.hp-side button:focus-visible{outline:2px solid var(--hp-teal,#0f766e);outline-offset:3px}
+  .hp-side .it{min-height:40px}
+  .hp-side .it.on{border-left:3px solid currentColor}
+  #hippoMobileNav .tab{min-height:54px}
+  #hippoMobileNav .tab[aria-current="page"]{background:var(--hp-mint,#ecfdf5);box-shadow:inset 0 3px var(--hp-teal,#0f766e)}
+  .hp-content main > section > h2{font-size:clamp(1.3rem,2.6vw,1.9rem);line-height:1.17;margin-bottom:.6rem;overflow-wrap:anywhere}
+  .hp-content main > section > h2:not(.desk-title){border-left:3px solid var(--hp-teal,#0f766e);padding-left:10px}
+  .hp-content :is(main,#modal,#modal2) :is(input,textarea,select){max-width:100%}
+  .hp-content :is(main,#modal,#modal2) button:disabled{cursor:not-allowed;opacity:.62}
+  .hp-content main .overflow-x-auto{overscroll-behavior-x:contain}
+  .hp-content main [data-view] table{font-variant-numeric:tabular-nums}
+  .hp-content main [data-view] table:not(.desk-table) :is(th,td){vertical-align:top}
+  .hp-content .hp-modules{padding:14px;background:var(--hp-card,#fff);border:1px solid var(--hp-line,#dbe5e0);border-radius:16px;margin-top:16px}
+  .hp-modules summary{cursor:pointer;font-weight:750;padding:5px}
+  .hp-modules [id^="tiles"]{grid-template-columns:repeat(auto-fit,minmax(min(100%,125px),1fr))}
+  .hp-login-card{width:min(100%,390px);padding:clamp(20px,5vw,34px);background:var(--hp-card,#fff);color:var(--hp-ink,#17352e);border-radius:22px;box-shadow:0 16px 50px #081e2e33}
+  .hp-login-card h1{font-size:1.65rem;overflow-wrap:anywhere}
+  .hp-login-card label{display:block;font-size:.82rem;font-weight:650;margin:0 0 5px}
+  .hp-login-card input{width:100%;background:var(--hp-input,#f6faf8);color:var(--hp-ink,#17352e);border:1px solid var(--hp-input-line,#c6d9ce);border-radius:12px;padding:10px 12px}
+  .hp-login-card input:focus-visible{outline:2px solid var(--hp-teal,#0f766e);outline-offset:2px}
+  .hp-login-card button{width:100%;min-height:44px;background:var(--hp-dark,#16483b);color:white;border-radius:12px;font-weight:700}
+  html[data-theme="cristal"] #login .hp-login-card #loginRoles button{background:var(--hp-dark,#16483b) !important;color:#fff !important;box-shadow:none}
+  #login{overflow:auto;justify-content:safe center}
+  @media(max-width:650px){
+    .hp-content > header > div > div:first-child{min-width:0}
+    .hp-content > header > div > div:first-child > div:last-child{min-width:0}
+    .hp-content main{padding-inline:12px}
+    .hp-content :is(main,#modal,#modal2) :is(input,select,textarea):not([type=checkbox]):not([type=radio]):not([type=file]){font-size:16px}
+  }
+</style>
+<style>
+  html[data-theme="fresco"]{--hp-bg:#f3f6f4;--hp-bg-img:none;--hp-card:#fff;--hp-line:#dce6df;--hp-grad:linear-gradient(135deg,#12634d,#18765a);--hp-sh:0 2px 10px #14392e0a}
+  html[data-theme="fresco"] .hp-side{background:#162e29 !important}
+  html[data-theme="fresco"] .hp-side .it.on{background:#275748 !important;box-shadow:none}
+  html[data-theme="fresco"] #login{background:#173a31 !important}
+  html[data-theme="fresco"] .hp-login-card #loginRoles{background:transparent;border:0;box-shadow:none;padding:0}
+  .hp-welcome{padding:4px 0 16px}
+  .hp-welcome h2{font-size:clamp(1.45rem,4vw,2.05rem);line-height:1.2;font-weight:800;margin-bottom:5px}
+  .hp-welcome p{color:var(--hp-muted,#506960);font-size:.9rem}
+  .desk-intro{background:var(--desk-paper)}
+  .hippo-workspace .desk-launchers{grid-template-columns:repeat(auto-fit,minmax(min(100%,175px),1fr))}
+  .desk-launchers button{min-height:78px}
+  .hp-extra-actions{margin-top:12px}
+  .hp-extra-actions summary{cursor:pointer;font-size:.9rem;font-weight:700;padding:8px 0;color:var(--hp-teal-700,#12674e)}
+  .hp-extra-actions .hp-quick button{color:var(--hp-ink,#17352e);background:var(--hp-card,#fff);border:1px solid var(--hp-line,#d9e6df);min-height:44px;padding:7px 12px}
+  #inicioHero .hp-alerts button.row{width:100%;text-align:left;color:inherit;background:transparent}
+  #inicioHero .hp-alerts button.row:hover{background:var(--hp-soft,#edf6ef)}
+  #inicioHero .hp-alerts{margin:0 0 14px}
+  @media(max-width:520px){
+    .hippo-workspace .desk-launchers{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .desk-launchers .desk-launch-primary{grid-column:1/-1}
+  }
+</style>
+<style>html[data-theme="fresco"] .hp-side::before{display:none}html[data-theme="fresco"] .hp-side .it.on{color:#fff!important}#inicioHero .hp-alerts button.row{border:0;border-bottom:1px solid var(--hp-line,#dce6df);min-height:42px}#inicioHero .hp-alerts button.row:last-child{border-bottom:0}@media(min-width:900px){.hippo-workspace .desk-launchers{grid-template-columns:repeat(3,minmax(0,1fr))}}</style><style>
+  html[data-theme="fresco"]{
+    --hp-bg:#eff7f8;--hp-card:#fff;--hp-line:#d2e6e9;--hp-ink:#132f35;--hp-muted:#49636a;
+    --hp-teal:#087d8b;--hp-teal-700:#086673;--hp-teal-900:#133d46;
+    --hp-grad:linear-gradient(135deg,#086673,#087d8b);--hp-dark:#153943;
+    --hp-mint:#e3f6f8;--hp-mint2:#d2eef1;--hp-soft:#e9f4f5;
+    --hp-input:#f9fcfc;--hp-input-line:#bed9dd;--hp-focus:#087d8b35;
+  }
+  html[data-theme="fresco"] #sideNav.hp-side,html[data-theme="fresco"] #login{background:#153943 !important}
+  html[data-theme="fresco"] .hp-side .it.on{background:#226271 !important}
+  html[data-theme="fresco"] .hp-side .it .ic{color:#8ce1e7}
+  html[data-theme="fresco"] .hippo-workspace{
+    --desk-ink:#13343b;--desk-muted:#49636a;--desk-line:#d2e6e9;--desk-accent:#086b78;
+  }
+  html[data-theme="fresco"] .desk-table thead{background:#e8f6f8}
+  html[data-theme="fresco"] .desk-launchers button:hover,html[data-theme="fresco"] .desk-btn:hover{box-shadow:0 0 0 2px #8bced6}
+</style>
+<style>
+  html[data-theme="fresco"] .hp-shell{
+    background-image:radial-gradient(ellipse 400px 630px at 0% 12%,#9ee4e88c,transparent 85%),
+      radial-gradient(ellipse 300px 460px at 4% 82%,#91b7e064,transparent 86%);
+  }
+  html[data-theme="fresco"] #sideNav.hp-side{
+    background:linear-gradient(155deg,#174955e8,#1c5361b8) !important;
+    border:1px solid #e2ffff79 !important;
+    box-shadow:inset 0 1px 0 #ffffff52,0 12px 30px #13394328 !important;
+    -webkit-backdrop-filter:blur(22px) saturate(155%);
+    backdrop-filter:blur(22px) saturate(155%);
+  }
+  html[data-theme="fresco"] #sideNav .it.on{
+    background:#ddfcff26 !important;
+    box-shadow:inset 0 0 0 1px #c2f5f753;
+  }
+  @media(max-width:899px){
+    html[data-theme="fresco"] #hippoMobileNav.fixed.bottom-0{
+      background:#f3fbfce3 !important;
+      border-top:1px solid #ffffffc9;
+      box-shadow:0 -7px 24px #143e4c17,inset 0 1px 0 #ffffffb8;
+      -webkit-backdrop-filter:blur(18px) saturate(150%);
+      backdrop-filter:blur(18px) saturate(150%);
+    }
+  }
+</style>
+<style>
+@media(max-width:899px){
+  html[data-theme="fresco"] .hp-content>header{
+    background:#eefbfae6 !important;color:#153943 !important;
+    border-bottom:1px solid #fff;
+    -webkit-backdrop-filter:blur(18px) saturate(150%);
+    backdrop-filter:blur(18px) saturate(150%);
+  }
+  html[data-theme="fresco"] .hp-content>header #hSub{color:#49636a !important}
+  html[data-theme="fresco"] .hp-content>header #brandIcon{width:36px;height:36px;flex:none;overflow:hidden}
+  html[data-theme="fresco"] .hp-content>header #brandIcon img{display:block;width:100%;height:100%;object-fit:contain}
+  html[data-theme="fresco"] .hp-content>header button{color:#153943 !important;background:#dbeff1 !important;border:0}
+  html[data-theme="fresco"] #hippoMobileNav.fixed.bottom-0{left:0;right:0;z-index:30}
+}
+</style>
+<style>
+  @media(max-width:899px){
+    html[data-theme="fresco"] #hippoMobileNav.fixed.bottom-0{
+      left:50%;right:auto;bottom:max(10px,env(safe-area-inset-bottom));
+      transform:translateX(-50%);width:min(calc(100% - 20px),560px);padding:4px;
+      border:1px solid #ffffffd9;border-radius:28px;overflow:hidden;
+      background:#f4fcfbd9 !important;
+      box-shadow:0 9px 30px #12434c2e,inset 0 1px 0 #fff;
+      -webkit-backdrop-filter:blur(24px) saturate(160%);
+      backdrop-filter:blur(24px) saturate(160%);
+    }
+    html[data-theme="fresco"] #hippoMobileNav > div{display:flex;align-items:stretch;gap:2px}
+    html[data-theme="fresco"] #hippoMobileNav .tab{
+      flex:1 1 0;min-width:0;min-height:52px;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:3px;padding:4px 1px;border:0;
+      border-radius:22px;background:transparent;color:#395861;font-size:clamp(9px,2.3vw,11px);line-height:1.1;
+    }
+    html[data-theme="fresco"] #hippoMobileNav .tab[aria-current="page"]{
+      background:#c9e9ecad;color:#075762;box-shadow:inset 0 1px 0 #fff;
+    }
+    html[data-theme="fresco"] #hippoMobileNav .tab .navic{
+      display:grid;place-items:center;width:24px;height:24px;font-size:19px;
+      background:none;border:0;box-shadow:none;color:inherit;transform:none;
+    }
+    html[data-theme="fresco"] #hippoMobileNav .tab .tl{
+      max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    }
+    html[data-theme="fresco"] .hp-content main{padding-bottom:calc(84px + env(safe-area-inset-bottom)) !important}
+  }
+</style>
+
 </head>
 
 <body class="bg-slate-100 text-slate-800 antialiased">
@@ -641,8 +843,8 @@
 <header class="sticky top-0 z-30 bg-teal-700 text-white shadow-md">
   <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
     <div class="flex items-center gap-2">
-      <button id="btnBack" onclick="goBack()" class="hidden w-8 h-8 rounded-lg bg-white/15 grid place-items-center">‹</button>
-      <button id="btnMenu" onclick="abrirMenuCompleto()" title="Menú" class="w-8 h-8 rounded-lg bg-white/15 grid place-items-center text-base">☰</button>
+      <button id="btnBack" aria-label="Volver al inicio" onclick="goBack()" class="hidden w-8 h-8 rounded-lg bg-white/15 grid place-items-center">‹</button>
+      <button id="btnMenu" aria-label="Abrir menú" onclick="abrirMenuCompleto()" title="Menú" class="w-8 h-8 rounded-lg bg-white/15 grid place-items-center text-base">☰</button>
       <div id="brandIcon" class="w-9 h-9 rounded-xl bg-white/15 grid place-items-center text-lg overflow-hidden">🛒</div>
       <div>
         <h1 id="hTitle" class="font-bold leading-tight">SuperGestión</h1>
@@ -651,7 +853,7 @@
     </div>
     <div class="flex items-center gap-2">
       <button id="btnMoneda" onclick="toggleMoneda()" title="Cambiar entre $ y Bs (todos los dispositivos)" class="w-8 h-8 rounded-lg bg-white/15 grid place-items-center text-sm font-bold">$</button>
-      <button id="btnCampana" onclick="abrirNotificaciones()" class="relative w-8 h-8 rounded-lg bg-white/15 grid place-items-center text-base hidden">🔔<span id="campanaBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 grid place-items-center hidden">0</span></button>
+      <button id="btnCampana" aria-label="Abrir notificaciones" onclick="abrirNotificaciones()" class="relative w-8 h-8 rounded-lg bg-white/15 grid place-items-center text-base hidden">🔔<span id="campanaBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 grid place-items-center hidden">0</span></button>
       <button id="rolBadge" onclick="logout()" class="text-[10px] font-semibold px-2 py-1 rounded-full bg-white/15">—</button>
       <span id="modeBadge" class="hp-dot" title="Estado de la conexión" onclick="toast(this.title)"></span>
     </div>
@@ -676,10 +878,12 @@
 
 <!-- ===== Pantalla de acceso (roles) ===== -->
 <div id="login" style="display:none" class="fixed inset-0 z-50 bg-teal-700 text-white flex-col items-center justify-center p-6">
-  <div id="loginIcon" class="mb-2"><div class="text-5xl">🛒</div></div>
-  <h1 id="loginNombre" class="text-2xl font-bold text-center">SuperGestión</h1>
-  <p class="text-white/80 mb-6 text-sm">Ingresa con tu usuario y clave</p>
-  <div id="loginRoles" class="w-full max-w-xs space-y-3"></div>
+  <div class="hp-login-card">
+    <div id="loginIcon" class="mb-3"></div>
+    <h1 id="loginNombre" class="font-bold">SuperGestión</h1>
+    <p class="text-sm mb-5">Ingresa con tu usuario y clave.</p>
+    <form id="loginRoles" onsubmit="event.preventDefault();loginManual()"></form>
+  </div>
 </div>
 
 <!-- ======== FORMULARIO PÚBLICO · TRABAJA CON NOSOTROS ======== -->
@@ -758,8 +962,11 @@
 
   <!-- ======== INICIO ======== -->
   <section data-view="inicio" hidden>
+    <div id="inicioBienvenida"></div>
+    <div id="puestoInicio" class="hippo-workspace"></div>
     <div id="inicioHero"></div>
 
+    <details class="hp-modules"><summary>Todos los módulos disponibles</summary>
     <h3 id="hRRHH" class="font-bold text-sm mt-5 mb-2 text-slate-600">Personal y RRHH</h3>
     <div id="metRRHH"></div>
     <div class="grid grid-cols-3 gap-3" id="tilesRRHH"></div>
@@ -775,6 +982,8 @@
     <h3 id="hFin" class="font-bold text-sm mt-5 mb-2 text-slate-600">Caja y Finanzas</h3>
     <div id="metFin"></div>
     <div class="grid grid-cols-3 gap-3" id="tilesFin"></div>
+
+    </details>
 
     <div class="hp-foot">
       <button id="btnReportePDF" onclick="descargarReportePDF()" style="display:none" class="bg-slate-800 text-white font-semibold py-3 rounded-xl">📄 Reporte general (PDF)</button>
@@ -1147,12 +1356,23 @@
   </section>
 
   <!-- ======== CONCILIACIÓN DIARIA DE PAGOS A PROVEEDORES ======== -->
-  <section data-view="conciliacionfacturas" hidden>
-    <h2 class="text-lg font-bold mb-1">✅ Conciliación de pagos</h2>
-    <p class="text-xs text-slate-500 mb-3">Verifica cuántas facturas recibieron pagos cada día y registra la referencia bancaria. Un mismo número de referencia puede cubrir varias facturas.</p>
-    <div class="bg-white rounded-2xl p-3 shadow-sm mb-3 flex flex-wrap items-end gap-2">
-      <div class="flex-1 min-w-[160px]"><label class="text-xs text-slate-500">Día de pago</label><input id="cfFecha" type="date" onchange="renderConciliacionFacturas()" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"></div>
-      <button onclick="guardarReferenciasConciliacion()" class="bg-teal-700 text-white font-semibold px-4 py-2 rounded-xl text-sm">Guardar referencias</button>
+  <section data-view="conciliacionfacturas" class="hippo-workspace" hidden>
+    <div class="desk-panel desk-intro">
+      <h2 class="desk-title">Conciliación de pagos</h2>
+      <p class="text-sm mt-2 mb-4">Consulta los pagos del día y registra sus referencias bancarias.</p>
+      <div class="desk-actions">
+        <button id="cfNuevoPago" type="button" onclick="openPagoProv()" class="desk-btn desk-btn-main" hidden>Registrar pago</button>
+        <button type="button" onclick="exportarConciliacionFacturas()" class="desk-btn">Exportar día a Excel</button>
+        <button type="button" onclick="guardarReferenciasConciliacion()" class="desk-btn">Guardar referencias</button>
+      </div>
+    </div>
+    <div class="desk-panel desk-filters">
+      <label>Día de pago<input id="cfFecha" type="date" class="desk-field" onchange="renderConciliacionFacturas()"></label>
+      <label>Banco<select id="cfBanco" class="desk-field" onchange="filtrarMesaPagos()"></select></label>
+      <label>Referencia<select id="cfEstado" class="desk-field" onchange="filtrarMesaPagos()">
+        <option value="">Todas</option><option value="con">Con referencia</option><option value="sin">Sin referencia</option>
+      </select></label>
+      <label class="desk-search">Proveedor o referencia<input id="cfBuscar" type="search" class="desk-field" oninput="filtrarMesaPagos()"></label>
     </div>
     <div id="cfResumen" class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3"></div>
     <div id="cfBody"></div>
@@ -1276,7 +1496,7 @@
 </div><!-- /hp-shell -->
 
 <!-- Barra inferior -->
-<nav class="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 safe-bottom">
+<nav id="hippoMobileNav" aria-label="Navegación principal" class="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 safe-bottom">
   <div class="max-w-3xl mx-auto flex">
     <button data-slot="0" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg navic">🏠</span><span class="tl">Inicio</span></button>
     <button data-slot="1" class="tab flex-1 flex flex-col items-center py-2 text-[11px] gap-0.5"><span class="text-lg navic">👥</span><span class="tl">RRHH</span></button>
@@ -1838,10 +2058,12 @@ async function seedUsuarios(){
 }
 function renderLoginRoles(){
   const cont=document.getElementById("loginRoles");
-  cont.innerHTML=`<input id="userInput" placeholder="Nombre de usuario" class="w-full px-4 py-3 rounded-xl text-slate-800 mb-2">
-    <input id="pinInput" type="password" inputmode="numeric" maxlength="6" placeholder="Clave (6 dígitos)" class="w-full px-4 py-3 rounded-xl text-slate-800 text-center tracking-[0.3em] text-xl">
-    <button onclick="loginManual()" class="w-full bg-white text-teal-700 font-bold py-3 rounded-xl mt-3">Entrar</button>`;
-  setTimeout(()=>{ const el=document.getElementById("userInput"); if(el) el.focus(); const pin=document.getElementById("pinInput"); if(pin) pin.onkeydown=(e)=>{ if(e.key==="Enter") loginManual(); }; },50);
+  cont.innerHTML=`<label for="userInput">Usuario</label>
+    <input id="userInput" autocomplete="username" autocapitalize="none" class="mb-3">
+    <label for="pinInput">Clave de 6 dígitos</label>
+    <input id="pinInput" type="password" autocomplete="current-password" inputmode="numeric" maxlength="6">
+    <button type="submit" class="mt-4">Entrar</button>`;
+  setTimeout(()=>document.getElementById("userInput")?.focus(),50);
 }
 function loginManual(){ const nom=(document.getElementById("userInput").value||"").trim().toLowerCase(); const v=(document.getElementById("pinInput").value||"").trim();
   if(!nom){ toast("Escribe el nombre de usuario"); return; }
@@ -2052,7 +2274,7 @@ function show(view){
   document.getElementById("hSub").textContent = mod? t(mod.sub) : (view==="piso"?t("Sala de ventas"):t("Gestión de supermercado"));
   // resaltar pestaña base
   const base = mod? mod.parent : view;
-  document.querySelectorAll(".tab").forEach(b=>{ const dest=b.dataset.target||b.dataset.tab; const on=(dest===base||dest===currentView); b.classList.toggle("text-teal-700",on); b.classList.toggle("text-slate-400",!on); });
+  document.querySelectorAll(".tab").forEach(b=>{ const dest=b.dataset.target||b.dataset.tab; const on=(dest===base||dest===currentView); b.classList.toggle("text-teal-700",on); b.classList.toggle("text-slate-400",!on); if(on) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current"); });
   // Mostrar la zona de carga y dibujar la vista tras el primer pintado (evita la sensación de "pegado")
   showLoader(); const _v=view;
   requestAnimationFrame(()=>requestAnimationFrame(()=>{ if(currentView!==_v){ hideLoader(); return; } try{ render(); } finally { window.scrollTo(0,0); hideLoader(); } }));
@@ -2097,7 +2319,7 @@ function abrirMenuCompleto(){ if(!currentUser) return; const act=currentView;
     <button onclick="closeModal()" class="w-full mt-3 bg-slate-200 font-semibold py-2.5 rounded-xl">Cerrar</button>`); }
 /* ===================== INICIO v5: saludo, accesos rápidos, KPIs y pendientes ===================== */
 function toggleIndicadores(){ const w=document.getElementById("indicadoresWrap"), b=document.getElementById("btnIndic"); if(!w) return; const on=w.style.display==="none"; w.style.display=on?"":"none"; if(b) b.textContent=on?"📊 Ocultar indicadores detallados":"📊 Ver indicadores detallados"; }
-function renderInicioHero(){ const h=document.getElementById("inicioHero"); if(!h) return; if(!currentUser){ h.innerHTML=""; return; }
+function renderInicioHero(){ const h=document.getElementById("inicioHero"); const bienvenida=document.getElementById("inicioBienvenida"); if(!h||!bienvenida) return; if(!currentUser){ h.innerHTML=""; bienvenida.innerHTML=""; return; }
   const nombre=String(currentUser.nombre||"").trim().split(" ")[0]; const hoyF=hoy(); const mes=hoyF.slice(0,7); const hora=new Date().getHours(); const saludo=hora<12?"Buenos días":hora<19?"Buenas tardes":"Buenas noches";
   const puedeFin=puede("deudas"), puedeCaja=puede("caja");
   const cierresHoy=db.list("cierres_caja").filter(c=>!c.arqueo && c.fecha===hoyF); let ventasHoy=0; cierresHoy.forEach(c=>{ try{ ventasHoy+=(calcCierre(c).facturadoUsd||0); }catch(_){}} );
@@ -2113,10 +2335,12 @@ function renderInicioHero(){ const h=document.getElementById("inicioHero"); if(!
   try{ const venc=db.list("facturas_rec").filter(f=>frPend(f)>0.005 && String(f.fecha||"")<hoyF).length; if(venc&&puedeFin) al.push(["📥",venc+" factura(s) vencida(s) por pagar","deudas"]); }catch(_){}
   try{ if(puede("impulsaciones")){ const pend=db.list("impulsaciones").filter(i=>(i.estado||"Pendiente")==="Pendiente").length; if(pend) al.push(["🎪",pend+" solicitud(es) de impulsación por aprobar","impulsaciones"]); const hoyI=db.list("impulsaciones").filter(i=>i.estado==="Aprobada"&&i.fecha===hoyF); if(hoyI.length) al.push(["🎪","Hoy: "+hoyI.map(i=>i.marca||i.empresa).slice(0,3).join(", ")+" ("+hoyI.length+" impulsación/es)","impulsaciones"]); } }catch(_){}
   try{ if(esGerencia() && geoConfigurada()){ const fu=accesosFueraHoy(); if(fu.length){ const qn=[...new Set(fu.map(x=>x.usuario_nombre))]; al.push(["🚫",fu.length+" acceso(s) fuera del sitio hoy: "+qn.slice(0,3).join(", ")+(qn.length>3?" y "+(qn.length-3)+" más":""),"conexiones"]); } } }catch(_){}
-  const acc=[]; if(puedeFin) acc.push(["🧾","Gasto","openGastos()"]); if(puedeFin) acc.push(["💵","Pago","openPagoProv()"]); if(puedeCaja) acc.push(["🏧","Caja","show('caja')"]); if(puede("inventario")) acc.push(["📤","Salida","show('inventario');setTimeout(()=>{ try{ openSalida(); }catch(_){}} ,350)"]); if(puede("tareas")) acc.push(["✅","Tarea","show('tareas');setTimeout(()=>{ try{ openTarea(); }catch(_){}} ,350)"]); if(puede("empleados")) acc.push(["👥","Personal","show('empleados')"]); if(puede("piso")) acc.push(["🏬","Piso","show('piso')"]);
-  h.innerHTML=`<div class="hp-hero"><h2>${saludo}${nombre?", "+esc(nombre):""} 👋</h2><p>${esc(finFechaLarga())} · ${esc(ajustes.nombre||"Hipposupermarket")}</p>
-      ${acc.length?`<div class="hp-quick">${acc.map(([ic,l,fn])=>`<button onclick="${fn.replace(/"/g,"&quot;")}"><span>${ic}</span><span>${l}</span></button>`).join("")}</div>`:""}</div>
-    <div class="hp-alerts"><p class="text-xs font-bold text-slate-600 mb-1">🔔 Pendientes de hoy</p>${al.length?al.map(([ic,txt,go])=>`<div class="row" onclick="show('${go}')"><span>${ic} ${esc(txt)}</span><b>Ver ›</b></div>`).join(""):`<p class="text-sm text-emerald-600 font-semibold py-1">✓ Todo al día. Sin pendientes por ahora.</p>`}</div>`; }
+  const acc=[]; if(puedeFin) acc.push(["🧾","Registrar gasto","openGastos()"]); if(puede("inventario")) acc.push(["📤","Registrar salida","show('inventario');setTimeout(()=>{ try{ openSalida(); }catch(_){}} ,350)"]); if(puede("tareas")) acc.push(["✅","Crear tarea","show('tareas');setTimeout(()=>{ try{ openTarea(); }catch(_){}} ,350)"]); if(puede("empleados")) acc.push(["👥","Personal","show('empleados')"]); if(puede("piso")) acc.push(["🏬","Piso","show('piso')"]);
+  bienvenida.innerHTML=`<div class="hp-welcome"><h2>${saludo}${nombre?", "+esc(nombre):""}</h2><p>${esc(finFechaLarga())}</p></div>`;
+  h.innerHTML=`<div class="hp-alerts"><h3 class="font-bold text-sm mb-1">Pendientes de hoy</h3>
+    ${al.length?al.map(([ic,txt,go])=>`<button type="button" class="row" onclick="show('${go}')"><span>${ic} ${esc(txt)}</span><b>Ver ›</b></button>`).join(""):`<p class="text-sm text-emerald-600 font-semibold py-1">Sin pendientes por ahora.</p>`}</div>
+    ${acc.length?`<details class="hp-extra-actions"><summary>Más acciones</summary><div class="hp-quick">${acc.map(([ic,l,fn])=>`<button type="button" onclick="${fn.replace(/"/g,"&quot;")}"><span>${ic}</span><span>${l}</span></button>`).join("")}</div></details>`:""}`;
+}
 /* ===================== MÉTRICAS Y ESTADÍSTICAS POR SECCIÓN (inicio) =====================
    Gerencia ve todo. Los demás ven solo las áreas que gerencia les permita (permisos metricas_*). */
 function puedeMetricas(sec){ return !!(currentUser && (currentUser.es_gerencia || (sec==="rrhh"&&currentUser.es_rrhh) || (currentUser.permisos||[]).includes("metricas_"+sec))); }
@@ -2208,7 +2432,13 @@ function renderMetricasSecciones(){ const put=(id,sec,fn,idHead)=>{ const el=doc
 function renderTiles(){
   const ACC={gastos:"openGastos()"}; // tiles que abren una acción en vez de navegar a una vista
   const t=(arr)=>arr.filter(([v])=>puede(v)).map(([v,ic,l])=>`<button onclick="${ACC[v]||("show('"+v+"')")}" class="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1 active:scale-95 transition"><span class="text-2xl">${ic}</span><span class="text-[11px] font-semibold text-slate-600">${window.t?window.t(l):l}</span></button>`).join("");
-  const grp=(idTiles,idHead,arr)=>{ const g=document.getElementById(idTiles); if(g){ g.innerHTML=""; g.style.display="none"; } const h=document.getElementById(idHead); if(h) h.style.display="none"; };
+  const grp=(idTiles,idHead,arr)=>{
+    const contenido=t(arr);
+    const g=document.getElementById(idTiles);
+    if(g){ g.innerHTML=contenido; g.hidden=!contenido; g.style.display=contenido?"":"none"; }
+    const encabezado=document.getElementById(idHead);
+    if(encabezado) encabezado.hidden=!contenido;
+  };
   grp("tilesRRHH","hRRHH",TILES_RRHH);
   grp("tilesProd","hProd",TILES_PROD);
   grp("tilesSup","hSup",TILES_SUP);
@@ -6342,21 +6572,112 @@ function resolverFacturaPago(cf,pg){ const facs=db.list("facturas_rec"); if(cf&&
 function datosConciliacionPagos(fecha){ const pagos=db.list("pagos_prov").slice().sort((a,b)=>String(a.fecha_pago||"").localeCompare(String(b.fecha_pago||""))||String(a.creado||"").localeCompare(String(b.creado||"")));
   const grupos=new Map(), porPago=new Map(); pagos.forEach(pg=>{ const det=Array.isArray(pg.facturas)?pg.facturas:[]; const vistas=[]; det.forEach((cf,i)=>{ const fac=resolverFacturaPago(cf,pg), num=String((fac&&fac.numero)||cf.numero||"").trim(); const prov=fac?(fac.proveedor||pg.proveedor||""):(pg.proveedor||""); const key=fac?"fid:"+fac.id:(num?"doc:"+proveedorKeyCf(pg)+":"+dupAlfanum(num):"sin:"+pg.id+":"+i);
       if(!grupos.has(key)) grupos.set(key,{key,fac,numero:num,proveedor:prov,moneda:(fac&&fac.moneda)||pg.moneda||"Bs",lineas:[]}); const g=grupos.get(key); if(!g.fac&&fac) g.fac=fac;
-      const ln={pg,cf,monto:Number(cf.monto)||0}; g.lineas.push(ln); vistas.push({key,numero:num,fac}); }); porPago.set(pg.id,vistas); });
+      const ln={pg,cf,monto:Number(cf.monto)||0}; g.lineas.push(ln); vistas.push({key,numero:num,fac,monto:ln.monto}); }); porPago.set(pg.id,vistas); });
   grupos.forEach(g=>{ const orden=g.lineas.slice().sort((a,b)=>String(a.pg.fecha_pago||"").localeCompare(String(b.pg.fecha_pago||""))||String(a.pg.creado||"").localeCompare(String(b.pg.creado||""))); const tope=Number(g.fac&&g.fac.monto)||0; let acum=0; g.fechaCompleta=""; orden.forEach(x=>{ acum+=Math.max(0,x.monto); if(!g.fechaCompleta&&tope>0&&acum>=tope-0.005) g.fechaCompleta=x.pg.fecha_pago||""; }); g.acumulado=acum; g.pagadoHasta=orden.filter(x=>x.pg.fecha_pago&&x.pg.fecha_pago<=fecha).reduce((s,x)=>s+Math.max(0,x.monto),0); g.hoy=orden.filter(x=>x.pg.fecha_pago===fecha).reduce((s,x)=>s+x.monto,0); g.estado=!g.fac?"Sin factura vinculada":(g.fechaCompleta===fecha?"Pagada hoy":(g.fechaCompleta&&g.fechaCompleta<fecha?"Pagada antes":(g.pagadoHasta>0.005?"Abono en curso":"Pago pendiente"))); });
   const delDia=pagos.filter(p=>p.fecha_pago===fecha); const keysDia=new Set(); delDia.forEach(p=>(porPago.get(p.id)||[]).forEach(x=>keysDia.add(x.key)));
   return {pagos:delDia,grupos:[...keysDia].map(k=>grupos.get(k)).filter(Boolean).sort((a,b)=>a.proveedor.localeCompare(b.proveedor)||a.numero.localeCompare(b.numero)),porPago}; }
 function cfRefId(id){ return "cf_ref_"+String(id||"").replace(/[^a-z0-9_-]/gi,"_"); }
 function renderConciliacionFacturas(){ if(!puede("conciliacionfacturas")) return; const fechaEl=document.getElementById("cfFecha"); if(fechaEl&&!fechaEl.value) fechaEl.value=_cfFecha||hoy(); _cfFecha=(fechaEl&&fechaEl.value)||_cfFecha||hoy(); const body=document.getElementById("cfBody"), resumen=document.getElementById("cfResumen"); if(!body||!resumen) return;
-  const D=datosConciliacionPagos(_cfFecha), nFac=D.grupos.length, completas=D.grupos.filter(g=>g.fac&&g.fechaCompleta===_cfFecha).length, sinRef=D.pagos.filter(p=>!String(p.referencia_pago||"").trim()).length, sinDetalle=D.pagos.filter(p=>!(Array.isArray(p.facturas)&&p.facturas.length)).length;
-  const tarjeta=(n,l,d)=>`<div class="bg-white rounded-2xl p-3 shadow-sm"><p class="text-[10px] text-slate-500">${l}</p><p class="text-xl font-bold text-slate-800">${n}</p><p class="text-[10px] text-slate-400">${d}</p></div>`;
+  const D=datosConciliacionPagos(_cfFecha), nFac=D.grupos.filter(g=>g.fac).length, completas=D.grupos.filter(g=>g.fac&&g.fechaCompleta===_cfFecha).length, sinRef=D.pagos.filter(p=>!String(p.referencia_pago||"").trim()).length, sinDetalle=D.pagos.filter(p=>!(Array.isArray(p.facturas)&&p.facturas.length)).length;
+  const tarjeta=(n,l,d)=>`<div class="desk-kpi"><span>${l}</span><strong>${n}</strong><span>${d}</span></div>`;
   resumen.innerHTML=tarjeta(D.pagos.length,"Pagos registrados",_cfFecha)+tarjeta(nFac,"Facturas con movimiento","Facturas únicas vinculadas a pagos del día")+tarjeta(completas,"Pagadas por completo","El saldo se completó en esta fecha")+tarjeta(sinRef,"Sin referencia",sinDetalle?sinDetalle+" pago(s) sin detalle de factura":"Referencia requerida por pago");
-  const facturasHtml=D.grupos.length?D.grupos.map(g=>{ const badge=g.estado==="Pagada hoy"?"bg-emerald-100 text-emerald-800":g.estado==="Sin factura vinculada"?"bg-amber-100 text-amber-800":"bg-slate-100 text-slate-600"; return `<div class="bg-white rounded-xl p-3 shadow-sm flex items-start justify-between gap-2"><div class="min-w-0"><p class="text-sm font-semibold truncate">${esc(g.proveedor||"Proveedor sin nombre")} · N° ${esc(g.numero||"—")}</p><p class="text-[11px] text-slate-500">Pago(s) del día: ${fmt2(g.hoy)} ${esc(g.moneda)}${g.fac?" · Abonado acumulado: "+fmt2(Number(g.fac.abonado)||0)+" / "+fmt2(g.fac.monto):""}</p></div><span class="text-[10px] px-2 py-1 rounded-full font-semibold shrink-0 ${badge}">${esc(g.estado)}</span></div>`; }).join(""):empty("No hay facturas vinculadas a pagos en esta fecha.");
-  const pagosHtml=D.pagos.length?D.pagos.map(p=>{ const refs=String(p.referencia_pago||""); const docs=D.porPago.get(p.id)||[]; const detalle=docs.length?`<div class="mt-2 space-y-1">${docs.map(x=>{ const g=D.grupos.find(y=>y.key===x.key); const estado=g?g.estado:"Sin factura vinculada"; return `<div class="flex items-center justify-between gap-2 text-[11px] border-t border-slate-100 pt-1"><span class="min-w-0 truncate">${esc(x.fac?(x.fac.proveedor||p.proveedor||""):p.proveedor||"—")} · N° ${esc(x.numero||"—")}</span><span class="shrink-0 text-slate-500">${fmt2(Number((p.facturas||[]).find(f=>(f.fid&&x.fac&&f.fid===x.fac.id)||(!f.fid&&dupAlfanum(f.numero)===dupAlfanum(x.numero)))?.monto)||0)} ${esc((x.fac&&x.fac.moneda)||p.moneda||"Bs")} · ${esc(estado)}</span></div>`; }).join("")}</div>`:`<p class="text-[11px] text-amber-700 mt-2">Este pago no tiene facturas vinculadas; no se puede verificar el conteo hasta asociarlas.</p>`;
-    return `<div class="bg-white rounded-2xl p-3 shadow-sm"><div class="flex flex-wrap items-start justify-between gap-3"><div class="min-w-0 flex-1"><p class="font-semibold text-sm truncate">${esc(p.proveedor||"Proveedor sin nombre")}${p.rif?` <span class="text-[10px] text-slate-400 font-normal">${esc(p.rif)}</span>`:""}</p><p class="text-[11px] text-slate-500">${esc(p.fecha_pago||"")} · ${fmt2(p.total_pagado||0)} ${esc(p.moneda||"Bs")}${p.banco?" · "+esc(p.banco):""} · ${docs.length} factura(s)</p></div><div class="w-full sm:w-64"><label class="text-[10px] text-slate-500">Referencia bancaria / pago</label><input id="${cfRefId(p.id)}" value="${esc(refs)}" placeholder="Obligatoria" class="w-full px-3 py-2 rounded-xl border ${refs?"border-slate-200":"border-amber-300 bg-amber-50"} text-sm"></div></div>${detalle}</div>`; }).join(""):empty("No hay pagos registrados para esta fecha.");
-  body.innerHTML=`<div class="bg-slate-50 rounded-2xl p-3 mb-3"><h3 class="text-sm font-bold mb-2">Facturas con pagos registrados (${nFac})</h3><div class="space-y-2 max-h-72 overflow-y-auto">${facturasHtml}</div></div><div class="bg-slate-50 rounded-2xl p-3"><h3 class="text-sm font-bold mb-2">Pagos del día y sus referencias (${D.pagos.length})</h3><p class="text-[11px] text-slate-500 mb-2">Puedes repetir una referencia en varios pagos cuando corresponda a una sola transferencia que cubrió varias facturas.</p><div class="space-y-2 max-h-[65vh] overflow-y-auto">${pagosHtml}</div></div>`; }
+  const facturasHtml=D.grupos.length?D.grupos.map(g=>{ const badge=g.estado==="Pagada hoy"?"bg-emerald-100 text-emerald-800":g.estado==="Sin factura vinculada"?"bg-amber-100 text-amber-800":"bg-slate-100 text-slate-600"; return `<div class="bg-white rounded-xl p-3 shadow-sm flex items-start justify-between gap-2"><div class="min-w-0"><p class="text-sm font-semibold truncate">${esc(g.proveedor||"Proveedor sin nombre")} · N° ${esc(g.numero||"—")}</p><p class="text-[11px] text-slate-500">Pago(s) del día: ${fmt2(g.hoy)} ${esc(g.moneda)}${g.fac?" · Pagos registrados hasta la fecha: "+fmt2(g.pagadoHasta)+" / "+fmt2(g.fac.monto):""}</p></div><span class="text-[10px] px-2 py-1 rounded-full font-semibold shrink-0 ${badge}">${esc(g.estado)}</span></div>`; }).join(""):empty("No hay facturas vinculadas a pagos en esta fecha.");
+  document.getElementById("cfNuevoPago").hidden=!puede("deudas");
+  const bancoEl=document.getElementById("cfBanco");
+  const bancoPrevio=bancoEl.value;
+  const bancos=[...new Set(D.pagos.map(p=>String(p.banco||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  bancoEl.innerHTML='<option value="">Todos</option>'+bancos.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join("");
+  bancoEl.value=bancos.includes(bancoPrevio)?bancoPrevio:"";
+  const grupos=new Map(D.grupos.map(g=>[g.key,g]));
+  const filas=D.pagos.map(p=>{
+    const referencia=String(p.referencia_pago||"").trim();
+    const banco=String(p.banco||"").trim();
+    const proveedor=p.proveedor||"Proveedor sin nombre";
+    const docs=D.porPago.get(p.id)||[];
+    const detalle=docs.length?`<details><summary>${docs.length} documento(s)</summary><ul class="desk-detail">${docs.map(d=>{
+      const grupo=grupos.get(d.key);
+      return `<li><strong>N.º ${esc(d.numero||"—")}</strong> · ${fmt2(d.monto)} ${esc(grupo.moneda)}<br>${esc(grupo.estado)}</li>`;
+    }).join("")}</ul></details>`:"Sin detalle";
+    return `<tr data-cf-pago data-banco="${esc(banco)}" data-referencia="${esc(referencia)}" data-proveedor="${esc(proveedor+" "+(p.rif||""))}">
+      <td data-label="Proveedor"><div class="font-semibold">${esc(proveedor)}${p.rif?`<small class="block font-normal">${esc(p.rif)}</small>`:""}</div></td>
+      <td data-label="Banco"><span>${esc(banco||"—")}</span></td>
+      <td data-label="Pagado"><span class="desk-amount">${fmt2(p.total_pagado||0)} ${esc(p.moneda||"Bs")}</span></td>
+      <td data-label="Referencia"><input id="${cfRefId(p.id)}" value="${esc(referencia)}" aria-label="Referencia de ${esc(proveedor)}" placeholder="Sin referencia" class="desk-field ${referencia?"":"desk-ref-missing"}"></td>
+      <td data-label="Facturas"><div>${detalle}</div></td></tr>`;
+  }).join("");
+  body.innerHTML=`<div class="desk-payments"><div class="desk-panel">
+    <h3 class="font-bold mb-2">Pagos del día</h3>
+    <p id="cfCoincidencias" class="text-sm mb-2" role="status"></p>
+    ${D.pagos.length?`<div class="desk-scroll"><table class="desk-table" aria-label="Pagos del día">
+      <thead><tr><th scope="col">Proveedor</th><th scope="col">Banco</th><th scope="col">Pagado</th><th scope="col">Referencia</th><th scope="col">Facturas</th></tr></thead>
+      <tbody>${filas}</tbody></table></div>`:""}</div>
+    <div class="desk-panel"><h3 class="font-bold mb-2">Documentos del día (${D.grupos.length})</h3>
+    <div class="space-y-2 max-h-96 overflow-y-auto">${facturasHtml}</div></div></div>`;
+  filtrarMesaPagos();
+}
+function filtrarMesaPagos(){
+  const banco=document.getElementById("cfBanco").value;
+  const estado=document.getElementById("cfEstado").value;
+  const busqueda=dupTexto(document.getElementById("cfBuscar").value);
+  const filas=document.querySelectorAll("#cfBody [data-cf-pago]");
+  let visibles=0;
+  for(const fila of filas){
+    const d=fila.dataset;
+    const coincide=(!banco||banco===d.banco)&&(!estado||(estado==="con")===Boolean(d.referencia))&&
+      (!busqueda||dupTexto(d.proveedor+" "+d.referencia).includes(busqueda));
+    fila.hidden=!coincide;
+    if(coincide) visibles++;
+  }
+  const resumen=document.getElementById("cfCoincidencias");
+  if(resumen) resumen.textContent=filas.length?visibles+" de "+filas.length+" pagos":"No hay pagos registrados para esta fecha.";
+}
+function exportarConciliacionFacturas(){
+  if(!puede("conciliacionfacturas")){ toast("Sin acceso"); return; }
+  if(!XL()){ toast("Sin conexión para generar el Excel"); return; }
+  const fecha=_cfFecha||hoy();
+  const D=datosConciliacionPagos(fecha);
+  if(!D.pagos.length){ toast("No hay pagos registrados para esta fecha"); return; }
+  const subtitulo=subtituloPro("Día de pago "+fmtFecha(fecha));
+  const grupos=new Map(D.grupos.map(g=>[g.key,g]));
+  const pagos=[];
+  const detalle=[];
+  for(const p of D.pagos){
+    const ref=String(p.referencia_pago||"").trim();
+    const docs=D.porPago.get(p.id)||[];
+    const base=[String(p.id),String(p.proveedor||"")];
+    pagos.push([...base,String(p.rif||""),String(p.banco||""),ref,String(p.moneda||"Bs"),
+      Number(p.total_pagado)||0,docs.filter(x=>x.fac).length,docs.length,
+      ref?"Con referencia":"Sin referencia",docs.length?"":"Sin detalle de factura"]);
+    for(const doc of docs){
+      const g=grupos.get(doc.key);
+      detalle.push([...base,ref,doc.numero,String(doc.fac?.id||""),String(g.moneda),doc.monto,g.estado]);
+    }
+  }
+  const facturas=D.grupos.filter(g=>g.fac).map(g=>[
+    String(g.fac.id),String(g.proveedor),g.numero,String(g.moneda),Number(g.fac.monto)||0,
+    g.hoy,g.pagadoHasta,fmtFecha(g.fechaCompleta&&g.fechaCompleta<=fecha?g.fechaCompleta:""),g.estado
+  ]);
+  try{
+    libroPro([
+      [hojaPro({titulo:"Pagos registrados",subtitulo,headers:[
+        "ID pago","Proveedor","RIF","Banco","Referencia guardada","Moneda","Total pagado",
+        "Líneas vinculadas","Líneas registradas","Estado de referencia","Observación"
+      ],rows:pagos}),"Pagos"],
+      [hojaPro({titulo:"Detalle por pago",subtitulo,headers:[
+        "ID pago","Proveedor","Referencia guardada","Documento","ID factura","Moneda","Monto aplicado","Estado al corte"
+      ],rows:detalle}),"Detalle"],
+      [hojaPro({titulo:"Facturas vinculadas",subtitulo,headers:[
+        "ID factura","Proveedor","Documento","Moneda","Monto factura","Monto del día",
+        "Pagado al corte","Fecha de pago completo","Estado al corte"
+      ],rows:facturas}),"Facturas"]
+    ],"conciliacion_pagos_"+fecha+".xlsx");
+  }catch(e){ toast("Error al generar Excel: "+e.message); }
+}
 async function guardarReferenciasConciliacion(){ if(!puede("conciliacionfacturas")){ toast("Sin acceso"); return; } const D=datosConciliacionPagos(_cfFecha||hoy()); if(!D.pagos.length){ toast("No hay pagos que conciliar en esta fecha"); return; }
-  const cambios=D.pagos.map(p=>({p,ref:String(document.getElementById(cfRefId(p.id))?.value||"").trim()})); const falta=cambios.find(x=>!x.ref); if(falta){ toast("Añade la referencia a cada pago del día"); document.getElementById(cfRefId(falta.p.id))?.focus(); return; }
+  const cambios=D.pagos.map(p=>({p,ref:String(document.getElementById(cfRefId(p.id))?.value||"").trim()})); const falta=cambios.find(x=>!x.ref); if(falta){ toast("Añade la referencia a cada pago del día");
+    for(const id of ["cfBanco","cfEstado","cfBuscar"]) document.getElementById(id).value="";
+    filtrarMesaPagos();
+    document.getElementById(cfRefId(falta.p.id))?.focus(); return; }
   try{ for(const x of cambios){ if(String(x.p.referencia_pago||"").trim()!==x.ref) await db.update("pagos_prov",x.p.id,{referencia_pago:x.ref}); } renderConciliacionFacturas(); toast("Referencias guardadas"); }catch(e){ toast("Error: "+e.message); } }
 /* -------- Reporte de pagos a proveedores (diario / mensual) -------- */
 let _rpModo="dia", _rpFecha=null;
@@ -6399,7 +6720,26 @@ function actualizarDatalists(){
   if(npr!==_dlCache.prod){ const dpr=document.getElementById("dlProductos"); if(dpr) dpr.innerHTML=db.list("productos").map(p=>`<option value="${esc(p.nombre)}">`).join(""); _dlCache.prod=npr; }
 }
 function toggleMasIndicadores(){ const mi=document.getElementById("masIndicadores"), bm=document.getElementById("btnMasIndic"); if(!mi) return; const abrir=mi.style.display==="none"; mi.style.display=abrir?"grid":"none"; if(bm) bm.textContent=abrir?"▲ Ocultar indicadores":"📊 Ver más indicadores"; }
+function renderPuestoInicio(){
+  const panel=document.getElementById("puestoInicio");
+  if(!currentUser){ panel.innerHTML=""; return; }
+  const puestos=[
+    ["Caja",[["caja","Registrar cierre","Selecciona la caja"],["tesoreria","Ver tesorería","Consulta los movimientos"]]],
+    ["Finanzas",[["deudas","Registrar pago","Abre el formulario de proveedores","openPagoProv()"],["conciliacionfacturas","Conciliar pagos","Revisa facturas y referencias"],["facturasrec","Consultar facturas","Revisa los documentos recibidos"]]],
+    ["Inventario",[["inventario","Consultar inventario","Busca productos y existencias"],["recepcion","Registrar recepción","Consulta y registra entregas"],["quiebre","Ver quiebres","Revisa productos faltantes"]]],
+    ["Recursos Humanos",[["asistencia","Revisar asistencia","Consulta los registros del equipo"],["empleados","Consultar personal","Abre el directorio"],["nominave","Abrir nómina","Consulta el cálculo de nómina"]]],
+    ["Supervisión",[["tareas","Ver tareas","Consulta las tareas del equipo"],["piso","Abrir piso de venta","Revisa incidencias"]]]
+  ];
+  const grupos=puestos.map(([nombre,acciones])=>[nombre,acciones.filter(([vista])=>puede(vista))]).filter(([,acciones])=>acciones.length);
+  if(!grupos.length){ panel.innerHTML=""; return; }
+  const accesos=grupos.length===1?grupos[0][1]:grupos.flatMap(([nombre,acciones])=>acciones.slice(0,nombre==="Finanzas"?2:1));
+  const titulo=esGerencia()?"Gerencia":grupos.length===1?grupos[0][0]:"Área de trabajo";
+  panel.innerHTML=`<div class="desk-panel desk-intro"><h2 class="desk-title">Accesos rápidos</h2><p class="text-sm mt-1">${titulo}</p>
+    <div class="desk-launchers">${accesos.map(([vista,nombre,detalle,accion],i)=>
+      `<button type="button" class="desk-btn ${i===0?"desk-launch-primary":""}" onclick="${accion||"show('"+vista+"')"}">${nombre}<small>${detalle}</small></button>`).join("")}</div></div>`;
+}
 function renderInicio(){
+  renderPuestoInicio();
   renderTiles(); try{ renderInicioHero(); }catch(e){ console.warn("hero",e); }
   try{ renderMetricasSecciones(); }catch(e){ console.warn("metricas",e); }
   { const rp=document.getElementById("btnReportePDF"); if(rp) rp.style.display=esGerencia()?"":"none"; }
@@ -6587,12 +6927,12 @@ const HP_TEMAS={
     pv:{ head:"#fff", headInk:"#111827", bg:"#f5f6fa", card:"#fff", acc:"#4f46e5", nav:"#fff", ink:"#111827", line:"#e6e8f0" } },
   nocturno:{ nombre:"Nocturno", lema:"Modo oscuro con acento menta", desc:"Superficies oscuras, texto claro y acento menta. Descansa la vista en turnos largos y luce en pantallas grandes.", meta:"#0b1220", icono:["#0f172a","#0d9488"],
     pv:{ head:"#0f172a", headInk:"#e6edf3", bg:"#0b1220", card:"#121a2a", acc:"linear-gradient(135deg,#14b8a6,#0891b2)", nav:"#0f172a", ink:"#e6edf3", line:"#1f2b3d" } },
-  fresco:{ nombre:"Fresco", lema:"Verde esmeralda y lima", desc:"La imagen de un mercado fresco: verdes vivos, bordes muy redondeados y aire amable.", meta:"#047857", icono:["#059669","#84cc16"],
-    pv:{ head:"linear-gradient(90deg,#047857,#4d7c0f)", headInk:"#fff", bg:"#f2faf5", card:"#fff", acc:"linear-gradient(135deg,#059669,#65a30d)", nav:"#fff", ink:"#0f1f17", line:"#dcebe2" } },
+  fresco:{ nombre:"Fresco", lema:"Turquesa y azul petróleo", desc:"Colores inspirados en el logo de Hipposupermarket, con superficies claras.", meta:"#086673", icono:["#086673","#35b4c1"],
+    pv:{ head:"#153943", headInk:"#fff", bg:"#eff7f8", card:"#fff", acc:"#086b78", nav:"#fff", ink:"#132f35", line:"#d2e6e9" } },
   corporativo:{ nombre:"Corporativo", lema:"Azul marino sobrio con dorado", desc:"Aspecto ejecutivo: azul marino, bordes más rectos y detalles dorados. Pensado para gerencia y reportes.", meta:"#0f1f3d", icono:["#1e3a8a","#2563eb"],
     pv:{ head:"#0f1f3d", headInk:"#fff", bg:"#f3f5f9", card:"#fff", acc:"linear-gradient(135deg,#1e3a8a,#2563eb)", nav:"#fff", ink:"#0f1b33", line:"#dfe4ec" } }
 };
-const HP_TEMA_DEF="cristal";
+const HP_TEMA_DEF="fresco";
 function temaActual(){ let t=""; try{ t=localStorage.getItem("hp_tema")||""; }catch(e){} if(!HP_TEMAS[t]) t=document.documentElement.getAttribute("data-theme")||HP_TEMA_DEF; return HP_TEMAS[t]?t:HP_TEMA_DEF; }
 function aplicarTema(id, opts){ opts=opts||{}; if(!HP_TEMAS[id]) id=HP_TEMA_DEF;
   document.documentElement.setAttribute("data-theme",id);
